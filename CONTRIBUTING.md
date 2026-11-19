@@ -80,6 +80,10 @@ Every change that should reach npm ships with a changeset:
 pnpm changeset            # pick the packages, the bump and write the summary
 ```
 
+CI fails a pull request that changes a package's `src/`, `package.json` or README
+without a changeset. If the change should not be released, ask a maintainer to add the
+`skip-changeset` label.
+
 Maintainers run `pnpm version-packages` (applies the changesets: versions,
 CHANGELOGs, lockfile) and commit it. When CI passes on `main`, the Release workflow
 (`.github/workflows/release.yml`) publishes the new versions to npm through trusted

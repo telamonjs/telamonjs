@@ -44,3 +44,32 @@ jobs:
       - run: pnpm docs:build
       - run: pnpm --filter @telamonjs/ui test:coverage --run
       - run: pnpm --filter @telamonjs/ui build-storybook
+
+  # A pull request that changes what ships to npm must carry a changeset, or the
+  # change would land on main and never be released. Skipped for Dependabot and
+  # for PRs labelled `skip-changeset`.
+  changeset:
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      !contains(github.event.pull_request.labels.*.name, 'skip-changeset')
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          fetch-depth: 0
+      - name: Require a changeset when published files change
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE"...HEAD)
+          shipped=$(echo "$changed" | grep -E '^packages/[^/]+/(src/|package\.json$|README\.md$)' | grep -vE '\.(test|spec)\.[jt]sx?$|/__tests__/|/test/' || true)
+          # a pending changeset, or one already applied by `pnpm version-packages` (CHANGELOG bumped)
+          changesets=$(echo "$changed" | grep -E '^\.changeset/.+\.md$|^packages/[^/]+/CHANGELOG\.md$' | grep -v '^\.changeset/README\.md$' || true)
+          if [ -n "$shipped" ] && [ -z "$changesets" ]; then
+            echo "::error::These files ship to npm but the PR has no changeset. Run \`pnpm changeset\`, or add the \`skip-changeset\` label if no release is needed."
+            echo "$shipped"
+            exit 1
+          fi
+          echo "ok: ${shipped:+changeset present}${shipped:-no published files changed}"
