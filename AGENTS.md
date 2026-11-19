@@ -155,7 +155,9 @@ line — the page renders `title` from the frontmatter. After a docs change, run
 ## Releases
 
 A change that should reach npm ships with a changeset (`pnpm changeset`).
-Maintainers release with `pnpm version-packages` and then `pnpm release`.
+Maintainers run `pnpm version-packages` and commit the result. Once CI passes on `main`,
+the Release workflow publishes every version that is not on npm yet (trusted publishing,
+with provenance) and pushes the `@telamonjs/<pkg>@<version>` tags.
 
 ## Before you finish
 

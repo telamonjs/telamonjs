@@ -8,6 +8,8 @@
 
 ## 1.0.2
 
+Tagged but not published to npm: 1.0.3 includes it.
+
 ### Patch Changes
 
 - `react-grid-layout` is now a dependency instead of an optional peer. The root entry reaches `DashboardGrid`, whose dynamic `import('react-grid-layout')` failed the build ("Module not found") in apps that had not installed it.

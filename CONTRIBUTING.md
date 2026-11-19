@@ -80,9 +80,10 @@ Every change that should reach npm ships with a changeset:
 pnpm changeset            # pick the packages, the bump and write the summary
 ```
 
-Maintainers release with `pnpm version-packages` (applies the changesets:
-versions, CHANGELOGs, lockfile) and then `pnpm release` (build, publish to npm,
-git tags).
+Maintainers run `pnpm version-packages` (applies the changesets: versions,
+CHANGELOGs, lockfile) and commit it. When CI passes on `main`, the Release workflow
+(`.github/workflows/release.yml`) publishes the new versions to npm through trusted
+publishing and pushes the release tags. No npm token is involved.
 
 ## Commits and code
 

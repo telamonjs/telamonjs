@@ -7,6 +7,8 @@ the compact sidebar; the preference is read after hydration.
 
 ## 1.0.2 (2026-11-19)
 
+Tagged but not published to npm: 1.0.3 includes it.
+
 `@telamonjs/ui`: `react-grid-layout` is a dependency instead of an optional peer, so apps
 that do not use `DashboardGrid` no longer fail to build with "Module not found".
 
