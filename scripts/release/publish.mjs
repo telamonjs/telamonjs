@@ -13,7 +13,8 @@ const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { encoding: 'utf8'
 
 const isPublished = (name, version) => {
   try {
-    return run('npm', ['view', `${name}@${version}`, 'version']).trim() === version
+    // stderr ignored: a 404 here is the expected "not published yet" answer
+    return run('npm', ['view', `${name}@${version}`, 'version'], { stdio: ['ignore', 'pipe', 'ignore'] }).trim() === version
   } catch {
     return false
   }
