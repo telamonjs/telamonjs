@@ -20896,6 +20896,10 @@ Keep these rules in mind:
   ```
 
   Re-run `pnpm install` after rebuilding the package so the injected copy picks up the new `dist/`.
+  The `@telamonjs/logger` override is required, not optional: in the checkout, `@telamonjs/ui`
+  declares the logger as `workspace:^`, which only resolves through the override. Remove the
+  override and the `file:` entry before committing or building against the registry (a small
+  script run by a git hook can switch the two modes).
 - **One copy of each peer.** Expect the two-copy problems above. Keep the
   `optimizePackageImports` setting, pass the app's client to `AppProviders`, and keep the outer
   `QueryClientProvider`.
