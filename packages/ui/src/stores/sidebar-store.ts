@@ -65,6 +65,11 @@ export const useSidebarStore = create<SidebarStoreState>()(
         {
           name: SIDEBAR_STORAGE_KEY,
           partialize: state => ({ sidebarState: state.sidebarState }),
+          // localStorage is synchronous, so the store would read the saved
+          // preference while being created and the first client render would
+          // differ from the server's (hydration mismatch, shifted Radix ids).
+          // ModernSidebar calls persist.rehydrate() after mount instead.
+          skipHydration: true,
         }
       )
     ),

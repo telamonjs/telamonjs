@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.3 (2026-11-19)
+
+`@telamonjs/ui`: `ModernSidebar` no longer causes a hydration mismatch for users who saved
+the compact sidebar; the preference is read after hydration.
+
 ## 1.0.2 (2026-11-19)
 
 `@telamonjs/ui`: `react-grid-layout` is a dependency instead of an optional peer, so apps

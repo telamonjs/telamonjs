@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useState,
   type CSSProperties,
@@ -11,6 +12,7 @@ import { usePathname } from 'next/navigation'
 import { useMediaQuery } from '../hooks/use-mobile'
 import { useTelamonjsT, useText } from '../i18n/use-t'
 import {
+  useSidebarStore,
   useSidebarState,
   useIsMobileOpen,
   useSidebarActions,
@@ -102,7 +104,11 @@ export function ModernSidebar({
   const effectiveSystemName = systemName ?? t('shell.systemName')
   const pathname = usePathname()
 
-  // Sidebar state
+  // Sidebar state. The saved preference is read after hydration (the store
+  // skips it at creation); the inline preference script avoids a width jump.
+  useEffect(() => {
+    void useSidebarStore.persist.rehydrate()
+  }, [])
   const sidebarState = useSidebarState()
   const isMobileOpen = useIsMobileOpen()
   const menuStack = useMenuStack()

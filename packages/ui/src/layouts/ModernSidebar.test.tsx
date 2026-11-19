@@ -30,6 +30,7 @@ vi.mock('next/navigation', () => ({
 
 // Mock stores
 vi.mock('../stores/sidebar-store', () => ({
+  useSidebarStore: { persist: { rehydrate: vi.fn() } },
   useSidebarState: () => ({ isOpen: true, isCompact: false }),
   useIsMobileOpen: () => false,
   useSidebarActions: () => ({

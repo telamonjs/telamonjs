@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { useSidebarStore } from './sidebar-store'
 import {
   SIDEBAR_COMPACT_ATTR,
@@ -34,5 +34,20 @@ describe('sidebar compact preference before hydration', () => {
     expect(document.documentElement.hasAttribute(SIDEBAR_COMPACT_ATTR)).toBe(
       false
     )
+  })
+})
+
+describe('sidebar store hydration', () => {
+  it('starts with the server default and reads the saved preference only on rehydrate()', async () => {
+    localStorage.setItem(
+      'telamonjs-sidebar-state',
+      JSON.stringify({ state: { sidebarState: 'compact' }, version: 0 })
+    )
+    vi.resetModules()
+    const { useSidebarStore: fresh } = await import('./sidebar-store')
+    // Same as the server render, so the first client render hydrates cleanly
+    expect(fresh.getState().sidebarState).toBe('expanded')
+    await fresh.persist.rehydrate()
+    expect(fresh.getState().sidebarState).toBe('compact')
   })
 })
