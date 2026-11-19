@@ -1,5 +1,10 @@
 # Changelog
 
+## cli 1.0.2 (2026-11-19)
+
+`@telamonjs/cli`: the monorepo template's link mode switches back to the committed or latest
+published `@telamonjs/ui` range, never to an unpublished local version.
+
 ## 1.0.3 (2026-11-19)
 
 `@telamonjs/ui`: `ModernSidebar` no longer causes a hydration mismatch for users who saved
