@@ -180,8 +180,8 @@ each:
 <PeerDeps pkg="ui" />
 
 `xlsx`, `papaparse` and the `jspdf` pair power the export menu every `ListPage`
-toolbar shows. `react-grid-layout` is only needed for `DashboardGrid` (also import
-`react-grid-layout/css/styles.css`), and `@prisma/client` only for the server
+toolbar shows. `DashboardGrid` also needs `import 'react-grid-layout/css/styles.css'`, and
+`@prisma/client` is only needed for the server
 helpers that use it. Tailwind CSS 3 is a dev dependency of your app:
 
 ```bash
@@ -20881,6 +20881,21 @@ Keep these rules in mind:
   TelamonJS checkout before starting the app, and keep `pnpm dev` running in the package you are
   changing. Without a build the app fails with `Cannot find module '@telamonjs/…'`, which is the
   missing build, not a broken import.
+- **Prefer an injected `file:` dependency over `link:`.** With a plain `link:`, `@telamonjs/ui`
+  resolves its peers (`next-intl`, `@tanstack/react-query`, `next-auth`, `next-themes`) from the
+  checkout's own `node_modules`, so the app ends up with two copies and errors like *"context from
+  NextIntlClientProvider was not found"*. With pnpm, point the app at the checkout with
+  `file:` and mark it injected, so the package is copied into the app and resolves the app's peers:
+
+  ```json title="package.json"
+  {
+    "dependencies": { "@telamonjs/ui": "file:../telamonjs/packages/ui" },
+    "dependenciesMeta": { "@telamonjs/ui": { "injected": true } },
+    "pnpm": { "overrides": { "@telamonjs/logger": "link:../telamonjs/packages/logger" } }
+  }
+  ```
+
+  Re-run `pnpm install` after rebuilding the package so the injected copy picks up the new `dist/`.
 - **One copy of each peer.** Expect the two-copy problems above. Keep the
   `optimizePackageImports` setting, pass the app's client to `AppProviders`, and keep the outer
   `QueryClientProvider`.

@@ -1,6 +1,6 @@
 {
   "name": "@telamonjs/ui",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "type": "module",
   "description": "Admin framework for Next.js + React: declarative CRUD (CrudConfig + TanStack Query), 36-type field system, rich dialogs, app shell, dashboards and charts",
   "main": "dist/index.js",
@@ -90,7 +90,6 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@hookform/resolvers": "^5.2.2",
-    "@telamonjs/logger": "workspace:^",
     "@radix-ui/react-accordion": "^1.2.12",
     "@radix-ui/react-alert-dialog": "^1.1.15",
     "@radix-ui/react-aspect-ratio": "^1.1.7",
@@ -118,6 +117,7 @@
     "@react-input/mask": "^2.0.4",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.13.12",
+    "@telamonjs/logger": "workspace:^",
     "@tiptap/core": "^3.7.2",
     "@tiptap/extension-image": "^3.7.2",
     "@tiptap/extension-link": "^3.7.2",
@@ -142,6 +142,7 @@
     "next-themes": "^0.4.6",
     "react-aria": "^3.44.0",
     "react-day-picker": "^9.11.1",
+    "react-grid-layout": "^2.2.4",
     "react-is": "^19.2.0",
     "react-resizable-panels": "^3.0.6",
     "react-stately": "^3.42.0",
@@ -160,7 +161,6 @@
     "papaparse": "^5.5.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0",
-    "react-grid-layout": "^1.5.0 || ^2.0.0",
     "react-hook-form": "^7.0.0",
     "sonner": "^1.7.1 || ^2.0.7",
     "xlsx": "^0.18.0",
@@ -170,9 +170,6 @@
   },
   "peerDependenciesMeta": {
     "@prisma/client": {
-      "optional": true
-    },
-    "react-grid-layout": {
       "optional": true
     }
   },

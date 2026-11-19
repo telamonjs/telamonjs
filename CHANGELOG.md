@@ -1,5 +1,10 @@
 # Changelog
 
+## 1.0.2 (2026-11-19)
+
+`@telamonjs/ui`: `react-grid-layout` is a dependency instead of an optional peer, so apps
+that do not use `DashboardGrid` no longer fail to build with "Module not found".
+
 ## 1.0.1 (2026-11-19)
 
 First public release:

@@ -35,11 +35,10 @@ pnpm add @telamonjs/ui framer-motion jspdf jspdf-autotable next next-auth papapa
 | `next-intl` | `^4.14.0` |
 | `@tanstack/react-query` | `^5.90.2` |
 | `@prisma/client` (optional) | `^5.0.0 \|\| ^6.0.0` |
-| `react-grid-layout` (optional) | `^1.5.0 \|\| ^2.0.0` |
 <!-- /generated:peers -->
 
-`react-grid-layout` is only needed for `DashboardGrid` (also import
-`react-grid-layout/css/styles.css`), and `@prisma/client` only for the
+`DashboardGrid` needs the `react-grid-layout` stylesheet
+(`import 'react-grid-layout/css/styles.css'`), and `@prisma/client` is only needed for the
 `./server` pagination helpers. Then load the styles and the Tailwind preset:
 
 ```tsx

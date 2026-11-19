@@ -519,9 +519,6 @@ describe('AdminForm - Controller Configuration', () => {
     })
 
     it('should handle very long strings in onChange', async () => {
-      // ponytail: typing 5000 chars char-by-char via userEvent is slow under
-      // full-suite coverage instrumentation + CPU contention (maxThreads=4);
-      // raise this test's own timeout rather than the global default.
       const sections: FormSection[] = [
         {
           label: 'Dados',
@@ -533,9 +530,10 @@ describe('AdminForm - Controller Configuration', () => {
 
       const textarea = screen.getByLabelText('Descrição')
 
-      // Type very long string
+      // Paste rather than type: same onChange path, without 5000 key events
       const longString = 'A'.repeat(5000)
-      await user.type(textarea, longString)
+      await user.click(textarea)
+      await user.paste(longString)
 
       expect(textarea).toHaveValue(longString)
 
@@ -548,6 +546,6 @@ describe('AdminForm - Controller Configuration', () => {
 
       const formData = mockAction.mock.calls[0][0] as FormData
       expect(formData.get('descricao')).toBe(longString)
-    }, 20000)
+    })
   })
 })
