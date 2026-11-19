@@ -4,7 +4,9 @@
 
 Please do **not** open a public issue for security problems.
 
-Email **security@telamonjs.com** with:
+Report it privately through GitHub: **Security → Report a vulnerability**
+(https://github.com/telamonjs/telamonjs/security/advisories/new), or email
+**security@telamonjs.com**. Include:
 
 - the affected package and version,
 - a description of the issue and its impact,
