@@ -1,0 +1,233 @@
+---
+title: PieChart
+description: Pie chart component for showing part-to-whole relationships
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Pie chart component built on Recharts for visualizing part-to-whole relationships and proportions. With `innerRadius > 0` it renders as a donut.
+
+<PieChartPreview />
+
+<Callout type='warning' title='Use Sparingly'>
+  Pie charts are best for showing 3-5 categories. For more categories or precise
+  comparisons, consider using [BarChart](/docs/components/bar-chart) instead.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { PieChart } from '@telamonjs/ui'
+
+const data = [
+  { name: 'Desktop', value: 400 },
+  { name: 'Mobile', value: 300 },
+  { name: 'Tablet', value: 200 },
+]
+
+export default function DeviceChart() {
+  return <PieChart data={data} dataKey='value' />
+}
+```
+
+<Callout type='warn' title='The value prop is `dataKey`, colors come from `colors`'>
+  The value field is **`dataKey`** (required), slice colors come from the `colors` array (cycled in
+  data order — a `fill` field on the data is ignored), sizing is `height` + `outerRadius`, and
+  there is no percentage/loading mode.
+</Callout>
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    data: { description: 'Chart data — objects with a label field and a numeric value field', type: 'ChartData[]', required: true },
+    dataKey: { description: 'Field name holding each slice value', type: 'string', required: true },
+    nameKey: { description: 'Field name holding each slice label', type: 'string', default: "'name'" },
+    colors: { description: 'Slice colors, cycled in data order (defaults to the built-in 8-color palette)', type: 'string[]' },
+    height: { description: 'Chart height in pixels', type: 'number', default: '300' },
+    innerRadius: { description: 'Inner radius in px — 0 = pie, greater than 0 = donut', type: 'number', default: '0' },
+    outerRadius: { description: 'Outer radius in px', type: 'number', default: '80' },
+    showLabels: { description: 'Show slice labels next to the slices', type: 'boolean', default: 'true' },
+    showLegend: { description: 'Show the legend', type: 'boolean', default: 'true' },
+    className: { description: 'Additional classes on the wrapper', type: 'string' },
+  }}
+/>
+
+---
+
+## Examples
+
+### Custom Colors
+
+```tsx
+<PieChart
+  data={[
+    { name: 'Product A', value: 400 },
+    { name: 'Product B', value: 300 },
+    { name: 'Product C', value: 200 },
+  ]}
+  dataKey='value'
+  colors={['#3b82f6', '#10b981', '#f59e0b']}
+/>
+```
+
+Colors are applied by position — the first color goes to the first data item.
+
+### Legend Only (no slice labels)
+
+```tsx
+<PieChart data={data} dataKey='value' showLabels={false} />
+```
+
+### Custom Field Names
+
+```tsx
+const traffic = [
+  { source: 'Organic Search', visitors: 12500 },
+  { source: 'Direct', visitors: 8200 },
+]
+
+<PieChart data={traffic} dataKey='visitors' nameKey='source' />
+```
+
+---
+
+## Donut
+
+A donut is `PieChart` with `innerRadius > 0`.
+The ring thickness is `outerRadius - innerRadius`.
+
+<DonutChartPreview />
+
+```tsx
+import { PieChart } from '@telamonjs/ui'
+
+const data = [
+  { name: 'Completed', value: 620 },
+  { name: 'In Progress', value: 210 },
+  { name: 'Pending', value: 120 },
+]
+
+export function TasksChart() {
+  return <PieChart data={data} dataKey='value' innerRadius={60} outerRadius={90} />
+}
+```
+
+### Centered KPI
+
+The component has no center-metric prop. Overlay one with CSS:
+
+```tsx
+<div className='relative'>
+  <PieChart
+    data={data}
+    dataKey='value'
+    innerRadius={60}
+    outerRadius={90}
+    showLabels={false}
+  />
+  <div className='pointer-events-none absolute inset-0 flex flex-col items-center justify-center'>
+    <span className='text-3xl font-bold'>950</span>
+    <span className='text-sm text-muted-foreground'>total tasks</span>
+  </div>
+</div>
+```
+
+### Thin ring
+
+```tsx
+<PieChart
+  data={data}
+  dataKey='value'
+  innerRadius={80}
+  outerRadius={90}
+  showLabels={false}
+  height={260}
+/>
+```
+
+On rings, `showLabels={false}` plus the legend reads cleaner, and a 20-40px ring
+balances legibility and weight.
+
+---
+
+## Complete Example
+
+```tsx title="components/traffic-sources.tsx"
+'use client'
+
+import { PieChart, BaseCard } from '@telamonjs/ui'
+
+interface TrafficSource {
+  name: string
+  value: number
+}
+
+export default function TrafficSources({ data }: { data: TrafficSource[] }) {
+  const total = data.reduce((sum, item) => sum + item.value, 0)
+
+  return (
+    <BaseCard
+      title='Traffic Sources'
+      description={`${total.toLocaleString()} total visitors`}
+    >
+      <PieChart data={data} dataKey='value' height={350} />
+    </BaseCard>
+  )
+}
+```
+
+---
+
+## Best Practices
+
+1. **Limit slices** - 3-5 categories max (combine small slices into "Other")
+2. **Order by size** - Largest slice first (data order = drawing order)
+3. **Use distinct colors** - Pass explicit `colors` when the default palette doesn't fit
+4. **Provide totals** - Show the total value in the surrounding card
+5. **Consider alternatives** - Bar charts are often better for 5+ categories
+
+---
+
+## When NOT to Use Pie Charts
+
+❌ **Don't use when:**
+
+- More than 5-6 categories
+- Precise value comparison needed
+- Values are very similar (hard to distinguish slices)
+- Showing trends over time (use LineChart)
+
+✅ **Use instead:**
+
+- [BarChart](/docs/components/bar-chart) - For comparisons
+- [Donut](#donut) - For emphasis on the total
+- [LineChart](/docs/components/line-chart) - For trends
+
+---
+
+## Accessibility
+
+- Tooltip shows exact values on hover/focus
+- Don't rely on color alone — keep `showLabels` on or pair with a legend
+- Prefer high-contrast custom `colors` when brand colors are too similar
+
+---
+
+## Related Components
+
+- [BarChart](/docs/components/bar-chart) - Better for comparisons
+- [KPICard](/docs/components/kpi-card) - Standalone KPI display
+- [ChartWidget](/docs/components/chart-widget) - Chart inside a dashboard card, and charts the package does not wrap
+
+---
+
+## See Also
+
+- [Recharts Documentation](https://recharts.org/en-US/api/PieChart) - Full API reference
+

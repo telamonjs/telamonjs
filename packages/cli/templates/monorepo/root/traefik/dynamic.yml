@@ -1,0 +1,32 @@
+# {{appName}} — local reverse proxy (optional, for `{{projectName}}.test`).
+#   {{projectName}}.test          → apps/web (127.0.0.1:{{appPort}})
+#   {{projectName}}.test/v1/*     → apps/api (127.0.0.1:{{apiPort}})
+# Symlink this file into your Traefik dynamic config dir and add a TLS cert
+# for {{projectName}}.test (e.g. via mkcert) if you want HTTPS locally.
+#
+# Gotcha: Traefik's default router priority is the RULE LENGTH, not
+# registration order. The `/v1` PathPrefix rule is shorter than the bare
+# Host() rule below, so without an explicit `priority: 100` it can lose to the
+# catch-all router and every API request falls through to the Next.js app.
+http:
+  routers:
+    {{projectName}}-api:
+      rule: "Host(`{{projectName}}.test`) && PathPrefix(`/v1`)"
+      priority: 100
+      service: {{projectName}}-api
+      entryPoints: [web, websecure]
+      tls: {}
+    {{projectName}}-app:
+      rule: "Host(`{{projectName}}.test`)"
+      service: {{projectName}}-app
+      entryPoints: [web, websecure]
+      tls: {}
+  services:
+    {{projectName}}-app:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:{{appPort}}"
+    {{projectName}}-api:
+      loadBalancer:
+        servers:
+          - url: "http://127.0.0.1:{{apiPort}}"

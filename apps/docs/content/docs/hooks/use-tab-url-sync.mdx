@@ -1,0 +1,66 @@
+---
+title: useTabUrlSync
+description: URL-driven tab state with deep-linking and browser history
+---
+
+URL-driven tab state for `ShellPage`/`AdminTabs` dashboards. Encapsulates the "read `?tab` / write `?tab`" pattern that tab dashboards used to hand-roll with `URLSearchParams` + `router.replace`.
+
+The URL is the **single source of truth**: deep-linking to `?tab=x` selects that tab on load, and changing tabs is a `router.push` by default — so the browser Back button returns to the previous tab. Other query params (`?view`, filters) are preserved via merge, so it composes with dialog deep-linking.
+
+```tsx
+'use client'
+
+import { useTabUrlSync, AdminTabs } from '@telamonjs/ui'
+
+const { activeTab, setTab } = useTabUrlSync({ tabs: visibleDefs.map((d) => d.value) })
+
+<AdminTabs tabs={tabs} value={activeTab} onValueChange={setTab} />
+```
+
+---
+
+## Options
+
+```typescript
+interface UseTabUrlSyncOptions {
+  tabs: readonly string[]
+  defaultTab?: string
+  paramKey?: string // default 'tab'
+  history?: 'push' | 'replace' // default 'push'
+}
+```
+
+| Option | Default | Description |
+| --- | --- | --- |
+| `tabs` | - | Valid tab values, in order. Pass the values of the **visible** tabs so a stale/hidden `?tab` falls back gracefully |
+| `defaultTab` | `tabs[0]` | Fallback when the URL has no valid tab |
+| `paramKey` | `'tab'` | Query param name |
+| `history` | `'push'` | `'push'` creates a history entry on tab change (Back returns to the previous tab); `'replace'` keeps the URL in sync without history |
+
+## Return
+
+```typescript
+interface UseTabUrlSyncResult {
+  activeTab: string | undefined // URL is the single source of truth
+  setTab: (value: string) => void // writes ?<paramKey>=<value>, merging other params
+}
+```
+
+---
+
+## When to Use
+
+Any dashboard with tabs built on [ShellPage](/docs/components/shell-page) + [AdminTabs](/docs/components/admin-tabs). Replaces hand-rolled `URLSearchParams` + `router.replace` tab state.
+
+<Callout type='info' title='Invalid tabs fall back'>
+  If the URL carries a `?tab` value that is not in `tabs` (e.g. a tab hidden by
+  permissions), the hook falls back to `defaultTab` instead of rendering an
+  empty panel.
+</Callout>
+
+---
+
+## Related
+
+- [AdminTabs](/docs/components/admin-tabs) — the component this hook drives
+- [useUrlSync](/docs/hooks/use-url-sync) — the underlying URL param hook

@@ -1,0 +1,361 @@
+---
+title: Dashboard Pattern
+description: Viewport-filling dashboards with auto-refresh, fullscreen, and stat cards
+---
+
+Modern dashboard components with auto-refresh, fullscreen, and a glassmorphism aesthetic.
+
+## Overview
+
+`DashboardShell` is a viewport-filling container for dashboards with built-in auto-refresh, fullscreen mode, and status indicators. It orchestrates `DashboardHeader` and `DashboardFullscreen`.
+
+**Key features:**
+
+- **Two layout modes:** `fullHeight` (maps/real-time) vs scroll (grids/reports)
+- **Auto-refresh** with configurable intervals and an on/off toggle in the header
+- **Fullscreen mode** with ESC key support
+- **Status indicators:** online/offline/loading/error with pulse animations
+- Optional **search** input and custom header **actions**
+
+### When to Use
+
+| Scenario | Use DashboardShell? |
+| --- | --- |
+| Map dashboard (full-bleed) | ✅ Yes (`fullHeight={true}`) |
+| Real-time monitoring | ✅ Yes (auto-refresh) |
+| Executive dashboard (grids) | ✅ Yes (`fullHeight={false}`) |
+| Dashboard with tabs | ❌ No — see below |
+| CRUD pages | ❌ No — use `ListPage` |
+| Forms | ❌ No — use `CreateForm`/`EditForm` |
+| Detail pages | ❌ No — use `DetailLayout` |
+
+For tabbed admin pages, prefer the composable shell: [ShellPage](/docs/components/shell-page) + [AdminHeader](/docs/components/admin-header) + [AdminTabs](/docs/components/admin-tabs).
+
+---
+
+## DashboardShell Modes
+
+### fullHeight Mode (maps / real-time)
+
+Use for maps (Google Maps, Mapbox, Leaflet), asset tracking, IoT dashboards, and full-screen visualizations.
+
+- The shell fills its parent's height (`h-full`); the content area is
+  `flex-1 min-h-0 overflow-hidden`, with no default padding (full-bleed)
+- Nested areas that must scroll get their own `overflow-auto`
+- Great for 2-column layouts (map + sidebar)
+
+```tsx
+<DashboardShell fullHeight={true}>
+  {/* Fixed container - no scroll */}
+  <div className='grid grid-cols-2 gap-4 h-full p-4'>
+    {/* Left: map (full-bleed) */}
+    <div className='overflow-hidden rounded-lg border'>
+      <MapComponent />
+    </div>
+
+    {/* Right: scrollable sidebar */}
+    <div className='overflow-auto custom-scrollbar'>
+      <StatsGrid />
+      <AssetList />
+    </div>
+  </div>
+</DashboardShell>
+```
+
+### Scroll Mode (grids / reports)
+
+Use for executive dashboards with many widgets, report pages, and content taller than the viewport.
+The content area is `overflow-visible` and the page scrolls naturally; add your own padding.
+
+```tsx
+<DashboardShell fullHeight={false}>
+  {/* Natural page scroll */}
+  <div className='p-6 space-y-6'>
+    <StatsGrid />
+    <ChartsGrid />
+    <TablesGrid />
+  </div>
+</DashboardShell>
+```
+
+---
+
+## Auto-Refresh Best Practices
+
+### Typical intervals
+
+| Dashboard type | Recommended interval | Rationale |
+| --- | --- | --- |
+| Asset tracking (real-time) | 30s - 1min | Balance freshness vs API load |
+| Monitoring dashboards | 1min - 2min | Reduce server load |
+| Executive dashboards | 5min - 15min | Data changes infrequently |
+| Report dashboards | Disabled (manual) | Data is static |
+
+### How it behaves
+
+- `autoRefresh` defaults to **`true`** and `autoRefreshInterval` to **30000 ms**. With an
+  `onRefresh`, the shell calls it **once on mount**, then on every interval — a report page that
+  should not poll must pass `autoRefresh={false}` (the manual refresh button still works).
+- The header shows a refresh button, an auto-refresh toggle and the last update time whenever
+  `onRefresh` is set. Pass `lastUpdate` to show your data's real timestamp instead of the time
+  of the last call.
+- `onRefresh` is kept in a ref, so an inline arrow function does not restart the interval;
+  `useCallback` is not required.
+- The interval keeps running while the browser tab is hidden.
+
+### Wiring it to React Query
+
+Pass the query's `refetch` — it resolves even when the request fails (the error lands in the
+query state), so a failed refresh never breaks the interval:
+
+```tsx
+const { data, refetch, dataUpdatedAt } = useQuery({ queryKey: ['assets'], queryFn: assetsApi.list })
+
+<DashboardShell
+  title='Assets'
+  onRefresh={refetch}
+  lastUpdate={dataUpdatedAt ? new Date(dataUpdatedAt) : undefined}
+  autoRefreshInterval={60_000}
+>
+```
+
+If polling must stop while the tab is hidden, let React Query poll instead
+(`refetchInterval`, which pauses in background tabs by default) and keep the shell's button
+manual with `autoRefresh={false}`.
+
+### Error handling
+
+An `onRefresh` that throws is not caught by the shell. Handle errors inside it (React Query's
+`refetch` already does), and surface them in the page — the `status='error'` indicator with a
+`statusLabel` is the natural place.
+
+---
+
+## Fullscreen UX
+
+`allowFullscreen` defaults to `true`. Keep it for maps, monitoring, and presentation mode;
+**disable** it for simple stat grids, form-heavy dashboards, or mobile-only pages.
+
+Built-in behavior:
+
+- Without `fullscreenContent`, the shell itself expands to cover the viewport (`fixed inset-0 z-50`).
+- With `fullscreenContent`, that content opens in a separate `DashboardFullscreen` overlay instead,
+  with the same title, icon and status, and the page body stops scrolling while it is open.
+- **ESC always closes** fullscreen, and so does the header button.
+
+Use the `fullscreenContent` prop when the fullscreen version needs a different layout:
+
+```tsx
+<DashboardShell
+  title='My Assets'
+  fullscreenContent={<MapComponent zoom={12} />} // larger map in fullscreen
+>
+  <div className='grid grid-cols-2'>
+    <MapComponent zoom={10} />
+    <AssetList />
+  </div>
+</DashboardShell>
+```
+
+---
+
+## Stat Card Patterns
+
+### Color conventions
+
+| Color | Use case | Examples |
+| --- | --- | --- |
+| **Blue** | Default/neutral | Totals, revenue, general metrics |
+| **Green** | Positive/online/success | Assets online, gains |
+| **Yellow** | Warning/paused | Pending actions, attention needed |
+| **Red** | Error/offline/critical | Assets offline, failures, losses |
+| **Purple** | Special/featured | Premium users, VIP clients |
+| **Orange** | Secondary highlight | Rates, conversion |
+| **Gray** | Disabled/inactive | Archived items |
+
+### Badges
+
+- `success` → positive changes (+10%), goals met
+- `warning` → attention needed, approaching limits
+- `destructive` → critical alerts, negative changes
+
+```tsx
+<StatCard
+  label='Monthly Revenue'
+  value={125430}
+  icon={DollarSign}
+  color='blue'
+  badge={{ text: '+12%', variant: 'success' }}
+/>
+```
+
+### Numbers
+
+`value` is formatted with the locale's separators unless `formatNumber={false}`. Pass a
+pre-formatted string for currency and percentages (`fmt.currency(total)` from `useFormat()`).
+
+### Animation
+
+Enable `animate` for numeric values that change (counters, refresh transitions); disable for string values and performance-critical mobile dashboards. Default duration 500ms (`animationDuration`). Powered by [useAnimatedCounter](/docs/hooks/use-animated-counter).
+
+### Interactive cards
+
+Use `onClick` when a card links to a detail page, filters the dashboard, or opens a modal. The card renders inside a native `<button>`, so it is keyboard-reachable.
+
+---
+
+## Nested Scrolling Pattern
+
+Content inside a fixed-height container will not scroll without the `min-h-0` trick:
+
+```tsx
+// ✅ Proper nested scrolling
+<div className='h-[calc(100vh-7rem)] flex flex-col'>
+  <DashboardHeader />
+
+  {/* KEY: min-h-0 lets the flex child shrink below content size */}
+  <div className='flex-1 min-h-0 overflow-auto'>{/* content scrolls here */}</div>
+</div>
+```
+
+For multi-region scrolling (two independent columns), give each column `overflow-auto` inside a parent grid with `h-full`.
+
+---
+
+## Complete Example: Map Dashboard
+
+```tsx
+'use client'
+
+import { useMemo } from 'react'
+import { DashboardShell, StatCard } from '@telamonjs/ui'
+import { Truck, Activity, Navigation } from 'lucide-react'
+
+export default function AssetsPage() {
+  const { assets, refetch } = useAssets()
+
+  const stats = useMemo(
+    () => ({
+      online: assets.filter((v) => v.status === 'online').length,
+      stopped: assets.filter((v) => v.status === 'stopped').length,
+      offline: assets.filter((v) => v.status === 'offline').length,
+    }),
+    [assets]
+  )
+
+  return (
+    <DashboardShell
+      title='My Assets'
+      description='Real-time monitoring'
+      icon={Truck}
+      status='online'
+      statusLabel={`${stats.online} assets online`}
+      autoRefresh
+      autoRefreshInterval={120000} // 2 minutes
+      onRefresh={refetch}
+      fullHeight
+      allowFullscreen
+    >
+      <div className='grid grid-cols-1 lg:grid-cols-2 gap-4 h-full p-4'>
+        <div className='rounded-lg border overflow-hidden'>
+          <MapComponent assets={assets} />
+        </div>
+
+        <div className='flex flex-col gap-3 overflow-auto custom-scrollbar'>
+          <div className='grid grid-cols-4 gap-2'>
+            <StatCard variant='tinted' size='compact' label='Online' value={stats.online} icon={Activity} color='green' animate />
+            <StatCard variant='tinted' size='compact' label='Stopped' value={stats.stopped} icon={Navigation} color='yellow' animate />
+            <StatCard variant='tinted' size='compact' label='Offline' value={stats.offline} icon={Activity} color='red' animate />
+            <StatCard variant='tinted' size='compact' label='Total' value={assets.length} icon={Truck} color='blue' animate />
+          </div>
+
+          <AssetList assets={assets} />
+        </div>
+      </div>
+    </DashboardShell>
+  )
+}
+```
+
+---
+
+## API Reference
+
+### DashboardShell
+
+```typescript
+interface DashboardShellProps {
+  // Identification
+  title: I18nText
+  description?: I18nText
+  icon?: string | IconComponent // a string resolves through setIconResolver()
+
+  // Status
+  status?: 'online' | 'offline' | 'loading' | 'error' // default: 'online'
+  statusLabel?: I18nText
+
+  // Search
+  searchPlaceholder?: I18nText
+  searchValue?: string
+  onSearchChange?: (value: string) => void
+
+  // Auto-refresh
+  autoRefresh?: boolean // default: true
+  autoRefreshInterval?: number // ms, default: 30000
+  onRefresh?: () => void | Promise<void>
+  lastUpdate?: Date
+
+  // Fullscreen
+  allowFullscreen?: boolean // default: true
+  fullscreenContent?: ReactNode
+
+  // Edit mode (DashboardGrid integration)
+  editable?: boolean
+  onEditToggle?: (enabled: boolean) => void
+
+  // Actions
+  actions?: ReactNode
+
+  // Layout
+  fullHeight?: boolean // default: true
+  className?: string
+  contentClassName?: string
+  children: ReactNode
+}
+```
+
+### StatCard
+
+Same component as [StatCard](/docs/components/stats-card): `label`, `value`, `icon` and `color` are
+required; `variant` (`outlined` (default) | `tinted` | `accent`), `size` (`mini` | `compact` |
+`default`), `subtitle`, `badge`, `formatNumber`, `animate`, `animationDuration`, `onClick`,
+`highlight`, `pulse` and `wrapLabel` are optional.
+
+Other pieces: `DashboardHeader` (status pulse, timestamp, compact actions), `DashboardFullscreen`
+(overlay with ESC and body scroll lock). Both are exported for custom layouts.
+
+---
+
+## Performance Tips
+
+1. **Memoize** derived stats with `useMemo`
+2. **Debounce** search (`useDebounce(search, 300)`)
+3. **Virtualize** long lists (`@tanstack/react-virtual`) inside scrollable sidebars
+
+## Troubleshooting
+
+- **Two requests on page open** → the shell calls `onRefresh` on mount, while the query's first
+  load may still be in flight (`refetch` cancels and restarts it); pass `autoRefresh={false}` if
+  that matters
+- **A report page keeps polling** → `autoRefresh` defaults to `true`; pass `autoRefresh={false}`
+- **Fullscreen doesn't cover everything** → z-index conflict; fullscreen uses `z-50`
+- **Content doesn't scroll in fullHeight mode** → add `overflow-auto` to the nested container (see Nested Scrolling above)
+
+---
+
+## Related
+
+- [ShellPage](/docs/components/shell-page) + [AdminTabs](/docs/components/admin-tabs) — composable shell for tabbed dashboards
+- [useAnimatedCounter](/docs/hooks/use-animated-counter) — the counter animation hook
+- [ListPage Pattern](/docs/patterns/listpage-pattern) — for CRUD list pages
+- [Detail Page](/docs/patterns/detail-page) — for detail pages

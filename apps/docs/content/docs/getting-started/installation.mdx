@@ -1,0 +1,190 @@
+---
+title: Installation
+description: Start a new TelamonJS app with the CLI, or add @telamonjs/ui to an existing Next.js app
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+
+TelamonJS packages are published on the public npm registry under the
+`@telamonjs` scope — no registry configuration or auth token needed.
+
+You need **Node.js 22** or newer. pnpm is the recommended package manager.
+
+---
+
+## New app
+
+The CLI scaffolds a complete Next.js admin: `AdminShell` with a typed menu,
+NextAuth v5 sign-in, Prisma with a Docker Compose database, pt-BR/en/es messages,
+and a reference CRUD module (`src/app/admin/usuarios/`).
+
+```bash
+npx -p @telamonjs/cli create-telamonjs-app my-admin
+```
+
+Unless you pass `--skip-install`, the CLI installs the dependencies, runs
+`git init`, writes `.env`, starts the database with Docker Compose, migrates and
+seeds it. If a step fails (no Docker, for example), it prints the manual steps
+instead. In a terminal it also asks whether you want the monorepo layout.
+Flags:
+
+| Flag | Default | Purpose |
+| --- | --- | --- |
+| `--provider <postgresql\|mysql>` | `postgresql` | Database provider for Prisma and Docker Compose |
+| `--port <port>` | `3001` | Dev server port |
+| `--monorepo` | off | pnpm monorepo instead of a single app: `apps/web`, `apps/api` (NestJS), `apps/jobs` (BullMQ), `packages/shared` (Prisma) |
+| `--skip-install` / `--skip-git` | off | Skip `pnpm install` / `git init` |
+
+Everything below this section is already done in a generated app. Continue with
+the [Quick Start](/docs/getting-started/quick-start).
+
+---
+
+## Existing app
+
+Adding `@telamonjs/ui` to a Next.js app you already have.
+
+<Steps>
+
+<Step>
+
+### Install the package and its peers
+
+```bash
+pnpm add @telamonjs/ui
+```
+
+`@telamonjs/ui` brings its own UI dependencies (Radix, TanStack Table, Zustand,
+Lucide, …). Your app provides the shared ones, so there is a single instance of
+each:
+
+<PeerDeps pkg="ui" />
+
+`xlsx`, `papaparse` and the `jspdf` pair power the export menu every `ListPage`
+toolbar shows. `react-grid-layout` is only needed for `DashboardGrid` (also import
+`react-grid-layout/css/styles.css`), and `@prisma/client` only for the server
+helpers that use it. Tailwind CSS 3 is a dev dependency of your app:
+
+```bash
+pnpm add -D tailwindcss@3 postcss autoprefixer
+```
+
+<Callout type='warn' title='React Query — one instance only'>
+  `@tanstack/react-query` and `next-intl` are peers, never re-exported by the
+  `@telamonjs/ui` barrel: import them directly from your app. Add
+  `@telamonjs/ui` to `experimental.optimizePackageImports` in `next.config`.
+  A second copy of react-query in the module graph shows up as
+  "No QueryClient set". See [Provider Setup](/docs/patterns/provider-setup).
+</Callout>
+
+</Step>
+
+<Step>
+
+### Configure Tailwind CSS
+
+Extend the TelamonJS preset (theme tokens, `darkMode: 'class'`, animations) and
+let Tailwind scan the package:
+
+```typescript title="tailwind.config.ts"
+import type { Config } from 'tailwindcss'
+import telamonPreset from '@telamonjs/ui/tailwind-preset'
+
+const config: Config = {
+  presets: [telamonPreset],
+  content: [
+    './app/**/*.{ts,tsx,mdx}',
+    './components/**/*.{ts,tsx,mdx}',
+    './node_modules/@telamonjs/ui/dist/**/*.{js,mjs}',
+  ],
+}
+
+export default config
+```
+
+Import the framework styles once, in your root layout. They include the
+Tailwind directives and the CSS variables the preset reads:
+
+```tsx title="app/layout.tsx"
+import '@telamonjs/ui/styles'
+```
+
+</Step>
+
+<Step>
+
+### Wrap the app in the providers
+
+`AppProviders` sets up React Query, the theme, the session, i18n and the Zod
+error map in one component:
+
+```tsx title="app/layout.tsx"
+import { AppProviders } from '@telamonjs/ui'
+import '@telamonjs/ui/styles'
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang='en' suppressHydrationWarning>
+      <body>
+        <AppProviders>{children}</AppProviders>
+      </body>
+    </html>
+  )
+}
+```
+
+[Provider Setup](/docs/patterns/provider-setup) covers the full hierarchy:
+passing your own `QueryClient`, messages and locale, and the `AdminShell` layout.
+
+</Step>
+
+<Step>
+
+### Verify
+
+```tsx title="app/test/page.tsx"
+import { Button } from '@telamonjs/ui'
+
+export default function TestPage() {
+  return (
+    <div className='p-8'>
+      <Button>Click me</Button>
+    </div>
+  )
+}
+```
+
+Run `pnpm dev` and open `/test`. A styled button means the package, the styles
+and the preset are wired.
+
+</Step>
+
+</Steps>
+
+---
+
+## Troubleshooting
+
+**Tailwind styles not applying.** The `content` array must include
+`./node_modules/@telamonjs/ui/dist/**/*.{js,mjs}`, and `@telamonjs/ui/styles`
+must be imported once in the root layout.
+
+**Peer dependency warnings.** Install the missing peers from the table above;
+pnpm names each one it could not resolve.
+
+**"Cannot find package '@telamonjs/ui'".** Check that no `.npmrc` or
+`pnpm-workspace.yaml` points the `@telamonjs` scope at another registry, then
+`pnpm install --force`.
+
+**"No QueryClient set".** Two copies of `@tanstack/react-query` are loaded.
+Import it from your app (never through `@telamonjs/ui`), keep a single version in
+the lockfile, and see [Provider Setup](/docs/patterns/provider-setup).
+
+---
+
+## Next steps
+
+- [Quick Start](/docs/getting-started/quick-start) — generate a CRUD module and walk through its config
+- [CrudConfig](/docs/getting-started/crud-config) — the one object behind every module
+- [Components](/docs/components) — everything the package exports

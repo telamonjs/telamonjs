@@ -1,0 +1,277 @@
+---
+title: Detail Views
+description: Read-only views of one record, in the view dialog by default or on a dedicated page, built from the Detail components
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+A detail view shows one record: grouped fields, status, stats and actions. In a
+TelamonJS module it opens in the **view dialog** of the list by default. A
+dedicated `[id]` page is the exception, for views that outgrow a dialog.
+
+---
+
+## Where a detail view lives
+
+| Case | Use | Config |
+| --- | --- | --- |
+| Up to 5 sections (default) | A `<EntityDetail />` component in the view dialog, with `ContentTabs` for sections | `dialogs.view.renderContent` |
+| 6 or more sections | A section launcher inside the dialog | `dialogs.view.portal` |
+| A page with its own URL, dashboards or sub-resources | A dedicated `[id]/page.tsx` built on `DetailLayout` | none (see [Dedicated page](#dedicated-page)) |
+
+The record comes from `mutations.getForView` when the dialog opens, so the
+detail component receives a loaded entity and only renders it.
+
+---
+
+## The components
+
+You own the JSX; the components give you the layout and the visual language. Each
+one has its own page with the full props.
+
+| Component | Purpose |
+| --- | --- |
+| [DetailLayout](/docs/components/detail-layout) | Page shell: title, header actions, alerts, 2/3/4-column layouts, footer |
+| [DetailCard](/docs/components/detail-card) | Section card with title, icon, optional `headerBadge`; renders `fields` or children |
+| [DetailCardHeader](/docs/components/detail-card-header) | The card header on its own, for custom cards |
+| [DetailField](/docs/components/detail-field) | Label + value, optional icon |
+| [DetailAvatar](/docs/components/detail-avatar) | Avatar with name/subtitle, initials fallback, optional zoom |
+| [DetailStatsGrid](/docs/components/detail-stats-grid) | Grid of stat tiles |
+| [DetailStatus](/docs/components/detail-status) | Status badge driven by a status → config map |
+| [DetailAlert](/docs/components/detail-alert) | Inline danger/warning/info/success block |
+| [DetailActions](/docs/components/detail-actions) | Card with a stack (or row) of action buttons |
+
+All of them are exported by `@telamonjs/ui` and by the `@telamonjs/ui/detail`
+entry point. Text props typed `I18nText` accept a plain string or a `msg()`
+reference.
+
+`DetailPage` is a declarative wrapper configured with a `fieldGroups` array. It
+fits only flat field lists: it does not compose with `DetailCard`/`DetailField`
+and has no custom footer.
+
+---
+
+## In the view dialog (default)
+
+```tsx title="app/admin/orders/_components/OrderDetail.tsx"
+'use client'
+
+import { ContentTabs, DetailCard, DetailStatsGrid, DetailStatus, type TabItem } from '@telamonjs/ui'
+import { getIcon } from '@/lib/icons'
+import { orderStatus } from '@/lib/order-status'
+import type { Order } from '@/lib/api/orders-client'
+
+const UserIcon = getIcon('User')
+const MailIcon = getIcon('Mail')
+const PackageIcon = getIcon('Package')
+
+export function OrderDetail({ order }: { order: Order }) {
+  // Fixed height: the dialog must not resize when switching tabs
+  const tabHeight = 'h-[min(600px,60vh)] overflow-y-auto p-6'
+
+  const tabs: TabItem[] = [
+    {
+      value: 'customer',
+      label: 'Customer',
+      icon: 'User',
+      content: (
+        <div className={tabHeight}>
+          <DetailCard
+            title='Customer'
+            icon={UserIcon}
+            headerBadge={<DetailStatus status={order.status} statusConfig={orderStatus} />}
+            fieldLayout='2-col'
+            fields={[
+              { label: 'Name', value: order.customer.name },
+              { label: 'Email', value: order.customer.email, icon: MailIcon },
+            ]}
+          />
+        </div>
+      ),
+    },
+    {
+      value: 'items',
+      label: 'Items',
+      icon: 'Package',
+      content: (
+        <div className={tabHeight}>
+          <DetailStatsGrid
+            stats={[
+              { label: 'Items', value: order.items.length, icon: PackageIcon },
+              { label: 'Shipping', value: order.shippingStatus, color: 'info' },
+            ]}
+          />
+        </div>
+      ),
+    },
+  ]
+
+  return <ContentTabs tabs={tabs} defaultValue='customer' flush />
+}
+```
+
+```tsx title="app/admin/orders/config.tsx (excerpt)"
+dialogs: {
+  view: {
+    urlParam: 'view',
+    title: 'Order',
+    headerConfig, // icon, iconColor, title, gradient, badge
+    renderContent: order => <OrderDetail order={order} />,
+  },
+},
+```
+
+`telamonjs lint` checks this shape: the view dialog needs a `headerConfig` and a
+`renderContent` (or `portal`), the detail component uses `ContentTabs` rather than
+raw `Tabs`, each tab has a fixed height, and more than 5 tabs should become a
+`portal`. See the [rule table](/docs/packages/cli#lint).
+
+### Status maps
+
+Keep the `DetailStatus` map in a file next to the module and pass it in:
+
+```tsx title="lib/order-status.ts"
+import type { StatusConfig } from '@telamonjs/ui'
+import { getIcon } from '@/lib/icons'
+
+export const orderStatus: Record<string, StatusConfig> = {
+  PENDING: { label: 'Pending', variant: 'secondary', icon: getIcon('Clock') },
+  PAID: { label: 'Paid', variant: 'default', icon: getIcon('CheckCircle') },
+  CANCELLED: { label: 'Cancelled', variant: 'destructive', icon: getIcon('XCircle') },
+}
+```
+
+Helpers that derive a status from several fields (`paidAt`, `cancelledAt`) belong
+in the same file, not inline in the component.
+
+---
+
+## Dedicated page
+
+A dedicated `[id]/page.tsx` is a Client Component that loads the record through the
+module's API client and lays it out with `DetailLayout`:
+
+```tsx title="app/admin/orders/[id]/page.tsx"
+'use client'
+// telamonjs-lint-disable-file no-crud-pages
+
+import { use } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { DetailActions, DetailCard, DetailLayout, DetailStatus } from '@telamonjs/ui'
+import { getIcon } from '@/lib/icons'
+import { ordersApi } from '@/lib/api/orders-client'
+import { orderStatus } from '@/lib/order-status'
+
+export default function OrderPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params) // route params are a Promise
+  const { data: order, isLoading } = useQuery({
+    queryKey: ['orders', id],
+    queryFn: () => ordersApi.getById(id),
+  })
+
+  if (isLoading) return <div className='p-8'>Loading...</div>
+  if (!order) return <div className='p-8'>Order not found</div>
+
+  return (
+    <DetailLayout
+      title={`Order #${order.number}`}
+      alerts={
+        order.status === 'PENDING'
+          ? [{ variant: 'warning', title: 'Pending payment', message: 'This order is awaiting payment.' }]
+          : []
+      }
+      leftColumn={
+        <DetailCard
+          title='Customer'
+          icon={getIcon('User')}
+          headerBadge={<DetailStatus status={order.status} statusConfig={orderStatus} />}
+          fields={[
+            { label: 'Name', value: order.customer.name },
+            { label: 'Email', value: order.customer.email },
+          ]}
+        />
+      }
+      rightColumn={
+        <DetailActions
+          title='Actions'
+          actions={[{ label: 'Print invoice', icon: getIcon('Printer'), href: `/admin/orders/${order.id}/invoice` }]}
+        />
+      }
+    />
+  )
+}
+```
+
+- **`queryKey: ['orders', id]`** is the per-record key. Mutations elsewhere
+  invalidate `['orders']`; after a mutation on this page, invalidate both.
+- **Destructive actions** ask for confirmation, then invalidate the list key and
+  navigate back to the list.
+
+### Server Component + client child
+
+A module that fetches on the server renders a client child, because a component
+cannot be both `async` and `'use client'`:
+
+```tsx title="[id]/page.tsx (Server Component)"
+import { notFound } from 'next/navigation'
+import { getOrder } from '@/services/orders'
+import { OrderDetail } from './OrderDetail' // 'use client'
+
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  const order = await getOrder(id)
+  if (!order) notFound()
+  return <OrderDetail order={order} />
+}
+```
+
+<Callout type='warn' title='Only plain data crosses the server/client boundary'>
+  - **Icons**: a Lucide icon is a React component. Passing `icon={User}` from the Server page
+    throws `Only plain objects can be passed to Client Components`. Use icons only in the client
+    child.
+  - **Non-plain values**: Prisma `Decimal` (money, percentages) and other class instances fail
+    the same way. Convert them on the server first (`Number(product.price)`, or a serializer).
+</Callout>
+
+---
+
+## Best practices
+
+- **Type the entity** with the interface from the module's API client instead of
+  redeclaring it.
+- **Render nested values, not objects**: `value={order.customer.name}`, never
+  `value={order.customer}`.
+- **Announce abnormal states**: an inactive or blocked record gets an alert
+  (`DetailLayout`'s `alerts`, or a `DetailAlert`), not a buried badge.
+- **Format through the app**: dates and money go through `useFormat()`, never a
+  hardcoded locale.
+- **Icons come from the app's registry** (`getIcon('Name')`) or are imported
+  individually; `import * as Icons` breaks tree-shaking.
+
+---
+
+## Troubleshooting
+
+**"Element type is invalid" on an icon.** The icon is undefined: a namespace
+import, a typo in the registry name, or a name missing from the app's icon
+registry.
+
+**The detail shows stale data after editing.** The edit invalidated only the list
+key. Invalidate the record key too:
+
+```ts
+await queryClient.invalidateQueries({ queryKey: ['orders', id] })
+await queryClient.invalidateQueries({ queryKey: ['orders'] })
+```
+
+**The dialog jumps in height between tabs.** Give every tab body the same fixed
+height (`h-[min(600px,60vh)] overflow-y-auto`).
+
+---
+
+## Related
+
+- [Module structure](/docs/patterns/admin-module-structure): where the detail component lives
+- [Dialogs](/docs/patterns/dialogs): view dialog options, `headerConfig`, `portal`
+- [Standalone form pages](/docs/patterns/edit-page): the edit page next to a dedicated detail page
+- [List pages](/docs/patterns/listpage-pattern): the list that opens the view dialog

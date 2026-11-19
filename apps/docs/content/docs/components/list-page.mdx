@@ -1,0 +1,245 @@
+---
+title: ListPage
+description: Complete list page rendered from a single CrudConfig — search, sort, pagination, dialogs
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Complete list page component driven by a single `CrudConfig` — built-in search, sorting,
+pagination, row/header actions, and CRUD dialogs.
+
+`ListPage` takes a single `config: CrudConfig<T, TFormData>` prop: title, columns, data and
+loading all live in `config`.
+
+---
+
+## Basic Usage
+
+Data loading, search, and mutations all come from `config` — built with React Query
+(`config.query.queryFn` fetches from your REST API; `config.mutations.*` handle create/update/delete).
+
+```tsx title="config.tsx"
+'use client'
+import { type CrudConfig } from '@telamonjs/ui'
+import { usersApi } from '@/lib/api/users-client'
+
+export const config: CrudConfig<User, UserFormData> = {
+  module: { name: 'users', title: 'Users', description: 'Manage system users', route: '/admin/users' },
+  list: { title: 'Users', description: 'Registered users', columns, searchPlaceholder: 'Search by name or email...' },
+  form: { sections, validation: validationSchema },
+  // queryFn resolves PaginatedResponse<User> ({ data, total, page, totalPages })
+  query: { queryKey: ['users'], queryFn: usersApi.list },
+  mutations: {
+    // mutationFn resolves { success, data? } — shape it here, not in the API client
+    create: {
+      mutationFn: async (data) => ({ success: true, data: await usersApi.create(data) }),
+      invalidates: [['users']],
+    },
+    update: {
+      mutationFn: async ({ id, data }) => ({ success: true, data: await usersApi.update(id, data) }),
+      invalidates: [['users']],
+    },
+    delete: {
+      mutationFn: async ({ id }) => {
+        await usersApi.delete(id)
+        return { success: true }
+      },
+      invalidates: [['users']],
+    },
+  },
+}
+```
+
+```tsx title="page.tsx"
+import { ListPage } from '@telamonjs/ui'
+import { config } from './config'
+
+export default function UsersPage() {
+  return <ListPage config={config} />
+}
+```
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    config: {
+      description: 'Complete CRUD configuration — module/list/form/query/mutations',
+      type: 'CrudConfigWithAnyForm<TData>',
+      required: true,
+    },
+    tableId: {
+      description: 'Unique table ID for the Zustand store',
+      type: 'string',
+      default: 'config.module.route',
+    },
+    urlSync: {
+      description: 'Sync pagination/search/sort state with URL query params',
+      type: 'boolean',
+      default: 'false',
+    },
+    embedded: {
+      description: 'Render without the page chrome — for use inside a tab (AdminTabs)',
+      type: 'boolean',
+      default: 'false',
+    },
+  }}
+/>
+
+Use `CrudConfigWithAnyForm<TData>` (not `as any`) when a helper needs to accept a config with
+any form-data shape — `TFormData` on `CrudConfig` is invariant.
+
+<details>
+<summary>Full interface (includes filters, bulk actions, toolbar slots)</summary>
+
+```typescript
+interface ListPageProps<TData> {
+  config: CrudConfigWithAnyForm<TData>
+  tableId?: string
+  urlSync?: boolean
+  urlFilters?: Record<string, 'string' | 'number'>
+  cardComponent?: ComponentType<{ data: TData; onClick?: (data: TData) => void }>
+  className?: string
+  onRefreshAction?: () => Promise<void | { success: boolean }>
+  filterOptions?: ColumnFilterConfig
+  loadFilterOptions?: () => Promise<ColumnFilterConfig>
+  enableBulkActions?: boolean
+  bulkActions?: BulkAction<TData>[]
+  headerActions?: Array<{
+    label: string
+    icon?: ReactNode
+    onClick: () => void
+    variant?: 'default' | 'destructive' | 'outline' | 'secondary' | 'ghost'
+    loading?: boolean
+  }>
+  disableAutoRefresh?: boolean
+  errorBoundary?: boolean
+  errorFallback?: ReactNode
+  toolbarPrepend?: ReactNode
+  toolbarContent?: ReactNode
+  filtersPanel?: ReactNode
+  activeFilters?: Array<{ key: string; label: string; onRemove: () => void }>
+  onClearFilters?: () => void
+  footerContent?: ReactNode
+  embedded?: boolean
+  dialogUrlSync?: boolean // default true
+}
+```
+
+</details>
+
+---
+
+## Column Definitions
+
+`config.list.columns` takes `CrudColumnDef<T>` — a TanStack Table column definition whose
+`header` also accepts an `I18nText`:
+
+```tsx title="config.tsx"
+import type { CrudColumnDef } from '@telamonjs/ui'
+
+export const columns: CrudColumnDef<User>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  {
+    accessorKey: 'role',
+    header: 'Role',
+    cell: ({ row }) => {
+      const role = row.original.role
+      return <Badge variant={role === 'ADMIN' ? 'default' : 'secondary'}>{role}</Badge>
+    },
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Created At',
+    cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+  },
+]
+```
+
+---
+
+## Row and Header Actions
+
+Row actions live in `config.actionsConfig` (`DataTableActionsConfig`); toolbar buttons are the
+`headerActions` prop of `ListPage`:
+
+```tsx title="config.tsx"
+export const config: CrudConfig<User, UserFormData> = {
+  // ...
+  actionsConfig: {
+    custom: [
+      { id: 'open-page', label: 'Open page', href: row => `/admin/users/${row.id}` },
+      { id: 'reset', label: 'Reset password', onClick: row => resetPassword(row.id), variant: 'destructive' },
+    ],
+  },
+}
+```
+
+```tsx title="page.tsx"
+<ListPage
+  config={config}
+  headerActions={[{ label: 'Import', onClick: handleImport, variant: 'outline' }]}
+/>
+```
+
+`create`/`update`/`delete` row and header actions (edit/view/create dialogs) are wired
+automatically from `config.dialogs` and `config.mutations` — see the
+[Dialog Pattern](/docs/patterns/listpage-pattern#dialogs) and
+[ListPage Pattern](/docs/patterns/listpage-pattern) for the full dialog configuration.
+
+---
+
+## Embedded (Dashboard Tabs)
+
+Inside a tabbed dashboard (`ShellPage` + `AdminHeader` + `AdminTabs`), render the list with
+`embedded` to drop the outer page chrome:
+
+```tsx
+<ListPage config={config} embedded />
+```
+
+---
+
+## Features
+
+**Built-in:**
+
+- ✅ Pagination (client or server-side, driven by `config.query`)
+- ✅ Search (debounced)
+- ✅ Sorting (click column headers)
+- ✅ Filtering (column filters and `list.toolbar.filters`)
+- ✅ Row actions (contextual menu) and header actions (toolbar buttons)
+- ✅ Create/edit/view/delete dialogs from `config.dialogs` + `config.mutations`
+- ✅ Mobile-responsive (switches to cards)
+- ✅ Loading, empty, and error states
+
+---
+
+## Best Practices
+
+1. Keep `columns`, `sections`, `validation`, `query`, and `mutations` together in one
+   `config.tsx` (Page Config Pattern)
+2. Use `queryKey`/`invalidates` consistently so mutations refresh the right list
+3. Provide `searchPlaceholder` for better UX
+4. Use `embedded` inside `AdminTabs`, not a standalone page per module
+
+---
+
+## Related Components
+
+- [DataTable](/docs/components/data-table) - Lower-level table (more customization)
+- [MobileCard](/docs/components/mobile-card) - Card component for mobile view
+
+---
+
+## See Also
+
+- [ListPage Pattern](/docs/patterns/listpage-pattern) - Best practices, dialogs
+- [Module Structure](/docs/patterns/admin-module-structure) - Fetch/mutate via CrudConfig
+
+---
+

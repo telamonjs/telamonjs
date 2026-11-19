@@ -1,0 +1,590 @@
+---
+title: Dialogs
+description: Create, edit and view dialogs declared in CrudConfig.dialogs — rich headers, tabs, deep links, portal views, and the standalone components
+---
+
+TelamonJS has three record dialogs. You declare them under `CrudConfig.dialogs` and
+`ListPage` renders, opens and closes them — no `useState`, no handlers:
+
+| Dialog | Opens from | Content | Loads the record with |
+| --- | --- | --- | --- |
+| **Create** | The "New" button | `form.sections` → `CreateForm` | nothing (only `defaultValues`) |
+| **Edit** | The edit row action | `form.sections` → `EditForm` | `mutations.getForEdit(id)` |
+| **View** | The view row action / row click | `renderContent` or a `portal` | `mutations.getForView ?? getForEdit` |
+
+The form inside the create and edit dialogs is the module's form: `form.sections` and
+`form.validation`. `dialogs.*` only describes the dialog around it.
+
+---
+
+## Wiring
+
+```tsx title="config.tsx"
+'use client'
+
+import { type CrudConfig } from '@telamonjs/ui'
+
+export const customersConfig: CrudConfig<Customer, CustomerFormData> = {
+  // ...module/list/query...
+  form: { sections: customerSections, validation: customerSchema },
+
+  mutations: {
+    // mutationFn must resolve { success, message?, data? }
+    create: {
+      mutationFn: async data => ({ success: true, data: await customersApi.create(data) }),
+      invalidates: [['customers']],
+    },
+    update: {
+      mutationFn: async ({ id, data }) => ({ success: true, data: await customersApi.update(id, data) }),
+      invalidates: [['customers']],
+    },
+    getForEdit: customersApi.getById, // the full record the form needs
+  },
+
+  actionsConfig: { standard: { view: true, edit: true, delete: true } },
+
+  dialogs: {
+    create: { title: 'New customer', urlParam: 'create', defaultValues: { active: true } },
+    edit: { title: c => `Edit ${c.name}`, urlParam: 'edit' },
+    view: {
+      title: c => c.name,
+      urlParam: 'view',
+      renderContent: c => <CustomerDetail customer={c} />,
+    },
+  },
+}
+```
+
+```tsx title="page.tsx"
+import { ListPage } from '@telamonjs/ui'
+import { customersConfig } from './config'
+
+export default function CustomersPage() {
+  return <ListPage config={customersConfig} />
+}
+```
+
+`ListPage` has no per-dialog props — everything comes from `config`.
+Submitting calls `mutations.create` / `mutations.update` with the typed form values; the
+list refreshes through `invalidates` (no `router.refresh()`). The dialogs are loaded on
+first open, so a list that never opens one never pays for the form code.
+
+<Callout type='warn' title='Not dialog options'>
+  `sections`, `validation` and `submitText` are **not** keys of `dialogs.*` — the form
+  always comes from `form`, and the submit labels come from the library's i18n
+  messages. To show a different set of fields per dialog, use `editOnly` on sections
+  (below) or `lockedFields`.
+</Callout>
+
+### `dialogs.*` options
+
+| Option | Applies to | Description |
+| --- | --- | --- |
+| `title` | all | `I18nText` or `(item) => string`. Used when there is no rich header |
+| `description` | all | Subtitle under the default title |
+| `headerConfig` | all | Declarative rich header — see [Rich headers](#rich-headers) |
+| `renderHeader` | all | Custom header JSX; wins over `headerConfig` |
+| `size` | all | `'sm' \| 'md' \| 'lg' \| 'xl' \| 'full' \| 'auto'` |
+| `dialogHeight` | all | `'auto'` (default) or `'full'` |
+| `dialogClassName` | all | Extra classes, merged **over** the `size` preset |
+| `urlParam` | all | Deep link query param — see [Deep links](#deep-links) |
+| `useTabs` | create, edit | Force tabs on or off (default: automatic) |
+| `defaultValues` | create | Initial form values |
+| `lockedFields` | edit | Fields shown read-only on edit (e.g. the record's parent); create keeps them editable |
+| `renderContent` | view | The dialog body |
+| `portal` | view | Grid launcher + rail instead of `renderContent` — see [Portal view](#portal-view-6-sections) |
+
+---
+
+## Shared behavior
+
+### Size and height
+
+`size` picks a width preset: `sm` (`max-w-md`), `md` (`max-w-2xl`), `lg` (`max-w-4xl`),
+`xl` (`max-w-6xl`), `full` (`max-w-[95vw]`). The default for create/edit is `'auto'`,
+computed from the form: ≤ 4 fields in one section → `md`, ≤ 10 fields in ≤ 3 sections → `lg`,
+otherwise `xl`. The view dialog defaults to `full`.
+
+```tsx
+dialogs: {
+  edit: {
+    title: 'Edit order',
+    size: 'xl',
+    dialogHeight: 'full',         // h-[min(800px,85vh)], the body scrolls inside
+    dialogClassName: 'max-w-7xl', // merged over the preset; your class wins conflicts
+  },
+}
+```
+
+- `dialogHeight: 'auto'` sizes to the content, capped at 90vh. Use `'full'` instead of
+  hand-written `h-[90vh]`-style classes when the height must stay fixed.
+- `dialogClassName` also reaches the mobile Sheet, minus width/height utilities.
+
+### Desktop and mobile
+
+Create and edit render a centered `Dialog` on desktop and a bottom `Sheet` (90vh, slide-up)
+below the Tailwind `md` breakpoint (768px, via `useIsMobile()`). The config-driven view
+dialog always stays a centered dialog.
+
+### Tabs and the form footer
+
+With more than one section, create/edit switch to tabs automatically when the form has
+**more than 20 fields**; shorter forms render as one page (`useTabs` overrides this). A
+one-page form in a wide dialog (`xl`/`full`) gives sections without an explicit `grid` 3
+columns instead of 2.
+
+The tabbed form generates its own footer:
+
+```
++------------------------------------------------------------------+
+|  < Previous | Next >      [.====....]      | Cancel | Save       |
+|  tab navigation           progress dots      action buttons      |
++------------------------------------------------------------------+
+```
+
+- **Previous / Next** move between sections and disable at the ends.
+- **Progress dots**: one per section, the active one wider; clickable.
+- On mobile only the action buttons remain — the tabs themselves are clickable.
+
+### Unsaved changes
+
+Closing a create or edit dialog with a dirty form — Cancel, ESC, click outside, the X — asks
+"discard changes?" first. A successful save never triggers it. The same guard is exported as
+`useUnsavedChangesGuard` (wired to `AdminForm`'s `onDirtyChange`) for custom screens.
+
+### Deep links
+
+`urlParam` keeps the dialog and the URL in sync in both directions:
+
+- view/edit carry the id (`?view=42`, `?edit=42`); create uses `?create=1`.
+- Opening pushes a history entry, so the browser **Back** button closes the dialog; closing
+  with X/ESC replaces the entry instead.
+- Other params (`?tab`, `?page`, `?sort`, filters) are preserved.
+- If several are present, `edit` wins over `view`, which wins over `create`.
+
+---
+
+## Rich headers
+
+A rich header replaces the default title with an icon, a gradient, a status badge and —
+on the view dialog — stats cards. When one is set, the form inside create/edit switches to
+**flush** mode automatically: no rounded border or shadow around the form, tabs glued to the
+header, footer integrated with the dialog.
+
+### `headerConfig` (declarative)
+
+Prefer `headerConfig`: one object, same shape for all three dialogs.
+
+```tsx
+headerConfig: {
+  icon: 'Building2',            // icon name, resolved like menu icons
+  iconColor: 'blue',
+  title: c => c.name,
+  subtitle: c => `#${c.code}`,  // I18nText or ReactNode, or a function returning either
+  gradient: 'from-blue-50 to-indigo-50',
+  badge: {
+    field: 'active',
+    variants: { true: 'default', false: 'secondary' },
+    labels: { true: 'Active', false: 'Inactive' },
+  },
+  stats: {
+    columns: 3,
+    items: [
+      { label: 'Orders', value: c => c._count?.orders ?? 0, icon: 'ShoppingCart', color: 'blue' },
+      { label: 'Contacts', value: c => c.contacts.length, icon: 'Users', color: 'green' },
+    ],
+  },
+}
+```
+
+`iconColor` and each stat's `color` take a preset (`blue`, `indigo`, `purple`, `violet`,
+`green`, `emerald`, `teal`, `cyan`, `orange`, `amber`, `red`, `rose`, `pink`, `gray`, `slate`).
+A stat can be hidden with `hidden` or turned into a link with `href`.
+
+<Callout type='info' title='Stats are view-only'>
+  Reuse the same `headerConfig` in `create`, `edit` and `view`: the form dialogs drop `stats`
+  on their own — in a form they would repeat the fields being edited.
+</Callout>
+
+### `renderHeader` (custom JSX)
+
+When the declarative shape is not enough, render the header yourself. Create gets no record;
+edit and view get it:
+
+| Dialog | Signature |
+| --- | --- |
+| Create | `() => ReactNode` |
+| Edit, View | `(item: T) => ReactNode` |
+
+```tsx
+import { Badge, getIcon } from '@telamonjs/ui'
+
+const BuildingIcon = getIcon('Building2')
+
+renderHeader: customer => (
+  <div className='border-b bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4'>
+    <div className='flex items-center gap-3'>
+      <div className='flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-blue-600'>
+        <BuildingIcon className='h-6 w-6 text-white' />
+      </div>
+      <div className='min-w-0'>
+        <div className='flex items-center gap-2'>
+          <h2 className='truncate text-lg font-bold'>{customer.name}</h2>
+          <Badge variant={customer.active ? 'default' : 'secondary'}>
+            {customer.active ? 'Active' : 'Inactive'}
+          </Badge>
+        </div>
+        <p className='text-sm text-muted-foreground'>#{customer.code}</p>
+      </div>
+    </div>
+  </div>
+),
+```
+
+`title` stays required as the fallback.
+
+### Gradient convention
+
+| Color | Gradient | Use for |
+| --- | --- | --- |
+| **Blue** | `from-blue-50 to-indigo-50` | Main entities (customer, product) |
+| **Green** | `from-green-50 to-emerald-50` | Financial entities (invoice, payment) |
+| **Purple** | `from-purple-50 to-violet-50` | Settings (alert, parameter) |
+| **Orange** | `from-orange-50 to-amber-50` | Operations (order, shipment) |
+
+---
+
+## Create dialog
+
+```
++--------------------------------------------------------------+
+| [Icon] New customer                                     [X]  |  <- rich header
++--------------------------------------------------------------+
+| | General | | Address | | Contact |                          |  <- tabs (from the form)
++--------------------------------------------------------------+
+| Section description                                          |
+| [ Field 1 * ]  [ Field 2 ]                                   |
++--------------------------------------------------------------+
+| < Previous | Next >  [.====....]        | Cancel | Create    |  <- footer (auto)
++--------------------------------------------------------------+
+```
+
+- Nothing is fetched. Initial values come from `dialogs.create.defaultValues` and from each
+  field's `default`.
+- Sections with `editOnly: true` and fields of `type: 'crud'` are left out — nested rows
+  need a parent id that does not exist yet.
+- On success the dialog closes first; the list refresh runs in the background.
+
+Give each section an `icon` and an optional `description` — they show up in the tabs:
+
+```tsx title="form-sections.tsx"
+import { getIcon, type FormSection } from '@telamonjs/ui'
+
+const FileTextIcon = getIcon('FileText')
+const MapPinIcon = getIcon('MapPin')
+
+export const customerSections: FormSection[] = [
+  {
+    label: 'General',
+    icon: <FileTextIcon className='h-4 w-4' />,
+    description: 'Main customer data',
+    grid: '2',
+    fields: [
+      { name: 'code', label: 'Code', type: 'text', required: true },
+      { name: 'name', label: 'Name', type: 'text', required: true },
+      { name: 'active', label: 'Active', type: 'boolean', default: true },
+    ],
+  },
+  {
+    label: 'Address',
+    icon: <MapPinIcon className='h-4 w-4' />,
+    grid: '3',
+    fields: [
+      { name: 'street', label: 'Street', type: 'text', span: '2' },
+      { name: 'city', label: 'City', type: 'text' },
+    ],
+  },
+]
+```
+
+---
+
+## Edit dialog
+
+```
+1. User clicks Edit (or opens ?edit=<id>)
+2. The dialog opens with the row id (and the clicked row, for the header)
+3. mutations.getForEdit(id) runs — loading state
+4. EditForm renders with the fetched record
+5. Submit → mutations.update.mutationFn({ id, data })
+6. { success: true }  → invalidates refetch the list, the dialog closes
+   { success: false, message } → the message is shown, the dialog stays open
+```
+
+**`getForEdit`** must return the **complete** record — every field the form needs, not
+just the list columns — and **throw** when it does not exist (the dialog shows the error).
+It may return nested data: a field named `customer.name` reads `{ customer: { name } }`
+(see [Nested Data](/docs/patterns/nested-data)).
+
+The dialog always does a fresh fetch on open: the list row is limited to its columns and may
+be stale. That fetch costs one round-trip behind a loading state.
+
+**The header before the fetch.** `ListPage` hands the clicked row to the dialog, merged
+*under* the fetched record: the fetch wins on every key it returns, the row fills the rest.
+So joined or denormalized display fields (a related entity's name that only the list
+returns) still show in a rich header even though `getForEdit` does not return them.
+
+**Edit-only sections.** Nested collections edited in place live in an `editOnly` section:
+
+```tsx
+{
+  label: 'Contacts',
+  icon: <UsersIcon className='h-4 w-4' />,
+  editOnly: true, // hidden in the create dialog
+  fields: [{ name: 'contacts', label: 'Contacts', type: 'crud' /* ... */ }],
+}
+```
+
+See [CRUD Field](/docs/patterns/crud-field) for the field itself.
+
+Errors: Zod errors from `form.validation` render per field before submit; a rejected
+`mutationFn` or `{ success: false, message }` is shown inside the dialog.
+
+---
+
+## View dialog
+
+```
++--------------------------------------------------------------+
+| [Icon] Record name [Badge]        | 17 Orders | 3 Contacts   |  <- rich header + stats
++--------------------------------------------------------------+
+| | Information | | Orders | | History |                       |  <- ContentTabs (flush)
++--------------------------------------------------------------+
+| [ Blue card        ]  [ Green card       ]                   |
++--------------------------------------------------------------+
+| [Delete]                                  [Close] [Edit]     |  <- footer (auto)
++--------------------------------------------------------------+
+```
+
+- The body is `renderContent(item)`; the record comes from `mutations.getForView`, falling
+  back to `getForEdit`.
+- The footer is automatic. **Edit** appears when `dialogs.edit` exists and hands over to the
+  edit dialog. **Delete** appears when `actionsConfig.standard.delete` is set and reuses its
+  label, icon and confirmation.
+
+### Tabbed detail content
+
+For a detail with a few areas (up to ~5), return `ContentTabs` with `flush` so the tabs glue
+to the header, and give each tab a **fixed height** so the dialog does not jump when
+switching tabs:
+
+```tsx title="_components/CustomerDetail.tsx"
+'use client'
+
+import { ContentTabs, SemanticCard, SemanticField, getIcon, type TabItem } from '@telamonjs/ui'
+
+const UserIcon = getIcon('User')
+const PhoneIcon = getIcon('Phone')
+
+// 600px on large screens, 60% of the viewport on small ones; scroll inside
+const tabBody = 'h-[min(600px,60vh)] overflow-y-auto p-6'
+
+export function CustomerDetail({ customer }: { customer: Customer }) {
+  const tabs: TabItem[] = [
+    {
+      value: 'info',
+      label: 'Information',
+      icon: 'Info',
+      content: (
+        <div className={tabBody}>
+          <div className='grid gap-4 md:grid-cols-2'>
+            <SemanticCard title='Identification' icon={UserIcon} color='blue'>
+              <SemanticField label='Name' value={customer.name} />
+              <SemanticField label='Tax ID' value={customer.taxId} mono />
+            </SemanticCard>
+            <SemanticCard title='Contact' icon={PhoneIcon} color='green'>
+              <SemanticField label='Phone' value={customer.phone} icon={PhoneIcon} />
+              <SemanticField label='E-mail' value={customer.email} />
+            </SemanticCard>
+          </div>
+        </div>
+      ),
+    },
+    {
+      value: 'orders',
+      label: 'Orders',
+      icon: 'ShoppingCart',
+      badge: customer._count?.orders,
+      content: <div className={tabBody}><CustomerOrders customerId={customer.id} /></div>,
+    },
+  ]
+
+  return <ContentTabs tabs={tabs} defaultValue='info' flush />
+}
+```
+
+- Put the padding (`p-6`) on each tab's content, not on the tabs.
+- Tune the height to the content: `min(400px,50vh)` for light tabs, `min(700px,70vh)` for heavy ones.
+- `ContentTabs` also takes `variant` (`default`, `underline`, `pill`, `glass`, `gradient`),
+  `compact` and a controlled `value`/`onValueChange`.
+
+`SemanticCard` colors follow a convention: **blue** for identification, **green** for
+contact, **purple** for location (address, coordinates), **orange** for metrics and status.
+
+### Portal view (6+ sections)
+
+With six or more sections a tab row turns into horizontal scrolling. Declare
+`dialogs.view.portal` instead: a grid of section cards first, then the chosen section with a
+side rail ("all sections" returns to the grid). Sections can be **edited inline**.
+
+```tsx title="config.tsx (excerpt)"
+const [generalSection] = customerSections // a FormSection works as a section's `edit`
+
+dialogs: {
+  view: {
+    title: c => c.name,
+    headerConfig: customerHeader,
+    portal: {
+      sections: c => [
+        {
+          value: 'general',
+          label: 'Overview',
+          icon: 'Info',
+          color: 'blue',
+          content: <CustomerOverview customer={c} />,
+          edit: generalSection, // pencil → this section's form → "save section"
+        },
+        {
+          value: 'orders',
+          label: 'Orders',
+          icon: 'ShoppingCart',
+          color: 'purple',
+          badge: c._count?.orders,
+          content: <CustomerOrders customerId={c.id} />, // 1:N lists save on their own
+          padded: false,
+        },
+      ],
+      // receives ONLY this section's fields; ctx has the record id and item
+      onSaveSection: async (values, _section, { id }) =>
+        ({ success: true, data: await customersApi.update(id, values) }),
+    },
+  },
+}
+```
+
+- Per-section validation is derived from `form.validation` — do not repeat it.
+- `portal` and `renderContent` are mutually exclusive; with both, `portal` wins and a dev
+  warning is logged.
+- The portal has **no footer**: editing is per section, deleting lives in the row actions.
+- Leaving a dirty section (switching, back to the grid, closing) asks to discard first.
+- Sections also accept `description` (shown on the grid card), `group` and `padded`
+  (default `true`; pass `false` for lists and full-bleed content). `defaultSection` skips the
+  grid; `columns` caps the grid columns.
+
+<Callout type='warn' title='Record shape vs form shape'>
+  A section's form is filled from the view record. A `relationship` field expects the
+  **id**, while a view record often carries the populated object. Make `getForView` return
+  the ids next to the objects, or the section will start empty.
+</Callout>
+
+### Opening a record from another screen
+
+`CrudViewDialog` is the view dialog of a config, standalone — the same one `ListPage` opens
+(portal or classic). Use it to open a record of another module in place instead of
+navigating away:
+
+```tsx
+import { CrudViewDialog } from '@telamonjs/ui'
+
+<CrudViewDialog config={productsConfig} id={productId} open={open} onOpenChange={setOpen} />
+```
+
+It renders nothing when the config has no `dialogs.view`. The optional `footer` prop takes
+the classic footer actions (`onEdit`, `onDelete`, `deleteLabel`, `deleteIcon`,
+`deleteConfirmation`).
+
+---
+
+## Standalone dialogs
+
+Outside a `ListPage`, render the components directly: `CreateDialog`, `EditDialog`,
+`ViewDialog`, `ViewPortalDialog`. Their data props are plain async functions:
+
+| Prop | Signature | On |
+| --- | --- | --- |
+| `fetchAction` | `(id: string) => Promise<T>` | Edit, View, Portal |
+| `onSubmitValues` | `(values) => Promise<FormActionResult<T> \| void>` | Create, Edit — **preferred**, typed values |
+| `createAction` / `updateAction` | `(formData: FormData) => Promise<FormActionResult<T>>` | Create / Edit — FormData handler |
+| `onSaveSection` | `(values, section, ctx) => Promise<FormActionResult>` | Portal |
+
+`FormActionResult` is `{ success, message?, data? }`. On edit, `values` includes the record
+`id`. The other props mirror the config options above (`sections`, `validation`, `title`,
+`headerConfig`, `renderHeader`, `size`, `dialogHeight`, `dialogClassName`, `useTabs`,
+`lockedFields`, `defaultValues`). `EditDialog` also takes `headerRow` (the row merged under the
+fetch, as `ListPage` does) and `headerData` (replaces the fetched record for the header).
+
+```tsx
+'use client'
+
+import { EditDialog } from '@telamonjs/ui'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+
+export function EditProduct({ id, onClose }: { id: string | null; onClose: () => void }) {
+  const queryClient = useQueryClient()
+  const update = useMutation({
+    mutationFn: ({ id, ...data }: Record<string, unknown>) => productsApi.update(String(id), data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['products'] }),
+  })
+
+  return (
+    <EditDialog
+      id={id}
+      open={id !== null}
+      onOpenChange={open => !open && onClose()}
+      fetchAction={productsApi.getById}
+      onSubmitValues={async values => ({ success: true, data: await update.mutateAsync(values) })}
+      sections={productSections}
+      validation={productSchema}
+      title='Edit product'
+    />
+  )
+}
+```
+
+`ViewPortalDialog` has no `onEdit`/`onDelete`/`deleteConfirmation` — passing them does not
+compile. Mounted standalone, it also loses what `dialogs.view.portal` gives for free (URL sync,
+row click, the view action override), so prefer the config.
+
+---
+
+## Building a custom dialog
+
+The library dialogs share one footer look. If you build your own around `AdminForm`, keep it:
+
+- Footer: `border-t bg-muted/50 px-6 py-4`, full-bleed with `-mx-6 -mb-6` inside a `px-6` body.
+- Put the form **directly** in the dialog body. A wrapper with its own padding (`px-4`)
+  breaks the negative margins and leaves white gaps at the footer's edges.
+- No bottom padding on the body (`pb-0`), or a gap appears under the footer.
+
+---
+
+## Checklist
+
+- Form fields and validation live in `form`; `dialogs.*` only holds presentation options
+- `getForEdit` returns the full record and throws when it is missing
+- `mutationFn` resolves `{ success, data? }`; `invalidates` lists the list's query key
+- `urlParam` set on dialogs worth linking to
+- Rich header via `headerConfig` (stats only matter on view); `renderHeader` only when needed
+- Sections have an `icon`; nested collections sit in `editOnly` sections
+- View content: `ContentTabs` with `flush` and a fixed tab height up to ~5 areas, `portal` beyond
+- ESC closes, focus is trapped, a dirty form asks before discarding; mobile shows a Sheet for create/edit
+
+---
+
+## Related
+
+- [Form Pattern](/docs/patterns/form-pattern) — `FormSection`, fields, `AdminForm`
+- [ListPage Pattern](/docs/patterns/listpage-pattern)
+- [Nested Data](/docs/patterns/nested-data)
+- [CRUD Field](/docs/patterns/crud-field) — nested rows inside the edit dialog
+- [Detail Page](/docs/patterns/detail-page) — full detail pages

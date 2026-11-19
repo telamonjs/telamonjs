@@ -1,0 +1,303 @@
+---
+title: KPICard
+description: Key Performance Indicator card with trend visualization
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Card component for displaying Key Performance Indicators (KPIs) with a trend badge, a comparison label and an optional footer.
+
+<KpiCardPreview />
+
+<Callout type='info' title='Dashboard Essential'>
+  `KPICard` combines a metric, its trend and a comparison label to show a KPI at a glance.
+  Import it from `@telamonjs/ui` or `@telamonjs/ui/charts`.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { KPICard } from '@telamonjs/ui'
+import { DollarSign } from 'lucide-react'
+
+export default function Dashboard() {
+  return (
+    <KPICard
+      title='Monthly Revenue'
+      value='$45,231'
+      icon={<DollarSign className='w-5 h-5' />}
+      change={12.5}
+      trend='up'
+      changeLabel='vs last month'
+    />
+  )
+}
+```
+
+<Callout type='warn' title='`icon` takes a rendered element'>
+  `icon` is `React.ReactNode` — pass a rendered element (`<DollarSign className="w-5 h-5" />`),
+  not a component reference (`icon={DollarSign}`).
+</Callout>
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    title: { description: 'KPI title', type: 'string', required: true },
+    value: { description: 'KPI value', type: 'string | number', required: true },
+    change: { description: 'Trend percentage (drives the +/- sign and color)', type: 'number' },
+    changeLabel: { description: 'Label next to the change value', type: 'string', default: "'vs. previous period' (localized)" },
+    icon: { description: 'Icon element (already sized/rendered, not a component reference)', type: 'React.ReactNode' },
+    trend: { description: 'Trend direction, controls the trend icon', type: "'up' | 'down' | 'neutral'" },
+    loading: { description: 'Show loading skeleton', type: 'boolean', default: 'false' },
+    className: { description: 'Additional classes', type: 'string' },
+    description: { description: 'Secondary text below the value', type: 'string' },
+    footer: { description: 'Custom content rendered below the description', type: 'React.ReactNode' },
+  }}
+/>
+
+---
+
+## Examples
+
+### Basic KPI
+
+```tsx
+<KPICard title='Total Users' value='2,543' />
+```
+
+### With Icon
+
+```tsx
+import { Users } from 'lucide-react'
+;<KPICard title='Active Users' value='1,892' icon={<Users className='w-5 h-5' />} />
+```
+
+There is no `iconColor`/`iconBackground` prop — style the icon element itself
+(`<Users className="w-5 h-5 text-blue-600" />`) if you need a custom color.
+
+### With Trend
+
+```tsx
+<KPICard
+  title='Revenue'
+  value='$45,231'
+  icon={<DollarSign className='w-5 h-5' />}
+  change={12.5}
+  trend='up'
+  changeLabel='vs last month'
+/>
+```
+
+`trend` (`'up' | 'down' | 'neutral'`) controls the badge color and arrow;
+`change` is the number shown inside it.
+
+<Callout type='warn' title='No `isPositive` override'>
+  `trend='down'` is always rendered red. For metrics where down is good (e.g. bounce rate), compute
+  the visual trend yourself: `trend={bounceRateDelta < 0 ? 'up' : 'down'}`.
+</Callout>
+
+### With Description
+
+```tsx
+<KPICard
+  title='Total Orders'
+  value='1,234'
+  description='Average: 41 per day'
+  icon={<Package className='w-5 h-5' />}
+  change={15.3}
+  trend='up'
+/>
+```
+
+There is no `subtitle` prop — use `description` (rendered below the value).
+
+### With Footer
+
+```tsx
+import { KPICard, Progress } from '@telamonjs/ui'
+
+<KPICard title='Premium Users' value='892' icon={<Star className='w-5 h-5' />} footer={<Progress value={62} />} />
+```
+
+`footer` accepts any `ReactNode`, rendered below a top border — there is no
+built-in `badge` prop; render a `Badge`/`StatusBadge` inside `footer` (or next
+to `title`) if you need one.
+
+### Loading State
+
+```tsx
+<KPICard title='Revenue' value='$45,231' loading={true} />
+```
+
+Shows skeleton animation. There is no `onClick` prop — `KPICard` is not
+interactive; wrap it in a `<Link>`/`<button>` if you need a clickable KPI.
+
+---
+
+## Complete Example
+
+```tsx title="components/revenue-kpis.tsx"
+'use client'
+
+import { KPICard } from '@telamonjs/ui'
+import { DollarSign, TrendingUp, ShoppingCart, Users } from 'lucide-react'
+import { use } from 'react'
+import { getKPIs } from './service'
+
+function trendOf(delta: number): 'up' | 'down' | 'neutral' {
+  return delta > 0 ? 'up' : delta < 0 ? 'down' : 'neutral'
+}
+
+export default function RevenueKPIs() {
+  const kpis = use(getKPIs())
+
+  return (
+    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+      <KPICard
+        title='Total Revenue'
+        value={`$${kpis.revenue.toLocaleString()}`}
+        description={`Goal: $${kpis.revenueGoal.toLocaleString()}`}
+        icon={<DollarSign className='w-5 h-5 text-green-600' />}
+        change={kpis.revenueTrend}
+        trend={trendOf(kpis.revenueTrend)}
+        changeLabel='vs last month'
+      />
+
+      <KPICard
+        title='Conversion Rate'
+        value={`${kpis.conversion.toFixed(2)}%`}
+        icon={<TrendingUp className='w-5 h-5 text-blue-600' />}
+        change={kpis.conversionTrend}
+        trend={trendOf(kpis.conversionTrend)}
+        changeLabel='vs last month'
+      />
+
+      <KPICard
+        title='Total Orders'
+        value={kpis.orders.toLocaleString()}
+        icon={<ShoppingCart className='w-5 h-5 text-purple-600' />}
+        change={kpis.ordersTrend}
+        trend={trendOf(kpis.ordersTrend)}
+        changeLabel='vs last month'
+      />
+
+      <KPICard
+        title='Active Customers'
+        value={kpis.customers.toLocaleString()}
+        description={`Total: ${kpis.totalCustomers.toLocaleString()}`}
+        icon={<Users className='w-5 h-5 text-orange-600' />}
+        change={kpis.customersTrend}
+        trend={trendOf(kpis.customersTrend)}
+        changeLabel='vs last month'
+      />
+    </div>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Dashboard KPIs** - Executive dashboards
+- **Analytics** - Key metrics overview
+- **Sales dashboards** - Revenue, orders, conversion
+- **Marketing** - Campaign performance
+- **Operations** - Efficiency metrics
+
+---
+
+## Trend Logic
+
+**Automatic coloring (fixed, no override):**
+
+- `trend='up'` → Green badge + up arrow
+- `trend='down'` → Red badge + down arrow
+- `trend='neutral'` → Muted badge + dash
+
+`change` only supplies the number shown inside the trend badge (or, when
+`trend` is omitted, as plain `+X%`/`-X%` text) — it does not drive the color
+by itself. There is no sparkline support on `KPICard`; for a mini chart next
+to a metric, compose your own chart component into `footer`, or use
+[AreaChart](/docs/components/area-chart)/[LineChart](/docs/components/line-chart)
+directly.
+
+---
+
+## Best Practices
+
+1. **Clear titles** - Concise, descriptive metric names
+2. **Format values** - Currency symbols, percentages, units
+3. **Meaningful trends** - Show relevant comparison periods
+4. **Consistent icons** - Use same icon set (Lucide)
+5. **Color coding** - Match icon colors to brand
+6. **Loading states** - Show skeleton while fetching
+7. **Clickable when relevant** - Wrap in a link to the detail page
+
+---
+
+## Grid Layouts
+
+**4-column dashboard:**
+
+```tsx
+<div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6'>
+  <KPICard title='KPI 1' value='100' />
+  <KPICard title='KPI 2' value='200' />
+  <KPICard title='KPI 3' value='300' />
+  <KPICard title='KPI 4' value='400' />
+</div>
+```
+
+**Responsive:**
+
+- Mobile: 1 column
+- Tablet: 2 columns
+- Desktop: 4 columns
+
+---
+
+## Accessibility
+
+- Semantic HTML structure (built on `BaseCard`)
+- Screen reader friendly values
+- Color contrast compliant
+
+---
+
+## Performance
+
+**Optimization:**
+
+- Memoize `footer` content if it renders a chart
+- Wrap in `React.memo` for grids with many cards
+
+```tsx
+import { memo } from 'react'
+
+const MemoizedKPICard = memo(KPICard)
+```
+
+---
+
+## Related Components
+
+- [StatCard](/docs/components/stats-card) - Statistics card
+- [DashboardGrid](/docs/components/dashboard-grid) - Layout for KPIs
+
+---
+
+## See Also
+
+- [Dashboard Pattern](/docs/patterns/dashboard) - Dashboard design
+- KPI Design - Effective KPI visualization
+
+---
+
+**Status:** ✅ Stable

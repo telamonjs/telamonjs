@@ -1,0 +1,109 @@
+---
+title: Components
+description: Every component of @telamonjs/ui, grouped as in the sidebar
+---
+
+Every component is exported by `@telamonjs/ui`; each page lists its props and
+examples. A CRUD module rarely touches most of them directly: `ListPage` renders the
+list, the dialogs and the forms from a [`CrudConfig`](/docs/getting-started/crud-config),
+and [Module structure](/docs/patterns/admin-module-structure) shows a complete module.
+Not sure which one fits? See the [decision trees](/docs/reference).
+
+## Shell & Layout
+
+| Component | What it is |
+| --- | --- |
+| [AdminShell](/docs/components/admin-shell) | The app shell: sidebar, Cmd+K command palette and breadcrumb |
+| [AppShell](/docs/components/app-shell) | Lower-level layout primitive; use `AdminShell` unless it cannot express your shell |
+| [ModernSidebar](/docs/components/modern-sidebar) | Hierarchical sidebar with string icons, composed by `AdminShell` |
+| [CommandPalette](/docs/components/command-palette) | Keyboard-driven palette (Cmd+K) for navigation and actions |
+| [Breadcrumb](/docs/components/breadcrumbs) | Breadcrumb primitives and the route-aware breadcrumb of the shell |
+| [Tabs](/docs/components/tabs) | Tab navigation between related views |
+| [ShellPage](/docs/components/shell-page) | Full-height page container with fullscreen support |
+| [AdminHeader](/docs/components/admin-header) | Page header bar: title, icon, description, status, fullscreen toggle |
+| [AdminTabs](/docs/components/admin-tabs) | `ContentTabs` that fill the height of a shell page |
+| [TabToolbar](/docs/components/tab-toolbar) | Filters, search and actions inside a tab panel |
+
+## CRUD & Data
+
+| Component | What it is |
+| --- | --- |
+| [ListPage](/docs/components/list-page) | The list of a module, rendered from its `CrudConfig`, with its dialogs |
+| [DataTable](/docs/components/data-table) | Table with sorting, filtering, pagination and row selection |
+| [MobileCard](/docs/components/mobile-card) | Card rendering of table rows on small screens |
+
+## Standalone Pages
+
+Create, edit and view happen in dialogs by default. These pages are for forms that
+outgrow a dialog; see [Standalone form pages](/docs/patterns/edit-page).
+
+| Component | What it is |
+| --- | --- |
+| [CreatePage](/docs/components/create-page) | Page wrapper for a create form |
+| [EditPage](/docs/components/edit-page) | Page wrapper for an edit form, with tabs |
+| [BaseFormPage](/docs/components/base-form-page) | The shared base of both, for full control |
+
+## Forms
+
+| Component | What it is |
+| --- | --- |
+| [Form](/docs/components/form) | The form engine behind every form: sections, field types, validation |
+| [CreateForm](/docs/components/create-form) | Create form that drops `editOnly` fields |
+| [RichSelector](/docs/components/rich-selector) | Searchable selector with a detail line per option and server search |
+| [EditForm](/docs/components/edit-form) | Edit form that requires `id` and `data` |
+| [ZustandForm](/docs/components/zustand-form) | Store-backed form for wizards and state read outside the form |
+
+## Detail
+
+| Component | What it is |
+| --- | --- |
+| [DetailLayout](/docs/components/detail-layout) | Shell of a dedicated detail page, with responsive columns |
+| [DetailCard](/docs/components/detail-card) | Card grouping related fields |
+| [DetailCardHeader](/docs/components/detail-card-header) | Card header with icon, badge and actions |
+| [DetailField](/docs/components/detail-field) | Label + value, with an optional icon |
+| [DetailStatsGrid](/docs/components/detail-stats-grid) | Grid of metrics |
+| [DetailStatus](/docs/components/detail-status) | Status badge driven by a status map |
+| [DetailAlert](/docs/components/detail-alert) | Contextual message block |
+| [DetailAvatar](/docs/components/detail-avatar) | Avatar with initials fallback and zoom |
+| [DetailActions](/docs/components/detail-actions) | Card of action buttons |
+
+How they fit together: [Detail views](/docs/patterns/detail-page).
+
+## Dashboard
+
+| Component | What it is |
+| --- | --- |
+| [DashboardGrid](/docs/components/dashboard-grid) | Drag-and-drop widget layout |
+| [ChartWidget](/docs/components/chart-widget) | Line, bar or pie chart in a card, and charts the package does not wrap |
+| [StatCard](/docs/components/stats-card) | One metric: label, value, icon, color |
+| [KPICard](/docs/components/kpi-card) | Metric with a trend |
+
+## Charts
+
+| Component | What it is |
+| --- | --- |
+| [LineChart](/docs/components/line-chart) | Trends over time |
+| [BarChart](/docs/components/bar-chart) | Values compared across categories |
+| [AreaChart](/docs/components/area-chart) | Cumulative trends and stacked volumes |
+| [PieChart](/docs/components/pie-chart) | Part-to-whole, and donuts with `innerRadius` |
+
+## Business
+
+| Component | What it is |
+| --- | --- |
+| [Timeline](/docs/components/timeline) | Chronological events |
+| [KanbanBoard](/docs/components/kanban-board) | Drag-and-drop workflow board |
+| [Calendar](/docs/components/calendar) | Date selection and events |
+| [ComparisonTable](/docs/components/comparison-table) | Metrics compared side by side with mini charts |
+| [ProgressTracker](/docs/components/progress-tracker) | Multi-step progress |
+
+## Utilities
+
+| Component | What it is |
+| --- | --- |
+| [DropdownMenu](/docs/components/dropdown-menu) | Menu of actions and options |
+| [QuickActionCard / QuickActionGrid](/docs/components/quick-actions) | Shortcut cards for frequent actions |
+| [ExportButtons](/docs/components/export-button) | CSV, Excel and PDF export |
+| [BaseCard](/docs/components/base-card) | Foundation card |
+| [LoadingSkeleton](/docs/components/loading-skeleton) | Loading placeholders |
+| [StatusBadge](/docs/components/status-badge) | Typed status badges |

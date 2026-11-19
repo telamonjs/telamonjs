@@ -1,0 +1,373 @@
+---
+title: EditPage
+description: Complete page wrapper for edit forms with tabs support
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Complete page wrapper for edit forms with tabs support.
+
+<Callout type='info' title='Dialogs are the default'>
+  Generated CRUD modules create, edit and view records in [dialogs](/docs/patterns/dialogs).
+  `EditPage` is for the cases that need a [standalone form page](/docs/patterns/edit-page).
+</Callout>
+
+---
+
+## Usage
+
+### Basic Example
+
+```tsx title="app/admin/users/[id]/edit/page.tsx"
+import { EditPage } from '@telamonjs/ui'
+import { updateUserAction } from '../../actions'
+import { formSections, validationSchema } from '../../config'
+import { getUser } from '@/services/users'
+
+export default async function EditUserPage({ params }) {
+  const { id } = await params
+  const user = await getUser(id)
+
+  return (
+    <EditPage
+      id={id}
+      data={user}
+      sections={formSections}
+      action={updateUserAction}
+      validation={validationSchema}
+      useTabs={true}
+    />
+  )
+}
+```
+
+---
+
+## Features
+
+### 1. Required Props Enforcement
+
+TypeScript enforces `id` and `data` as required:
+
+```tsx
+// ✅ Correct - id and data required
+<EditPage
+  id={user.id}
+  data={user}
+  sections={formSections}
+  action={updateAction}
+/>
+
+// ❌ Error - TypeScript error without id or data
+<EditPage
+  sections={formSections}
+  action={updateAction}
+/>
+```
+
+### 2. Nested Data
+
+EditPage takes nested data (e.g. a Prisma `include`) as is; fields named with dot notation read and submit the nested values:
+
+```tsx
+// Prisma returns nested data
+const user = await prisma.user.findUnique({
+  where: { id },
+  include: {
+    person: true, // Nested object
+  },
+})
+
+// user = {
+//   id: "1",
+//   person: { name: "John", cpf: "12345" }
+// }
+
+// A field named 'person.name' shows "John";
+// on submit, the FormData carries 'person.name' and 'person.cpf'
+```
+
+So the fields only need the dotted names:
+
+```tsx
+const formSections: FormSection[] = [
+  {
+    label: 'Person',
+    fields: [
+      { name: 'person.name', label: 'Name', type: 'text' },
+      { name: 'person.cpf', label: 'CPF', type: 'text' },
+    ],
+  },
+]
+```
+
+### 3. Tab Support
+
+Enable tabs for complex forms with multiple sections:
+
+```tsx
+<EditPage
+  id={id}
+  data={data}
+  sections={formSections}
+  action={updateAction}
+  useTabs={true} // ← Renders sections as tabs
+/>
+```
+
+### 4. Submit Text
+
+Default submit text is the localized "Save" (`common.save`):
+
+```tsx
+<EditPage
+  id={id}
+  data={data}
+  sections={formSections}
+  action={updateAction}
+  submitText='Update User' // Custom text
+/>
+```
+
+---
+
+## Props
+
+```tsx
+interface EditPageProps<T = Record<string, unknown>> {
+  // Required
+  id: string // Entity ID
+  data: Partial<T> // Entity data (nested data is fine)
+  sections: FormSection[] | readonly FormSection[] // Form sections
+  action: (formData: FormData) => Promise<FormActionResult<T> | void>
+
+  // Validation
+  validation?: z.ZodType // Zod validation schema
+
+  // Layout
+  title?: I18nText // Page title — without it, the form renders with no wrapper
+  description?: I18nText // Shown under the title
+
+  // UI
+  submitText?: I18nText // Default: localized "Save"
+  cancelAction?: () => void // Cancel button handler
+  grid?: string // Grid columns: '1', '2', '3', '4'
+  hideButtons?: boolean // Hide submit/cancel buttons
+  useTabs?: boolean // Render sections as tabs (default: true)
+
+  // Callbacks
+  onSuccess?: (result: FormActionResult<T>) => void
+}
+```
+
+---
+
+## Complete Example
+
+```tsx title="app/admin/processes/[id]/edit/edit-process.tsx"
+'use client'
+
+import { EditPage } from '@telamonjs/ui'
+import { useRouter } from 'next/navigation'
+import { updateProcessAction } from '../../actions'
+import { formSections, validationSchema } from '../../config'
+
+// Rendered by the Server Component page, which fetches `process`
+export function EditProcess({ id, process }) {
+  const router = useRouter()
+
+  return (
+    <EditPage
+      id={id}
+      data={process}
+      title='Edit Process'
+      sections={formSections}
+      action={updateProcessAction}
+      validation={validationSchema}
+      useTabs={true}
+      submitText='Update Process'
+      onSuccess={result => {
+        if (result.success) {
+          router.push(`/admin/processes/${id}`)
+        }
+      }}
+    />
+  )
+}
+```
+
+---
+
+## EditPage vs AdminForm
+
+| Feature               | EditPage      | AdminForm |
+| --------------------- | ------------- | --------- |
+| **Purpose**           | Edit-specific | Generic   |
+| **id prop**           | ✅ Required   | Optional  |
+| **data prop**         | ✅ Required   | Optional  |
+| **Nested data**       | ✅ As is      | ✅ As is  |
+| **Title card**        | ✅ `title`    | ❌        |
+| **Submit text**       | "Save"        | "Save"    |
+| **TypeScript safety** | ✅ High       | ⚠️ Medium |
+| **Use case**          | Edit pages    | Any form  |
+
+**Recommendation:** Use `EditPage` for edit pages: `id` and `data` are required, so a missing record fails at compile time.
+
+---
+
+## Nested Data Pattern
+
+Pass the record as it comes from the database; there is no need to flatten it first:
+
+```tsx
+'use client'
+
+import { EditPage } from '@telamonjs/ui'
+
+export function EditUserForm({ user }) {
+  return (
+    <EditPage
+      id={user.id}
+      data={user} // { person: { name, cpf }, address: { street, city } }
+      sections={formSections} // fields named 'person.name', 'address.city', ...
+      action={updateAction}
+    />
+  )
+}
+```
+
+---
+
+## With Server Actions
+
+```tsx title="app/admin/users/[id]/edit/page.tsx"
+import { EditPage } from '@telamonjs/ui'
+import { updateUserAction } from '../../actions'
+import { formSections } from '../../config'
+import { getUser } from '@/services/users'
+
+export default async function EditUserPage({ params }) {
+  const { id } = await params
+  const user = await getUser(id)
+
+  return (
+    <EditPage
+      id={id}
+      data={user}
+      sections={formSections}
+      action={updateUserAction}
+    />
+  )
+}
+```
+
+```tsx title="actions.ts"
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { updateUser } from '@/services/users'
+
+export async function updateUserAction(formData: FormData) {
+  const id = formData.get('id') as string
+  const data = Object.fromEntries(formData)
+
+  const result = await updateUser(id, data)
+
+  if (result.success) {
+    revalidatePath(`/admin/users/${id}`)
+    revalidatePath('/admin/users')
+  }
+
+  return result
+}
+```
+
+---
+
+## Best Practices
+
+### 1. Always Use for Edit Pages
+
+```tsx
+// ✅ Good - Semantic and type-safe
+<EditPage id={id} data={data} sections={sections} action={updateAction} />
+
+// ❌ Bad - Less semantic
+<AdminForm id={id} data={data} sections={sections} action={updateAction} />
+```
+
+### 2. Enable Tabs for Complex Forms
+
+```tsx
+// ✅ Good - Better UX for 4+ sections
+<EditPage
+  id={id}
+  data={data}
+  sections={formSections}
+  action={updateAction}
+  useTabs={true}
+/>
+```
+
+### 3. Handle Success Callbacks
+
+```tsx
+<EditPage
+  id={id}
+  data={data}
+  sections={sections}
+  action={updateAction}
+  onSuccess={result => {
+    if (result.success) {
+      toast.success('Updated successfully!')
+      router.push(`/admin/entity/${id}`)
+    }
+  }}
+/>
+```
+
+### 4. Fetch Data Server-Side
+
+```tsx
+// ✅ Good - Server Component
+export default async function EditEntityPage({ params }) {
+  const { id } = await params
+  const data = await getData(id)  // Server-side fetch
+
+  return <EditPage id={id} data={data} ... />
+}
+
+// ❌ Bad - Client Component with loading state
+'use client'
+export default function EditEntityPage({ params }) {
+  const [data, setData] = useState(null)
+  useEffect(() => { fetchData() }, [])  // Unnecessary complexity
+
+  if (!data) return <Loading />
+  return <EditPage id={params.id} data={data} ... />
+}
+```
+
+---
+
+## Related Components
+
+- [CreatePage](/docs/components/create-page) - For create pages
+- [AdminForm](/docs/components/form) - Generic form component
+- [CreateForm](/docs/components/create-form) - Create form wrapper
+- [EditForm](/docs/components/edit-form) - Edit form wrapper (lower level)
+
+---
+
+## Related Patterns
+
+- [Module Structure](/docs/patterns/admin-module-structure) - Consolidate form configuration
+- [Form Pattern](/docs/patterns/form-pattern) - Form component guide
+- [Nested Data Pattern](/docs/patterns/nested-data) - Handle nested Prisma data
+
+---
+
+<Callout type='success' title='Recommended'>
+  Use EditPage for standalone edit pages: required `id`/`data`, nested data
+  as is, and an optional title card.
+</Callout>

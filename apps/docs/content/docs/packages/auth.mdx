@@ -1,0 +1,303 @@
+---
+title: Auth
+description: Auth bridge NextAuth v5 ↔ NestJS — shared session-token contract, Nest guard, Next callbacks
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+
+`@telamonjs/auth` (current version: <PkgVersion pkg='auth' />) is the
+**auth bridge between a Next.js app using NextAuth v5 and a NestJS API**. Both
+sides share one session token: the app issues it at login, the API decodes it
+per request — no second login, no token exchange.
+
+The package owns the **token contract**, not the login flow:
+
+- **Isomorphic core** — the `JwtPayload` / `AuthUser` types plus
+  `encodeSessionToken` / `decodeSessionToken` / `payloadToAuthUser` and
+  `createImpersonationToken`
+- **`/next` subpath** — `createAuthCallbacks()` with the canonical claim-copy
+  for the NextAuth `jwt`/`session` callbacks
+- **`/nest` subpath** — `createJwtAuthGuard()` and the `@Public()` decorator
+
+```bash
+pnpm add @telamonjs/auth
+```
+
+Ships dual ESM+CJS builds (NestJS apps on CJS work out of the box). Peer:
+`@auth/core`; the `/nest` subpath additionally expects `@nestjs/common` and
+`@nestjs/core`.
+
+---
+
+## Token Architecture
+
+The session token is the **NextAuth v5 JWE** produced by `@auth/core/jwt` —
+an encrypted JWT, not a signed one. Decryption requires two inputs that MUST
+be identical on both sides:
+
+1. **Secret** — `AUTH_SECRET` (fallback `NEXTAUTH_SECRET`), same value in the
+   Next app and the Nest API.
+2. **Salt** — used in the key derivation. NextAuth uses the session cookie
+   name as the salt, so the default is `'authjs.session-token'` (v5). Apps
+   still serving the legacy v4 cookie use `'next-auth.session-token'`.
+
+```ts
+import { encodeSessionToken, decodeSessionToken } from '@telamonjs/auth'
+
+// Emit a session token outside the browser flow (server-side login, tests,
+// impersonation):
+const token = await encodeSessionToken(payload, { maxAge: 60 * 60 })
+
+// Decode (returns null for invalid/expired tokens):
+const payload = await decodeSessionToken(token)
+```
+
+`TokenConfig` (`secret`, `salt`, `maxAge`) is accepted by every function and
+by the Nest guard; secret defaults to the env vars, salt to the v5 default,
+maxAge to 24h.
+
+### Known trap: which salt does your project use?
+
+<Callout type='error' title='Wrong salt = every token “invalid”'>
+  The salt feeds the JWE key derivation. If the app encodes with one salt and
+  the API decodes with another, decryption fails silently and every request is
+  a 401 — with valid cookies and the correct secret.
+</Callout>
+
+| Project                              | Cookie generation      | Salt to configure               |
+| ------------------------------------ | ---------------------- | ------------------------------- |
+| New apps (CLI template)              | NextAuth v5            | `'authjs.session-token'` (default — configure nothing) |
+| Any app migrated from NextAuth v4 that kept its cookie config | Legacy v4 | `'next-auth.session-token'` |
+
+A related knob on the guard: `cookieNames` controls **where the guard looks
+for the cookie**, independent of the salt. Default:
+`[salt, '__Secure-' + salt]`. A project that decodes with one salt but serves
+a differently-named cookie passes both explicitly (see below).
+
+### The payload contract
+
+`JwtPayload` is the shared shape both sides agree on:
+
+```ts
+import type { JwtPayload } from '@telamonjs/auth'
+
+interface JwtPayload {
+  id: string
+  pessoaId?: string
+  name?: string
+  email: string
+  role: RoleInfo            // { id, name, code }
+  roles?: RoleInfo[]        // multi-role
+  permissions: string[]     // materialized RBAC — see the Permissions package
+
+  clienteIds?: string[]     // optional data-scope claim (app domain)
+
+  sid?: string              // stable per login; copied from `user.sid` by the jwt callback
+
+  // NextAuth claims: sub, iat, exp, jti
+
+  // Impersonation block
+  impersonatedUserId?: string
+  originalUserId?: string
+  // ... originalUserName / Email / Role / Roles / Permissions
+}
+```
+
+`payloadToAuthUser(payload)` maps it to the `AuthUser` the guard attaches to
+`request.user`, normalizing `roles` (falls back to `[role]`) and expanding the
+impersonation block into `isImpersonating` + `originalUser`.
+
+`AuthUser.sessionId` is `sid ?? jti`. NextAuth changes the `jti` on every cookie renewal, so return
+a `sid` from `authorize()` when you need to end a specific session: it stays in the token across
+renewals.
+
+---
+
+## Next.js Setup
+
+The package provides the **callbacks**, the app provides **`authorize()`**:
+how users are verified (password hash, external API, SSO) is app domain. The
+contract is only that `authorize()` returns the canonical claims
+(`SessionClaims`): `id`, `email`, `role`, `roles`, `permissions`, plus
+optionals like `pessoaId` and `accessToken`.
+
+```ts title="auth.ts"
+import NextAuth from 'next-auth'
+import Credentials from 'next-auth/providers/credentials'
+import { createAuthCallbacks } from '@telamonjs/auth/next'
+
+const base = createAuthCallbacks()
+
+export const { handlers, auth, signIn, signOut } = NextAuth({
+  session: { strategy: 'jwt' },
+  providers: [
+    Credentials({
+      async authorize(credentials) {
+        // App domain: verify the user, then return SessionClaims
+        const user = await verifyLogin(credentials)
+        if (!user) return null
+        return {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          role: user.role,                          // { id, name, code }
+          permissions: await getPermissionsForJWT(user), // materialized RBAC
+        }
+      },
+    }),
+  ],
+  callbacks: base, // jwt + session with the canonical claim-copy
+})
+```
+
+`createAuthCallbacks()` returns `{ jwt, session }`:
+
+- **`jwt`** copies the claims from `user` into the token on login (id, role,
+  roles, permissions, accessToken/refreshToken).
+- **`session`** projects the token back into `session.user` and exposes
+  `isImpersonating` / `originalUser` at the session root.
+
+Apps with extra token logic (sliding window, impersonation cookies) compose on
+top instead of replacing:
+
+```ts
+const base = createAuthCallbacks()
+
+callbacks: {
+  jwt: async (args) => {
+    const token = await base.jwt(args)
+    // app-specific claims here
+    return token
+  },
+  session: base.session,
+}
+```
+
+---
+
+## NestJS Setup
+
+`createJwtAuthGuard()` builds the guard class; register it globally and opt
+out per route with `@Public()`:
+
+```ts title="src/common/guards/jwt-auth.guard.ts"
+import { createJwtAuthGuard } from '@telamonjs/auth/nest'
+
+export const JwtAuthGuard = createJwtAuthGuard()
+
+// Legacy v4 cookie project (see the salt table):
+// export const JwtAuthGuard = createJwtAuthGuard({
+//   salt: 'next-auth.session-token',
+//   cookieNames: ['next-auth.session-token', '__Secure-next-auth.session-token'],
+// })
+```
+
+```ts title="src/app.module.ts"
+import { APP_GUARD } from '@nestjs/core'
+import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
+
+@Module({
+  providers: [{ provide: APP_GUARD, useClass: JwtAuthGuard }],
+})
+export class AppModule {}
+```
+
+```ts
+import { Public } from '@telamonjs/auth/nest'
+
+@Public()          // guard lets this route through without a token
+@Post('login')
+login() {}
+```
+
+### Token extraction order
+
+The guard looks for the session token in three places, in priority order:
+
+1. **`Authorization: Bearer <token>`** — the API-client pattern; the Next app
+   forwards its own session JWE as a bearer token.
+2. **`?token=` query param** — for SSE: `EventSource` cannot send custom
+   headers, so streams pass the token in the URL.
+3. **NextAuth cookies** — `cookieNames` (default `[salt, '__Secure-' + salt]`),
+   for same-domain requests with `credentials: 'include'`.
+
+On success the guard attaches the decoded `AuthUser` to `request.user`; any
+failure is a single `UnauthorizedException('Invalid or expired token')`.
+
+Downstream, pair it with the permissions guard from
+[@telamonjs/permissions](/docs/packages/permissions), which reads
+`request.user.permissions`.
+
+---
+
+## Impersonation
+
+Impersonation is encoded **in the token**: when an admin impersonates a user,
+the app re-issues the session token with the target user's claims plus the
+original user's identity preserved in dedicated claims
+(`impersonatedUserId`, `originalUserId`, `originalUserName`,
+`originalUserEmail`, `originalUserRole`, `originalUserRoles`,
+`originalPermissions`).
+
+- `createImpersonationToken({ target, actor, logId })` mints that token
+  server-side: `target` becomes the subject, `actor` fills the `original*`
+  claims, and `logId` is the id of the app's audit record. It expires after
+  1h by default (`DEFAULT_IMPERSONATION_MAX_AGE`). `encodeSessionToken`
+  remains the lower-level primitive.
+- `payloadToAuthUser` surfaces it as `user.isImpersonating = true` and
+  `user.originalUser` — so API audit logs can attribute actions to the real
+  operator while authorization applies the impersonated user's permissions.
+- `createAuthCallbacks().session` exposes the same flags to the Next app
+  (`session.isImpersonating`, `session.originalUser`) for the UI banner and
+  the "stop impersonating" action.
+
+Who may impersonate whom is app policy (typically superadmin-only, and never
+impersonating another superadmin) — the package only carries the state.
+
+---
+
+## Troubleshooting
+
+### Every API request returns 401 with a valid session
+
+Almost always the **salt mismatch** from the table above: the app encodes with
+the legacy v4 salt while the guard decodes with the v5 default (or
+vice-versa). Confirm which cookie name the browser actually stores and pass
+that as `salt` (and `cookieNames`) to `createJwtAuthGuard`.
+
+Second suspect: **different `AUTH_SECRET`** between the Next app and the API —
+they must load the same value.
+
+### 401 only on SSE endpoints
+
+`EventSource` sends no custom headers and, cross-origin, no cookies either.
+Append the session token as `?token=` — extraction priority 2 exists for
+exactly this.
+
+### 401 only in production
+
+Production serves the `__Secure-` cookie prefix over HTTPS. The default
+`cookieNames` covers `__Secure-${salt}`, but if you passed custom
+`cookieNames` remember to include both variants.
+
+### Guard works but `request.user.permissions` is empty
+
+The claims were never copied into the token: `authorize()` didn't return
+`permissions`, or the app replaced the callbacks instead of composing over
+`createAuthCallbacks()`. Log the decoded payload — if `permissions` is missing
+there, the problem is at login time, not in the guard.
+
+### 500 instead of 401 in development
+
+The package is linked instead of installed, so the guard throws an
+`UnauthorizedException` from a second copy of `@nestjs/common`. See
+[NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
+
+---
+
+## Related Links
+
+- [Permissions](/docs/packages/permissions) — the RBAC that fills `permissions[]`
+- [Admin Module Structure](/docs/patterns/admin-module-structure) — where `getCurrentUser()` guards Route Handlers
+- [Troubleshooting](/docs/troubleshooting) — two copies of a peer dependency

@@ -1,0 +1,303 @@
+---
+title: Form Component
+description: Declarative form component with built-in Zod validation
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+The `Form` component (also exported as `AdminForm`) is the foundational form component. It provides a declarative API over the field type system, built-in Zod validation, and a typed submit handler (`onSubmitValues`) that plugs straight into a React Query mutation.
+
+<Callout type='info' title='Semantic Wrappers'>
+  For specific use cases, use [CreateForm](/docs/components/create-form) for
+  creation pages or [EditForm](/docs/components/edit-form) for edit pages. They
+  provide better semantics and TypeScript enforcement.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { Form } from '@telamonjs/ui'
+import { z } from 'zod'
+import { usersApi } from '@/lib/api/users-client'
+
+const validationSchema = z.object({
+  name: z.string().min(1, 'Required'),
+  email: z.string().email('Invalid email'),
+})
+
+export function UserForm() {
+  // Receives the typed, validated values; return { success, data?, message? }
+  async function handleSubmit(values: Record<string, unknown>) {
+    const user = await usersApi.create(values)
+    return { success: true, data: user }
+  }
+
+  return (
+    <Form
+      sections={[
+        {
+          label: 'User Info',
+          fields: [
+            {
+              name: 'name',
+              label: 'Name',
+              type: 'text',
+              required: true,
+            },
+            {
+              name: 'email',
+              label: 'Email',
+              type: 'email',
+              required: true,
+            },
+          ],
+        },
+      ]}
+      onSubmitValues={handleSubmit}
+      validation={validationSchema}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    sections: { description: 'Form sections (grouped fields). Mutually exclusive with fields.', type: 'FormSection[]' },
+    fields: { description: 'Flat field list. Mutually exclusive with sections.', type: 'FormField[]' },
+    action: {
+      description: 'Server Action receiving FormData. Mutually exclusive with onSubmitValues.',
+      type: '(formData: FormData) => Promise<FormActionResult<T> | void>',
+    },
+    onSubmitValues: {
+      description: 'Submit handler receiving typed values directly (React Query / JSON APIs). Mutually exclusive with action.',
+      type: '(values: Record<string, unknown>) => Promise<FormActionResult<T> | void>',
+    },
+    data: { description: 'Initial values for edit mode (supports nested objects)', type: 'Partial<T>' },
+    submitText: { description: 'Submit button text', type: 'I18nText', default: 'localized "Save"' },
+    cancelAction: { description: 'Called on Cancel, or on success with no onSuccess', type: '() => void' },
+    validation: { description: 'Zod schema for client-side validation', type: 'z.ZodType' },
+    onSuccess: { description: 'Called after a successful submit (result.success === true)', type: '(result: FormActionResult<T>) => void | Promise<void>' },
+    id: { description: 'Entity ID for edit mode, added to the submitted values (or FormData) automatically', type: 'string' },
+    grid: { description: 'Default grid columns for field layout', type: 'string', default: "'2'" },
+    useTabs: { description: 'Show sections as tabs instead of stacked', type: 'boolean' },
+    activeTab: { description: "Index of the initially active tab with useTabs ('0', '1', ...)", type: 'string' },
+    hideButtons: { description: 'Hide the submit/cancel bar', type: 'boolean' },
+    flush: { description: 'Remove rounded corners/shadow/border — for use inside a dialog', type: 'boolean' },
+    footerClassName: { description: 'Extra classes for the submit/cancel bar', type: 'string' },
+    contentClassName: { description: 'Extra classes for the fields container (flush mode only)', type: 'string' },
+    onFieldChange: {
+      description: 'Fired on any field value change',
+      type: '(params: { field: string; value: unknown; values: Record<string, unknown>; setValue: (name: string, value: unknown) => void }) => void | Promise<void>',
+    },
+    onDirtyChange: { description: 'Fired when the form dirty state changes (drives an unsaved-changes guard)', type: '(isDirty: boolean) => void' },
+  }}
+/>
+
+---
+
+## Field Types
+
+The `type` of each field picks its renderer:
+
+### Text & Input
+
+- `'text'` - Simple text input (`'string'` is an alias)
+- `'email'` - Email input with validation
+- `'password'` - Password input
+- `'number'` - Integer input
+- `'float'` - Decimal input
+- `'currency'` - Currency input
+- `'textarea'` - Multi-line text
+- `'masked'` - Input with mask (e.g., phone)
+
+### Boolean
+
+- `'boolean'` - Switch component
+- `'checkbox'` - Checkbox (same as boolean)
+
+### Date & Time
+
+- `'date'` - Date picker
+- `'datetime'` - Date + time picker
+- `'masked-date'` - Masked date input
+- `'masked-datetime'` - Masked date + time input
+- `'time'` - Time picker
+- `'daterange'` - Date range picker
+- `'month'` - Month/year picker
+- `'week'` - Week picker
+
+### Select & Relationship
+
+- `'relationship'` - Select dropdown (use this, not 'select')
+- `'multiselect'` - Multiple select
+
+### Files
+
+- `'image'` - Image upload
+- `'file'` - File upload
+- `'fileupload'` - Advanced file upload
+
+### HTML5 Native
+
+- `'url'` - URL input
+- `'tel'` - Phone input
+- `'color'` - Color picker
+- `'range'` - Slider
+- `'search'` - Search input
+
+### Advanced
+
+- `'richtext'` - WYSIWYG editor
+- `'wizard'` - Multi-step form
+
+### Special
+
+- `'component'` - Custom component
+- `'crud'` - Nested CRUD
+- `'svg'` - SVG/icon
+- `'space'` - Spacer
+- `'hidden'` - Hidden field
+
+---
+
+## Examples
+
+### Simple Contact Form
+
+```tsx
+<Form
+  sections={[
+    {
+      label: 'Contact Information',
+      fields: [
+        { name: 'name', label: 'Name', type: 'text', required: true },
+        { name: 'email', label: 'Email', type: 'email', required: true },
+        { name: 'message', label: 'Message', type: 'textarea', required: true },
+      ],
+    },
+  ]}
+  onSubmitValues={sendMessage}
+/>
+```
+
+### Form with Validation
+
+```tsx
+const schema = z.object({
+  name: z.string().min(2, 'Min 2 characters'),
+  email: z.string().email('Invalid email'),
+  age: z.number().min(18, 'Must be 18+'),
+})
+
+<Form
+  sections={formSections}
+  onSubmitValues={createUser}
+  validation={schema}
+/>
+```
+
+### Form with Initial Data
+
+```tsx
+<Form
+  sections={formSections}
+  data={{
+    name: 'John Doe',
+    email: 'john@example.com',
+  }}
+  onSubmitValues={updateUser}
+/>
+```
+
+---
+
+## Form Sections
+
+Group related fields in sections for better UX:
+
+```tsx
+const sections: FormSection[] = [
+  {
+    label: 'Personal Information',
+    description: 'Basic user details',
+    fields: [
+      { name: 'name', label: 'Name', type: 'text' },
+      { name: 'email', label: 'Email', type: 'email' },
+    ],
+  },
+  {
+    label: 'Address',
+    fields: [
+      { name: 'street', label: 'Street', type: 'text' },
+      { name: 'city', label: 'City', type: 'text' },
+    ],
+  },
+]
+```
+
+---
+
+## Submitting
+
+`onSubmitValues` is the default submit path. It receives the validated values as a plain
+object (booleans and numbers keep their types) and resolves a `FormActionResult`:
+
+```tsx
+'use client'
+
+import { useMutation } from '@tanstack/react-query'
+import { Form, type FormActionResult } from '@telamonjs/ui'
+
+export function NewUserForm({ onDone }: { onDone: () => void }) {
+  const create = useMutation({ mutationFn: usersApi.create })
+
+  async function handleSubmit(values: Record<string, unknown>): Promise<FormActionResult> {
+    const user = await create.mutateAsync(values as UserFormData)
+    return { success: true, data: user }
+  }
+
+  return <Form sections={sections} validation={schema} onSubmitValues={handleSubmit} onSuccess={onDone} />
+}
+```
+
+- `{ success: true }` → `onSuccess` runs; without it, `cancelAction`; without either, the browser goes back.
+- `{ success: false, message }` → the message is shown as a toast and inline error.
+- A thrown error is caught and shown the same way.
+
+`action` is the alternative for a Next.js Server Action: it receives `FormData` instead of
+typed values (booleans become `'true'`/`'false'`, nested objects use dot-notation keys).
+Use one or the other, never both.
+
+---
+
+## Related Components
+
+- [CreateForm](/docs/components/create-form) - Wrapper for creation forms
+- [EditForm](/docs/components/edit-form) - Wrapper for edit forms
+- [ZustandForm](/docs/components/zustand-form) - Multi-step wizards
+
+---
+
+## Best Practices
+
+1. **Use sections** for better UX (group related fields)
+2. **Always validate** with Zod schemas
+3. **Resolve `{ success, data?, message? }`** from `onSubmitValues`
+4. **Use `'relationship'`** for selects (never `'select'`)
+5. **Prefer CreateForm/EditForm** for semantic clarity
+
+---
+
+<Callout type='success' title='Next Steps'>
+  Learn about [CreateForm](/docs/components/create-form) and
+  [EditForm](/docs/components/edit-form) for better TypeScript enforcement.
+</Callout>

@@ -1,0 +1,172 @@
+---
+title: Bulk Operations
+description: Efficiently add, remove, retry, clean and drain many jobs at once
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Individual job operations are simple but inefficient at scale — adding 1,000 jobs in
+a loop means 1,000 Redis round-trips. Bulk operations do the same work in far fewer
+calls: `addBulk` sends the whole list in one BullMQ `addBulk`, and removals and
+retries run in batches of 100. That is much faster and much lighter on Redis.
+
+```typescript
+// ❌ 1000 Redis calls
+for (const data of dataArray) {
+  await queueManager.add(SendEmailJob, data)
+}
+
+// ✅ 1 bulk call
+await queueManager.addBulk(
+  SendEmailJob,
+  dataArray.map(data => ({ data }))
+)
+```
+
+## Available operations
+
+| Operation    | Queue-level                    | QueueManager-level                                      |
+| ------------ | ------------------------------ | ------------------------------------------------------- |
+| Add          | `queue.addBulk()`              | `queueManager.addBulk(JobClass, entries, defaults?)`    |
+| Remove       | `queue.removeBulk(ids)`        | `queueManager.removeBulk(queueName, ids)`               |
+| Retry        | `queue.retryBulk(ids?)`        | `queueManager.retryBulk(queueName, ids?)`               |
+| Retry all    | —                              | `queueManager.retryAllFailed(options?)`                 |
+| Clean        | —                              | `queueManager.cleanQueue(...)` / `cleanAll(...)`        |
+| Drain        | `queue.drain()`                | `queueManager.drainQueue(name)` / `drainAll()`          |
+| Pause/Resume | —                              | `pauseQueues(names)` / `resumeQueues(names)` / `pauseAll()` / `resumeAll()` |
+
+## addBulk
+
+Type-safe bulk add through the `QueueManager`, with shared defaults and per-job
+overrides:
+
+```typescript
+import { QueueManager, JobPriority } from '@telamonjs/queue'
+
+await queueManager.addBulk(
+  SendEmailJob,
+  [
+    {
+      data: { to: 'vip@example.com', subject: 'Welcome!' },
+      opts: { priority: JobPriority.CRITICAL }, // per-job override
+    },
+    { data: { to: 'regular@example.com', subject: 'Welcome!' } },
+  ],
+  {
+    priority: JobPriority.HIGH, // default for all entries
+    attempts: 5,
+    backoff: { type: 'exponential', delay: 5000 },
+  }
+)
+```
+
+For very large datasets (> 10,000 jobs), split into chunks of ~500–1,000 to keep
+memory bounded:
+
+```typescript
+const chunkSize = 1000
+for (let i = 0; i < emails.length; i += chunkSize) {
+  const chunk = emails.slice(i, i + chunkSize)
+  await queueManager.addBulk(SendEmailJob, chunk.map(email => ({ data: email })))
+}
+```
+
+## removeBulk
+
+```typescript
+const removed = await queueManager.removeBulk('send-email', ['job-id-1', 'job-id-2'])
+```
+
+Processes in batches of 100, handles non-existent IDs gracefully and returns the
+count of successfully removed jobs — compare it with the requested count to detect
+partial removals.
+
+## retryBulk / retryAllFailed
+
+```typescript
+// Retry specific failed jobs in one queue
+await queueManager.retryBulk('send-email', ['job-1', 'job-2'])
+
+// Retry ALL failed jobs in one queue
+await queueManager.retryBulk('send-email')
+
+// Retry ALL failed jobs across ALL queues
+const results = await queueManager.retryAllFailed()
+// { 'send-email': 5, 'generate-report': 2 }
+
+// With option overrides
+await queueManager.retryAllFailed({ attempts: 10 })
+```
+
+## cleanQueue / cleanAll
+
+Clean old jobs to prevent Redis bloat:
+
+```typescript
+// Completed jobs older than 24h, up to 1000 jobs, from one queue
+const cleaned = await queueManager.cleanQueue('send-email', 86400000, 1000, 'completed')
+
+// From all queues
+const results = await queueManager.cleanAll(86400000, 1000, 'completed')
+// { 'send-email': ['id1', 'id2'], 'generate-report': ['id3'] }
+```
+
+Run this periodically (e.g. a daily scheduled job cleaning jobs older than 7 days).
+
+## drain — graceful shutdown
+
+`drain()` pauses the queue, so workers stop picking up new jobs, then waits (up to
+60 seconds) for the **active** jobs to finish. Waiting and delayed jobs are not
+processed: they stay in Redis and run after the queue is resumed. It resolves with
+the number of jobs that finished while it waited.
+
+```typescript
+async function gracefulShutdown() {
+  await queueManager.drainAll() // stop taking jobs, let active ones finish
+  await queueManager.close() // close all connections
+  process.exit(0)
+}
+
+process.on('SIGTERM', gracefulShutdown)
+process.on('SIGINT', gracefulShutdown)
+```
+
+<Callout type='warn' title='Resume after a deploy'>
+  A drained queue stays paused in Redis. The next worker process must resume it
+  (`queueManager.resumeQueues(names)`) or nothing in that queue runs again.
+</Callout>
+
+## Pause / Resume
+
+```typescript
+// Specific queues
+await queueManager.pauseQueues(['send-email', 'generate-report'])
+await queueManager.resumeQueues(['send-email', 'generate-report'])
+
+// All workers (maintenance mode)
+await queueManager.pauseAll()
+await queueManager.resumeAll()
+```
+
+## Example: maintenance mode
+
+```typescript
+async function enterMaintenanceMode() {
+  await queueManager.pauseAll()
+
+  // Wait for active jobs, then verify
+  const stats = await queueManager.getStats()
+  const activeJobs = Object.values(stats).reduce((sum, s) => sum + s.active, 0)
+  if (activeJobs > 0) console.warn(`Still ${activeJobs} active jobs`)
+}
+
+async function exitMaintenanceMode() {
+  await queueManager.resumeAll()
+}
+```
+
+## Related
+
+- [Error Handling](/docs/queue/error-handling)
+- [Dead Letter Queue](/docs/queue/dead-letter-queue)
+- [Priorities](/docs/queue/priorities)

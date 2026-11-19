@@ -1,0 +1,61 @@
+---
+title: useShellPage
+description: Access ShellPage fullscreen context from any descendant
+---
+
+Access the [ShellPage](/docs/components/shell-page) context — fullscreen state and toggle — from any descendant component. Returns `null` when used outside of a `ShellPage`.
+
+```tsx
+'use client'
+
+import { useShellPage } from '@telamonjs/ui'
+
+function CustomFullscreenButton() {
+  const shell = useShellPage()
+  if (!shell) return null // not inside a ShellPage
+
+  return (
+    <button onClick={shell.toggleFullscreen}>
+      {shell.isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}
+    </button>
+  )
+}
+```
+
+---
+
+## Signature
+
+```typescript
+function useShellPage(): ShellPageContextValue | null
+
+interface ShellPageContextValue {
+  isFullscreen: boolean
+  toggleFullscreen: () => void
+}
+```
+
+---
+
+## Notes
+
+- [AdminHeader](/docs/components/admin-header) consumes this hook automatically to render its fullscreen button — you only need `useShellPage` for custom controls (e.g. a `TabToolbar.Fullscreen` inside a tab panel).
+- The `null` return is deliberate: components can render both inside and outside a `ShellPage` and degrade gracefully.
+
+```tsx
+// Wiring TabToolbar.Fullscreen to the shell
+const shell = useShellPage()
+
+<TabToolbar.Fullscreen
+  isFullscreen={shell?.isFullscreen ?? false}
+  onToggle={shell?.toggleFullscreen ?? (() => {})}
+/>
+```
+
+---
+
+## Related
+
+- [ShellPage](/docs/components/shell-page) — the provider
+- [AdminHeader](/docs/components/admin-header) — built-in consumer
+- [TabToolbar](/docs/components/tab-toolbar) — toolbar with a fullscreen sub-component

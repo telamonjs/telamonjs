@@ -1,0 +1,15 @@
+#!/bin/sh
+# Relink telamonjs-ui if it was linked before the commit (pre-commit unlinked it).
+# The telamonjs checkout sits next to this project unless TELAMONJS_UI says otherwise.
+TELAMONJS_UI="${TELAMONJS_UI:-$(cd .. && pwd)/telamonjs/packages/ui}"
+if ! grep -q '"link:' apps/web/package.json 2>/dev/null; then
+  if [ -L "apps/web/node_modules/@telamonjs/ui" ]; then
+    node -e "
+      const f='apps/web/package.json';
+      const p=JSON.parse(require('fs').readFileSync(f,'utf-8'));
+      p.dependencies['@telamonjs/ui']='link:$TELAMONJS_UI';
+      require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n');
+    "
+    echo "telamonjs-ui relinked"
+  fi
+fi

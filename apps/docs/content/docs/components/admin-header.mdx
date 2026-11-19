@@ -1,0 +1,71 @@
+---
+title: AdminHeader
+description: Pure header bar with title, icon, description, status, and fullscreen toggle
+---
+
+Pure header bar for admin pages: icon + title + description on the left, status indicator, custom actions, and a fullscreen toggle on the right. Designed to sit at the top of a [ShellPage](/docs/components/shell-page).
+
+```tsx
+import { AdminHeader } from '@telamonjs/ui'
+
+<AdminHeader
+  title='Alert Center'
+  description='Manage alert rules and notifications'
+  icon='Bell'
+/>
+```
+
+---
+
+## Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `title` | `I18nText` | - | Page title (required) |
+| `description` | `I18nText` | - | Secondary line under the title |
+| `icon` | `string \| IconComponent` | - | Header icon — string key resolved via `getIcon()` (preferred) or a direct component |
+| `status` | `DashboardStatus` | - | Status indicator (`'online' \| 'offline' \| 'loading' \| 'error'`) |
+| `statusLabel` | `I18nText` | - | Label next to the status dot |
+| `actions` | `ReactNode` | - | Custom actions rendered before the fullscreen button |
+| `allowFullscreen` | `boolean` | `true` | Show the fullscreen button (only when a toggle is available) |
+| `isFullscreen` | `boolean` | - | Manual override when used outside `ShellPage` |
+| `onFullscreenToggle` | `() => void` | - | Manual override when used outside `ShellPage` |
+| `className` | `string` | - | Extra classes |
+
+---
+
+## Fullscreen Integration
+
+`AdminHeader` auto-consumes the `ShellPage` context via [useShellPage](/docs/hooks/use-shell-page):
+
+- **Inside `ShellPage`:** the fullscreen button appears automatically and toggles the shell.
+- **Standalone:** pass `isFullscreen` + `onFullscreenToggle` manually, or the button is hidden.
+
+```tsx
+// Standalone usage (outside ShellPage)
+<AdminHeader
+  title='Reports'
+  isFullscreen={isFs}
+  onFullscreenToggle={() => setIsFs((v) => !v)}
+/>
+```
+
+---
+
+## Icons by String
+
+Prefer string icon keys resolved through the app's icon registry, registered once at boot with `setIconResolver`:
+
+```tsx
+<AdminHeader title='Registrations' icon='Database' />
+```
+
+See [Provider Setup](/docs/patterns/provider-setup) for the icon resolver configuration.
+
+---
+
+## Related
+
+- [ShellPage](/docs/components/shell-page) — container providing fullscreen context
+- [AdminTabs](/docs/components/admin-tabs) — tabs below the header
+- [TabToolbar](/docs/components/tab-toolbar) — toolbar inside tab panels

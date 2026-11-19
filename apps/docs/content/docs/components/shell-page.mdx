@@ -1,0 +1,80 @@
+---
+title: ShellPage
+description: Full-height composable page container with CSS fullscreen support
+---
+
+Full-height container for admin pages, and the root of the composable shell trio: `ShellPage` + [AdminHeader](/docs/components/admin-header) + [AdminTabs](/docs/components/admin-tabs). Provides a fullscreen toggle (CSS-based, `fixed inset-0 z-50`, so Radix portals keep working) with an ESC listener, and exposes its state to its children.
+
+```tsx
+import { ShellPage, AdminHeader, AdminTabs } from '@telamonjs/ui'
+
+<ShellPage>
+  <AdminHeader title='Alerts' description='Manage alert rules' icon='Bell' />
+  <AdminTabs tabs={tabs} value={activeTab} onValueChange={setTab} />
+</ShellPage>
+```
+
+<Callout type='info' title='Composable pieces'>
+  Compose `ShellPage` + `AdminHeader` + `AdminTabs` — independent, reusable pieces optimized for
+  dashboards with tabs, maps, and real-time UIs.
+</Callout>
+
+---
+
+## Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `allowFullscreen` | `boolean` | `true` | Enable the fullscreen toggle |
+| `className` | `string` | - | Extra classes on the container |
+| `children` | `ReactNode` | - | Page content (header, tabs, content) |
+
+---
+
+## Context
+
+`ShellPage` provides a context, consumed via the [useShellPage](/docs/hooks/use-shell-page) hook:
+
+```tsx
+const shell = useShellPage()
+// { isFullscreen: boolean, toggleFullscreen: () => void } | null
+```
+
+`AdminHeader` consumes this context automatically to render its fullscreen button — no wiring needed.
+
+---
+
+## Behavior
+
+- **Fullscreen** is pure CSS (`fixed inset-0 z-50 h-screen bg-background`) — no Fullscreen API, so dialogs and dropdowns rendered in portals keep working.
+- **ESC** exits fullscreen while active.
+- The container is `flex flex-col h-full`, so children like `AdminTabs` (with `fillHeight`) or `ShellContent` can fill the remaining viewport.
+
+## Pages Without Tabs
+
+For pages without tabs, use `ShellContent` as the content area:
+
+| `fullHeight` | Layout | Use for |
+| --- | --- | --- |
+| `true` (default) | `flex-1 min-h-0 overflow-hidden` | Maps, viewport-filling content |
+| `false` | `flex-1 overflow-auto` | Naturally scrolling content |
+
+`ShellContent` also takes `padding` (default `false`; adds `p-4 lg:p-6`) and `className`.
+
+```tsx
+<ShellPage>
+  <AdminHeader title='Live Map' icon='Map' />
+  <ShellContent fullHeight>
+    <MapComponent />
+  </ShellContent>
+</ShellPage>
+```
+
+---
+
+## Related
+
+- [AdminHeader](/docs/components/admin-header) — header bar with fullscreen toggle
+- [AdminTabs](/docs/components/admin-tabs) — height-filling tabs
+- [useTabUrlSync](/docs/hooks/use-tab-url-sync) — URL-driven tab state
+- [useShellPage](/docs/hooks/use-shell-page) — fullscreen context hook

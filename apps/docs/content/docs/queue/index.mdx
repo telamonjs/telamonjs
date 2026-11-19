@@ -1,0 +1,557 @@
+---
+title: Queue
+description: Production-ready background job system for TelamonJS — BullMQ, Redis, type-safe jobs, scheduling, DLQ and monitoring
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+`@telamonjs/queue` (current version: <PkgVersion pkg='queue' />) is the
+background job system of the TelamonJS ecosystem, built on **BullMQ** with a **Redis**
+backend.
+
+## Features
+
+- **Type-safe jobs** — `Job<TData, TResult>` generics, compile-time safety
+- **Job flows (DAGs)** — complex job dependencies via `FlowProducer`
+- **Scheduling** — cron patterns, human-readable helpers, timezone support
+- **Retry strategies** — exponential, fixed and custom backoff
+- **Priorities** — semantic `JobPriority` enum (CRITICAL → DEFERRED)
+- **Dead Letter Queue** — permanently failed jobs preserved for inspection and retry
+- **Bulk operations** — `addBulk`, `retryBulk`, `removeBulk`, drain, clean
+- **Monitoring** — Bull Board dashboard, Prometheus metrics, health endpoints
+- **Structured logging** — injectable `ILogger` from `@telamonjs/logger`
+- **Graceful shutdown** — `drainAll()` lets active jobs finish, `close()` closes
+  workers, then queues; all state in Redis, so worker processes scale horizontally
+
+## Quick Start
+
+<Steps>
+<Step>
+
+### Install
+
+```bash
+pnpm add @telamonjs/queue
+```
+
+Requires Node.js 22+ and Redis 6+ (`docker run -d -p 6379:6379 redis:7-alpine`).
+
+</Step>
+<Step>
+
+### Define a job
+
+```typescript title="jobs/send-email.ts"
+import { Job } from '@telamonjs/queue'
+
+interface EmailData {
+  to: string
+  subject: string
+  body: string
+}
+
+export class SendEmailJob extends Job<EmailData, void> {
+  name = 'send-email' as const
+
+  options = {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 1000 },
+    timeout: 30000,
+  }
+
+  async process(data: EmailData): Promise<void> {
+    await sendEmail(data)
+  }
+
+  async onFailed(error: Error): Promise<void> {
+    // cleanup / alerting
+  }
+}
+```
+
+Jobs can also declare a `schedule` (cron) and a `validate()` hook — see
+[Scheduling](/docs/queue/scheduling) and [Validation](/docs/queue/validation).
+
+</Step>
+<Step>
+
+### Set up the QueueManager
+
+```typescript title="queue.ts"
+import { QueueManager } from '@telamonjs/queue'
+import { createLogger } from '@telamonjs/logger'
+import { SendEmailJob } from './jobs/send-email'
+
+const queueManager = new QueueManager({
+  redis: {
+    host: process.env.REDIS_HOST || 'localhost',
+    port: parseInt(process.env.REDIS_PORT || '6379'),
+  },
+  prefix: 'myapp',
+  logger: createLogger({ context: { service: 'myapp-queue' } }),
+})
+
+queueManager.register(SendEmailJob)
+
+await queueManager.createWorkers({ concurrency: 5 })
+```
+
+</Step>
+<Step>
+
+### Add jobs
+
+```typescript
+// Single job
+await queueManager.add(SendEmailJob, {
+  to: 'user@example.com',
+  subject: 'Welcome!',
+  body: 'Welcome to our platform',
+})
+
+// With options
+await queueManager.add(SendEmailJob, data, {
+  priority: 1, // see JobPriority
+  delay: 5000,
+})
+
+// Bulk (one Redis round-trip)
+await queueManager.addBulk(SendEmailJob, [
+  { data: { to: 'user1@example.com', subject: 'News', body: '...' } },
+  { data: { to: 'user2@example.com', subject: 'News', body: '...' } },
+])
+```
+
+</Step>
+</Steps>
+
+## Architecture
+
+The `QueueManager` orchestrates the whole system: it holds the **job registry**,
+creates one **queue** and one **worker** per registered job, and manages lifecycle
+(pause/resume/close). All state lives in Redis, so multiple worker instances scale
+horizontally.
+
+| Component            | Role                                                                     |
+| -------------------- | ------------------------------------------------------------------------ |
+| `Job`                | Abstract base class for type-safe job definitions                        |
+| `QueueManager`       | Main orchestrator: registry, queues, workers, stats, shutdown            |
+| `Queue`              | Typed wrapper over a BullMQ queue; `getRawQueue()` is the escape hatch   |
+| `Worker`             | Runs a job's hooks and `process()` for each picked-up job                |
+| `DeadLetterQueue`    | Storage for permanently failed jobs                                      |
+| `FlowProducer`       | Job dependency graphs (DAGs)                                             |
+| `QueueRegistry`      | BullMQ queues over **one** shared Redis connection, for code outside a `QueueManager` (API routes, a scheduler process) |
+| `JobConfigStore` (`/job-config`) | Per-job config in Redis (enabled, cron, priority, concurrency, timeout) plus a change history |
+| `SchedulerReconciler` (`/scheduler`) | Keeps BullMQ repeatables in sync with the `JobConfigStore` |
+
+### Data flow
+
+**Adding a job.** `queueManager.add(JobClass, data, options)`:
+
+1. instantiates the class to read its `name`, and throws `JobNotFoundError` if it
+   was never registered;
+2. merges the options, most specific last: the manager's `defaultJobOptions`, then
+   the class's `options`, then the call-site `options`;
+3. validates the merged options (`InvalidJobOptionsError`);
+4. hands the job to BullMQ, which stores it in Redis under the manager's `prefix`.
+
+**Processing a job.** A worker picks the job up (BullMQ moves it atomically from
+*waiting* to *active*) and runs, in order: `validate(data)`, `transform(data)`,
+`onActive(data)`, `process(data)` and `onCompleted(result)`. Every step except
+`process()` is optional.
+
+```text
+added ──▶ waiting ──▶ active ──▶ completed   onCompleted · kept: newest 100 (removeOnComplete)
+             ▲          │
+             │          ├──▶ failed attempt  onFailed · retried while attempts remain
+             └──────────┘
+                        ├──▶ failed          last attempt · kept: newest 500 (removeOnFail) · copied to the DLQ
+                        └──▶ stalled         worker died mid-job · onStalled · BullMQ re-queues it
+```
+
+**Concurrency.** `createWorkers({ concurrency: 5 })` lets each worker run 5 jobs of
+its queue at once on the Node.js event loop; `concurrencyPerQueue` overrides the
+value per job name. Capacity adds up across processes: three worker processes with
+`concurrency: 5` run up to 15 jobs of that queue in parallel.
+
+### Design decisions
+
+- **BullMQ on Redis.** BullMQ provides atomic job state, priorities, delays, rate
+  limiting, repeatable jobs and the Bull Board UI; Redis is fast, well understood
+  operationally, and shared by every process. The cost is one more service to run.
+- **Jobs are classes.** The generics on `Job<TData, TResult>` carry the payload type
+  from the class to `add()`, so a wrong payload is a compile error. A job is plain
+  code: instantiate it and call `process()` to test it. Defaults live on the base
+  class: 3 attempts, exponential backoff from 1 second, keep the newest 100
+  completed and 500 failed jobs.
+- **A typed wrapper with an escape hatch.** `Queue` hides BullMQ's type machinery
+  behind a small API and casts at that boundary. Anything it does not wrap
+  (repeatables, Bull Board adapters) goes through `getRawQueue()`.
+- **Producers and workers are separate.** Every process registers the same jobs;
+  only the worker processes call `createWorkers()`. Web servers and workers then
+  scale, deploy and fail independently.
+
+  ```typescript
+  // shared: queue.ts
+  export const queueManager = new QueueManager({ redis, prefix: 'myapp' })
+  queueManager.register(SendEmailJob)
+  queueManager.register(GenerateReportJob)
+
+  // web process: only enqueues
+  await queueManager.add(SendEmailJob, { to, subject, body })
+
+  // worker process: also processes
+  await queueManager.createWorkers({ concurrency: 5 })
+  process.on('SIGTERM', async () => {
+    await queueManager.close() // closes workers, then queues
+    process.exit(0)
+  })
+  ```
+
+- **Fail, retry, keep the evidence.** A failing job is retried with backoff rather
+  than left hanging. After the last attempt it stays inspectable: in the failed set
+  (Bull Board, retry from the dashboard) and in the
+  [Dead Letter Queue](/docs/queue/dead-letter-queue). See
+  [Error Handling](/docs/queue/error-handling#failures-inside-a-job).
+- **Three monitoring layers.** Bull Board for people (inspect and retry one job),
+  Prometheus for alerts (failure rate, backlog, latency), health endpoints for the
+  orchestrator (restart or stop routing to an unhealthy worker).
+- **Runtime config in Redis, not in code.** Enabling a job or changing its cron is
+  an edit in the [Jobs Dashboard](/docs/queue/dashboard), stored in the
+  `JobConfigStore` and applied by the `SchedulerReconciler`, with no redeploy. See
+  [Scheduling](/docs/queue/scheduling).
+- **One Redis connection for the scheduler.** `QueueRegistry` reuses its queues over
+  a single connection, so a reconcile loop or an API route never opens a connection
+  per tick or per request.
+
+### Job flows (DAGs)
+
+```typescript
+import { FlowProducer } from '@telamonjs/queue'
+
+const flow = new FlowProducer({ queueManager })
+
+await flow.add({
+  name: 'import-flow',
+  job: 'generate-report', // the parent runs last; jobs by registered name
+  data: { importId },
+  children: [
+    { job: 'import-rows', data: { importId } },
+    { job: 'sync-search-index', data: { importId } },
+  ],
+})
+```
+
+BullMQ runs a flow from the leaves up: the children run (in parallel) and the
+parent waits in *waiting-children* until all of them complete.
+
+
+### QueueManager API at a glance
+
+```typescript
+queueManager.register(SendEmailJob) // one call per job class
+
+await queueManager.add(SendEmailJob, data, options)
+await queueManager.addBulk(SendEmailJob, [...])
+
+await queueManager.createWorkers({ concurrency: 5 })
+
+const stats = await queueManager.getStats()
+// { 'send-email': { waiting: 10, active: 5, completed: 100, ... } }
+
+await queueManager.pauseAll()
+await queueManager.resumeAll()
+await queueManager.close()
+```
+
+
+## Monitoring
+
+- **Jobs Dashboard** — React dashboard from `@telamonjs/ui/queue` and the
+  embeddable Bull Board server from `@telamonjs/queue/dashboard`. See
+  [Dashboard](/docs/queue/dashboard).
+- **Prometheus metrics** — `QueueMetrics` / `OptimizedQueueMetrics` from
+  `@telamonjs/queue/monitoring`. See [Metrics](/docs/queue/metrics).
+- **Health checks** — `/live`, `/ready` and `/health` endpoints for Kubernetes
+  liveness/readiness probes.
+
+## Guides
+
+<Cards>
+  <Card
+    href='/docs/queue/dashboard'
+    title='Jobs Dashboard'
+    description='React dashboard with SSE real-time updates, history and queue actions.'
+  />
+  <Card
+    href='/docs/queue/priorities'
+    title='Priorities'
+    description='Semantic JobPriority levels and utilities.'
+  />
+  <Card
+    href='/docs/queue/scheduling'
+    title='Scheduling'
+    description='Cron patterns, human-readable helpers, timezones.'
+  />
+  <Card
+    href='/docs/queue/bulk-operations'
+    title='Bulk Operations'
+    description='addBulk, retryBulk, removeBulk, drain and clean.'
+  />
+  <Card
+    href='/docs/queue/dead-letter-queue'
+    title='Dead Letter Queue'
+    description='Inspect, analyze and retry permanently failed jobs.'
+  />
+  <Card
+    href='/docs/queue/error-handling'
+    title='Error Handling'
+    description='Structured error classes with codes and context.'
+  />
+  <Card
+    href='/docs/queue/validation'
+    title='Validation'
+    description='Automatic Zod validation of configs, options and job data.'
+  />
+  <Card
+    href='/docs/queue/metrics'
+    title='Metrics'
+    description='Prometheus metrics with caching, batching and sampling.'
+  />
+  <Card
+    href='/docs/queue/logging'
+    title='Logging'
+    description='ILogger injection via @telamonjs/logger.'
+  />
+</Cards>
+
+## Recipes
+
+### Email with validation and alerting
+
+```typescript
+import { z } from 'zod'
+import { Job } from '@telamonjs/queue'
+
+const EmailSchema = z.object({
+  to: z.string().email(),
+  subject: z.string().min(1),
+  body: z.string(),
+})
+type EmailData = z.infer<typeof EmailSchema>
+
+export class SendEmailJob extends Job<EmailData, void> {
+  name = 'send-email' as const
+
+  options = {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 2000 }, // 2s, 4s, 8s
+    removeOnComplete: 100,
+  }
+
+  async validate(data: unknown): Promise<void> {
+    EmailSchema.parse(data)
+  }
+
+  async process(data: EmailData): Promise<void> {
+    await mailer.send(data)
+  }
+
+  async onFailed(error: Error): Promise<void> {
+    await alerts.notify(`send-email attempt failed: ${error.message}`)
+  }
+}
+```
+
+### Long report, then notify
+
+Give slow jobs an explicit `timeout` and fewer attempts, and enqueue the follow-up
+job when they finish:
+
+```typescript
+import { Job } from '@telamonjs/queue'
+import { queueManager } from './queue'
+
+interface ReportData {
+  userEmail: string
+  type: 'sales' | 'inventory'
+  from: string
+  to: string
+}
+
+interface ReportResult {
+  fileUrl: string
+  userEmail: string
+}
+
+export class GenerateReportJob extends Job<ReportData, ReportResult> {
+  name = 'generate-report' as const
+
+  options = {
+    attempts: 2,
+    timeout: 5 * 60 * 1000, // 5 minutes
+    removeOnComplete: 50,
+  }
+
+  async process(data: ReportData): Promise<ReportResult> {
+    const rows = await reports.fetch(data.type, data.from, data.to)
+    const fileUrl = await storage.upload(await renderPdf(rows))
+    return { fileUrl, userEmail: data.userEmail }
+  }
+
+  async onCompleted(result: ReportResult): Promise<void> {
+    await queueManager.add(SendEmailJob, {
+      to: result.userEmail,
+      subject: 'Your report is ready',
+      body: `Download: ${result.fileUrl}`,
+    })
+  }
+}
+```
+
+`onCompleted` receives only the result, so return whatever the follow-up needs.
+
+### Import that must not run twice
+
+An import that writes rows is not safe to retry from the start. Run it once, record
+per-row failures in the result, and report them instead of throwing:
+
+```typescript
+import { Job } from '@telamonjs/queue'
+
+interface ImportResult {
+  total: number
+  imported: number
+  errors: Array<{ row: number; error: string }>
+}
+
+export class ImportCsvJob extends Job<{ fileUrl: string }, ImportResult> {
+  name = 'import-csv' as const
+
+  options = {
+    attempts: 1, // never retry an import
+    timeout: 30 * 60 * 1000,
+  }
+
+  async process({ fileUrl }: { fileUrl: string }): Promise<ImportResult> {
+    const rows = await parseCsv(fileUrl)
+    const result: ImportResult = { total: rows.length, imported: 0, errors: [] }
+
+    for (const [index, row] of rows.entries()) {
+      try {
+        await importRow(row)
+        result.imported++
+      } catch (error) {
+        result.errors.push({ row: index + 1, error: String(error) })
+      }
+    }
+    return result
+  }
+}
+```
+
+### Nightly cleanup
+
+A recurring job declares its cron in `configDefaults` and is scheduled by the
+`SchedulerReconciler` — see [Scheduling](/docs/queue/scheduling):
+
+```typescript
+import { Job } from '@telamonjs/queue'
+
+export class CleanupTempFilesJob extends Job<void, number> {
+  name = 'cleanup-temp-files' as const
+  configDefaults = { cronPattern: '0 2 * * *', enabled: true } // every day at 02:00
+
+  async process(): Promise<number> {
+    return files.deleteTemporaryOlderThan(30) // days; returns the count
+  }
+}
+```
+
+## Testing
+
+### Unit tests: call the job directly
+
+A job is a class, so most tests need no Redis: instantiate it and call `validate()`
+and `process()` with the collaborators mocked.
+
+```typescript title="jobs/send-email.test.ts"
+import { describe, expect, it, vi } from 'vitest'
+import { SendEmailJob } from './send-email'
+import { mailer } from '../lib/mailer'
+
+vi.mock('../lib/mailer', () => ({ mailer: { send: vi.fn() } }))
+
+describe('SendEmailJob', () => {
+  it('rejects invalid data', async () => {
+    await expect(
+      new SendEmailJob().validate({ to: 'not-an-email', subject: '', body: '' })
+    ).rejects.toThrow()
+  })
+
+  it('sends the email', async () => {
+    const data = { to: 'user@example.com', subject: 'Hi', body: 'Hello' }
+    await new SendEmailJob().process(data)
+    expect(mailer.send).toHaveBeenCalledWith(data)
+  })
+})
+```
+
+Hooks are plain methods too: call `onFailed(new Error('boom'))` directly to test
+the alerting. Calling `process()` never triggers the hooks; the worker does that.
+
+### Integration tests: a real Redis
+
+```typescript title="queue.integration.test.ts"
+import { afterAll, beforeAll, expect, it, vi } from 'vitest'
+import { QueueManager } from '@telamonjs/queue'
+import { NoOpLogger } from '@telamonjs/logger'
+import { SendEmailJob } from './jobs/send-email'
+
+let queueManager: QueueManager
+
+beforeAll(() => {
+  queueManager = new QueueManager({
+    redis: { host: 'localhost', port: 6379, db: 1 }, // a db the app does not use
+    prefix: `test-${process.pid}`,
+    logger: new NoOpLogger(),
+    enableDLQ: false,
+  })
+  queueManager.register(SendEmailJob)
+})
+
+afterAll(() => queueManager.close())
+
+it('processes an enqueued job', async () => {
+  await queueManager.createWorkers({ concurrency: 1 })
+  await queueManager.add(SendEmailJob, { to: 'user@example.com', subject: 'Hi', body: 'Hello' })
+
+  await vi.waitFor(
+    async () => {
+      const stats = await queueManager.getStats()
+      expect(stats['send-email']?.completed).toBe(1)
+    },
+    { timeout: 5000 }
+  )
+})
+```
+
+- **One registration per job per process.** The job registry is shared by every
+  `QueueManager` in the process, so registering the same class twice throws
+  `JobAlreadyRegisteredError`. Create the manager once per test file (Vitest
+  isolates test files by default).
+- **Isolate the keys.** A dedicated Redis `db` and a unique `prefix` keep test runs
+  from seeing each other's jobs.
+- **Poll, don't sleep.** Wait for the stats with `vi.waitFor` instead of a fixed
+  `setTimeout`.
+
+## Best Practices
+
+- **Keep jobs idempotent** — jobs should be safe to retry
+- **Validate input** — use the `validate()` hook with a Zod schema
+- **Use bulk operations** for batches — one Redis round-trip instead of N
+- **Clean old jobs** — set `removeOnComplete` / `removeOnFail` and run periodic cleans
+- **Secure Redis and the dashboard** — password-protect both, never expose Redis publicly
+- **Monitor queue sizes and the DLQ** — alert on backlog and failure growth

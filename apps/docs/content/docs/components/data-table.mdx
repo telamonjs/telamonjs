@@ -1,0 +1,440 @@
+---
+title: DataTable
+description: Advanced data table with sorting, filtering, pagination, and row selection
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Advanced data table component built on TanStack Table with sorting, filtering, pagination, row selection, and mobile responsiveness.
+
+<Callout type='info' title='Lower-Level Component'>
+  `DataTable` is a lower-level component. For most use cases, use
+  [ListPage](/docs/components/list-page) which wraps DataTable with additional
+  features.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DataTable } from '@telamonjs/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+const columns: ColumnDef<User>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'role', header: 'Role' },
+]
+
+export default function UsersTable({ users }: { users: User[] }) {
+  return <DataTable columns={columns} data={users} />
+}
+```
+
+---
+
+## Props
+
+<Callout type='info' title='Most-used props'>
+  This table covers the props most consumers reach for; `DataTableProps` has the full list.
+</Callout>
+
+<TypeTable
+  type={{
+    columns: { description: 'TanStack Table column definitions', type: 'ColumnDef<TData, TValue>[]', required: true },
+    data: { description: 'Data array to display (current page only for server-side pagination)', type: 'TData[]', required: true },
+    tableId: { description: 'Unique table ID for the Zustand store', type: 'string', default: 'pathname' },
+    title: { description: 'Table title displayed above the toolbar', type: 'string' },
+    searchPlaceholder: { description: 'Placeholder for the global search input (localized default)', type: 'string', default: "t('list.search')" },
+    enableSearch: { description: 'Enable global search', type: 'boolean', default: 'true' },
+    enableExport: { description: 'Enable export (Excel/CSV/PDF) button', type: 'boolean', default: 'true' },
+    enablePagination: { description: 'Enable pagination controls', type: 'boolean', default: 'true' },
+    pageSize: { description: 'Initial page size', type: 'number', default: '10' },
+    manualPagination: { description: 'Enable server-side pagination (manual control)', type: 'boolean', default: 'false' },
+    pageCount: { description: 'Total page count (server-side pagination)', type: 'number' },
+    currentPage: { description: 'Current page, 1-indexed (server-side pagination)', type: 'number' },
+    totalItems: { description: 'Total items count (server-side pagination)', type: 'number' },
+    onPaginationChange: { description: 'Fired when pagination changes', type: '(page: number, pageSize: number) => void' },
+    onSearchChange: { description: 'Fired when the global search changes (debounced 300ms). Server-side only', type: '(search: string) => void' },
+    enableRowSelection: { description: 'Enable row selection checkboxes', type: 'boolean', default: 'false' },
+    actionsConfig: { description: 'Row actions column configuration', type: 'DataTableActionsConfig<TData>' },
+    onRowClick: { description: 'Fired when a row is clicked', type: '(row: TData) => void', default: "router.push('${pathname}/${id}')" },
+    rowClickNavigation: { description: 'Default row-click navigation when there is no onRowClick; false for lists without a detail route', type: 'boolean', default: 'true' },
+    cardComponent: { description: 'Custom card component for the mobile view', type: 'React.ComponentType<{ data: TData; onClick?: (data: TData) => void }>' },
+    loading: { description: 'Show loading skeleton', type: 'boolean', default: 'false' },
+    error: { description: 'Error message to display', type: 'string' },
+    emptyTitle: { description: 'Empty state title (localized default)', type: 'string', default: "t('list.empty')" },
+    emptyDescription: { description: 'Empty state description (localized default)', type: 'string', default: "t('list.emptyDescription')" },
+    className: { description: 'Additional classes on the container', type: 'string' },
+  }}
+/>
+
+---
+
+## Examples
+
+### With Sorting
+
+```tsx
+<DataTable
+  columns={columns}
+  data={users}
+  // Sorting enabled by default - click headers to sort
+/>
+```
+
+**Column configuration:**
+
+```tsx
+const columns: ColumnDef<User>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Name',
+    enableSorting: true, // ✅ Sortable (default)
+  },
+  {
+    accessorKey: 'email',
+    header: 'Email',
+    enableSorting: false, // ❌ Not sortable
+  },
+]
+```
+
+### With Pagination
+
+```tsx
+<DataTable columns={columns} data={users} pageSize={25} />
+```
+
+Pagination controls render while `enablePagination` is `true` (the default).
+
+### With Row Selection
+
+```tsx
+import { DataTable } from '@telamonjs/ui'
+
+export default function UsersTable({ users }: { users: User[] }) {
+  return <DataTable columns={columns} data={users} enableRowSelection />
+}
+```
+
+`enableRowSelection` renders checkboxes and manages selection state internally
+(Zustand store keyed by `tableId`) — there is no `rowSelection`/`onRowSelectionChange`
+prop to control it externally.
+
+### With Row Actions
+
+```tsx
+import { DataTable } from '@telamonjs/ui'
+
+;<DataTable
+  columns={columns}
+  data={users}
+  actionsConfig={{
+    standard: {
+      view: { href: row => `/users/${row.id}` },
+      edit: { href: row => `/users/${row.id}/edit` },
+      delete: {
+        onClick: row => handleDelete(row.id),
+        confirmDialog: true,
+      },
+    },
+  }}
+/>
+```
+
+`actionsConfig` (type `DataTableActionsConfig<TData>`) injects the actions
+column — there is no `rowActions` render-prop.
+
+### Custom Cell Rendering
+
+```tsx
+import { Badge } from '@telamonjs/ui'
+
+const columns: ColumnDef<User>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Name',
+  },
+  {
+    accessorKey: 'role',
+    header: 'Role',
+    cell: ({ row }) => {
+      const role = row.original.role
+      return (
+        <Badge variant={role === 'ADMIN' ? 'default' : 'secondary'}>
+          {role}
+        </Badge>
+      )
+    },
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Created',
+    cell: ({ row }) => {
+      return new Date(row.original.createdAt).toLocaleDateString()
+    },
+  },
+]
+```
+
+Use `cell` function to customize rendering.
+
+### Global Search
+
+`enableSearch` (default `true`) renders the search input and filters
+client-side automatically — no external filter state is needed:
+
+```tsx
+<DataTable columns={columns} data={users} searchPlaceholder='Search users...' />
+```
+
+For server-side pagination, wire `onSearchChange` instead (debounced 300ms):
+
+```tsx
+<DataTable
+  columns={columns}
+  data={users}
+  manualPagination
+  onSearchChange={search => refetch({ search })}
+/>
+```
+
+### Custom Mobile Card
+
+```tsx
+<DataTable
+  columns={columns}
+  data={users}
+  cardComponent={({ data }) => (
+    <div className='p-4 space-y-2'>
+      <div className='font-semibold'>{data.name}</div>
+      <div className='text-sm text-muted-foreground'>{data.email}</div>
+      <Badge>{data.role}</Badge>
+    </div>
+  )}
+/>
+```
+
+`cardComponent` (type `React.ComponentType<{ data: TData; onClick?: (data: TData) => void }>`)
+replaces the default mobile card renderer.
+
+### Loading State
+
+```tsx
+<DataTable columns={columns} data={users} loading={isLoading} />
+```
+
+Shows skeleton loading state.
+
+### Empty State
+
+```tsx
+<DataTable
+  columns={columns}
+  data={[]}
+  emptyTitle='No users found'
+  emptyDescription='Create your first user to get started.'
+/>
+```
+
+`emptyTitle`/`emptyDescription` customize the empty state — there is no single `emptyMessage` prop.
+
+---
+
+## Complete Example
+
+```tsx title="app/admin/users/components/users-table.tsx"
+'use client'
+
+import { DataTable, Badge } from '@telamonjs/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: 'USER' | 'ADMIN'
+  active: boolean
+  createdAt: string
+}
+
+const columns: ColumnDef<User>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Name',
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'email',
+    header: 'Email',
+    enableSorting: true,
+  },
+  {
+    accessorKey: 'role',
+    header: 'Role',
+    cell: ({ row }) => (
+      <Badge variant={row.original.role === 'ADMIN' ? 'default' : 'secondary'}>
+        {row.original.role}
+      </Badge>
+    ),
+  },
+  {
+    accessorKey: 'active',
+    header: 'Status',
+    cell: ({ row }) => (
+      <Badge variant={row.original.active ? 'default' : 'secondary'}>
+        {row.original.active ? 'Active' : 'Inactive'}
+      </Badge>
+    ),
+  },
+  {
+    accessorKey: 'createdAt',
+    header: 'Created',
+    cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+    enableSorting: true,
+  },
+]
+
+export default function UsersTable({ users }: { users: User[] }) {
+  async function handleDelete(id: string) {
+    if (confirm('Are you sure you want to delete this user?')) {
+      // Delete logic
+    }
+  }
+
+  return (
+    <DataTable
+      columns={columns}
+      data={users}
+      pageSize={10}
+      enableRowSelection
+      actionsConfig={{
+        standard: {
+          view: { href: row => `/admin/users/${row.id}` },
+          edit: { href: row => `/admin/users/${row.id}/edit` },
+          delete: {
+            onClick: row => handleDelete(row.id),
+            confirmDialog: true,
+          },
+        },
+      }}
+      emptyTitle='No users found'
+    />
+  )
+}
+```
+
+---
+
+## Column Definition API
+
+**Common properties:**
+
+```tsx
+{
+  accessorKey: 'fieldName',        // Data field key
+  header: 'Display Name',          // Column header
+  cell: ({ row }) => <Custom />,   // Custom cell renderer
+  enableSorting: true,             // Allow sorting
+  enableHiding: true,              // Allow hiding column
+  size: 200,                       // Column width in px
+}
+```
+
+**Advanced features:**
+
+- `accessorFn` - Custom accessor function
+- `sortingFn` - Custom sorting logic
+- `filterFn` - Custom filtering logic
+- `meta` - Store custom metadata
+
+See [TanStack Table Docs](https://tanstack.com/table/v8/docs/api/core/column-def) for full API.
+
+---
+
+## Responsive Behavior
+
+| Screen Size           | Behavior                            |
+| --------------------- | ----------------------------------- |
+| **Desktop (≥ 768px)** | Full table with all columns         |
+| **Mobile (< 768px)**  | Switches to card view automatically |
+
+Mobile cards show:
+
+- Custom renderer if provided via `cardComponent`
+- Default card with all fields if no custom renderer
+
+---
+
+## Best Practices
+
+1. **Define columns in config.tsx** - Follow Page Config Pattern
+2. **Use cell renderers** - For badges, dates, custom formatting
+3. **Enable sorting** - For better UX on large datasets
+4. **Add row actions** - Common operations easily accessible
+5. **Provide empty state** - Custom message for empty data
+6. **Custom mobile cards** - Optimize mobile UX
+
+---
+
+## Performance
+
+**Optimization tips:**
+
+- ✅ Use `useMemo` for columns definition
+- ✅ Virtualize rows for 1000+ records (react-virtual)
+- ✅ Server-side pagination for 10,000+ records
+- ✅ Debounce search input
+- ✅ Lazy load row actions menu
+
+**Example:**
+
+```tsx
+const columns = useMemo<ColumnDef<User>[]>(
+  () => [
+    { accessorKey: 'name', header: 'Name' },
+    // ...
+  ],
+  []
+)
+```
+
+---
+
+## Accessibility
+
+- Semantic `<table>` element
+- Sortable headers keyboard accessible (Enter to sort)
+- Row selection with keyboard (Space to toggle)
+- ARIA labels for sorting state
+- Focus visible states
+- Screen reader announcements for updates
+
+---
+
+## Related Components
+
+- [ListPage](/docs/components/list-page) - Higher-level list with filters (recommended)
+- [MobileCard](/docs/components/mobile-card) - Mobile card component
+
+---
+
+## See Also
+
+- [TanStack Table Documentation](https://tanstack.com/table/v8) - Full API reference
+- [ListPage Pattern](/docs/patterns/listpage-pattern) - Best practices
+- [Module Structure](/docs/patterns/admin-module-structure) - Organize columns
+
+---
+
+**Status:** ✅ Stable

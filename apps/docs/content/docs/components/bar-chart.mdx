@@ -1,0 +1,152 @@
+---
+title: BarChart
+description: Bar chart component for comparing values across categories
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Bar chart component built on Recharts for comparing values across categories,
+with vertical (default) or horizontal bars.
+
+<BarChartPreview />
+
+<Callout type='info' title='Built on Recharts'>
+  All chart components are built on [Recharts](https://recharts.org/) with
+  pre-configured theming and responsive behavior. Recharts ships with
+  `@telamonjs/ui` — no separate install.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { BarChart } from '@telamonjs/ui'
+
+const data = [
+  { name: 'Electronics', sales: 4000 },
+  { name: 'Clothing', sales: 3000 },
+  { name: 'Home', sales: 2000 },
+  { name: 'Sports', sales: 2780 },
+]
+
+export default function SalesByCategory() {
+  return <BarChart data={data} dataKeys={['sales']} />
+}
+```
+
+<Callout type='warn' title='The category axis reads the `name` field'>
+  `BarChart` takes flat `dataKeys: string[]`, one bar series per key. The category axis is
+  fixed to the `name` field of each data point.
+</Callout>
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    data: { description: 'Chart data — each point needs a `name` field (category) plus numeric series fields', type: 'ChartData[]', required: true },
+    dataKeys: { description: 'Field names plotted as bar series (grouped side by side)', type: 'string[]', required: true },
+    colors: { description: 'Bar colors, matched by index to dataKeys (defaults to the built-in palette)', type: 'string[]' },
+    height: { description: 'Chart height in pixels', type: 'number', default: '300' },
+    layout: {
+      description: "'horizontal' = vertical bars over a category X axis (default); 'vertical' = horizontal bars with categories on the Y axis",
+      type: "'horizontal' | 'vertical'",
+      default: "'horizontal'",
+    },
+    showGrid: { description: 'Show the cartesian grid', type: 'boolean', default: 'true' },
+    showLegend: { description: 'Show the legend', type: 'boolean', default: 'true' },
+    xAxisLabel: { description: 'X axis label', type: 'string' },
+    yAxisLabel: { description: 'Y axis label', type: 'string' },
+    className: { description: 'Additional classes on the wrapper', type: 'string' },
+  }}
+/>
+
+---
+
+## Examples
+
+### Grouped Series
+
+```tsx
+const data = [
+  { name: 'Q1', online: 4000, stores: 2400 },
+  { name: 'Q2', online: 3000, stores: 1398 },
+  { name: 'Q3', online: 5000, stores: 3200 },
+]
+
+<BarChart
+  data={data}
+  dataKeys={['online', 'stores']}
+  colors={['#3b82f6', '#10b981']}
+/>
+```
+
+### Horizontal Bars
+
+```tsx
+<BarChart
+  data={topProducts}
+  dataKeys={['sales']}
+  layout='vertical'
+  height={400}
+/>
+```
+
+Horizontal bars (`layout='vertical'`) work well for long category labels and
+rankings.
+
+### With React Query
+
+```tsx
+'use client'
+
+import { BarChart } from '@telamonjs/ui'
+import { useQuery } from '@tanstack/react-query'
+import { metricsApi } from '@/lib/api/metrics-client'
+
+export function SalesByCategory() {
+  const { data = [] } = useQuery({
+    queryKey: ['sales-by-category'],
+    queryFn: metricsApi.salesByCategory,
+  })
+
+  return <BarChart data={data} dataKeys={['total']} />
+}
+```
+
+---
+
+## Lazy Variant
+
+`BarChartLazy` has the same props but code-splits the Recharts bundle:
+
+```tsx
+import { BarChartLazy } from '@telamonjs/ui'
+
+<BarChartLazy data={data} dataKeys={['sales']} />
+```
+
+---
+
+## Best Practices
+
+1. **Name the category field `name`** - Map your API data if it uses another key
+2. **Sort deliberately** - Rankings descending, time buckets chronologically
+3. **Few series** - 2-3 grouped series max; more becomes unreadable
+4. **Horizontal for long labels** - Switch `layout` instead of rotating labels
+
+---
+
+## Related Components
+
+- [LineChart](/docs/components/line-chart) - Trends over time
+- [AreaChart](/docs/components/area-chart) - Filled trends
+- [Charts not wrapped by the package](/docs/components/chart-widget#charts-not-wrapped-by-the-package-use-recharts-directly) - Bars + lines combined, with Recharts directly
+- [ChartWidget](/docs/components/chart-widget) - Chart inside a dashboard card
+
+---
+
+**Status:** ✅ Stable

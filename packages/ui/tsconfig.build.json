@@ -1,0 +1,5 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "emitDeclarationOnly": true },
+  "exclude": ["dist", "node_modules", "src/test/**/*", "**/*.test.tsx", "**/*.test.ts", "**/*.stories.tsx", "**/test-helpers.ts"]
+}

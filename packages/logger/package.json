@@ -1,0 +1,73 @@
+{
+  "name": "@telamonjs/logger",
+  "version": "1.0.1",
+  "description": "Structured logging with one ILogger across browser, server and worker: audit and perf extensions, child loggers, request IDs and timers",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:ui": "vitest --ui",
+    "test:coverage": "vitest run --coverage",
+    "test:unit": "vitest run __tests__/unit",
+    "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write src",
+    "type-check": "tsc --noEmit",
+    "verify": "pnpm lint && pnpm type-check && pnpm test && pnpm build"
+  },
+  "keywords": [
+    "logger",
+    "logging",
+    "structured-logging",
+    "observability",
+    "correlation-id",
+    "audit-log",
+    "telamonjs",
+    "typescript"
+  ],
+  "author": "Marcos Tullyo (https://github.com/mtullyoc)",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "@vitest/ui": "^3.2.4",
+    "eslint": "^9.37.0",
+    "prettier": "^3.6.2",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telamonjs/telamonjs.git",
+    "directory": "packages/logger"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "homepage": "https://github.com/telamonjs/telamonjs/tree/main/packages/logger#readme",
+  "bugs": "https://github.com/telamonjs/telamonjs/issues"
+}

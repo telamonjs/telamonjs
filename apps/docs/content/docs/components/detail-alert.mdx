@@ -1,0 +1,328 @@
+---
+title: DetailAlert
+description: Alert component for displaying contextual messages in detail pages
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Alert component for displaying contextual messages, warnings, and important information in detail pages.
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailAlert` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailLayout, DetailAlert } from '@telamonjs/ui'
+
+export default function UserDetail({ user }) {
+  return (
+    <DetailLayout
+      title={user.name}
+      alerts={[
+        {
+          variant: 'warning',
+          title: 'Email Not Verified',
+          message: 'This user has not verified their email address.',
+        },
+      ]}
+      leftColumn={<UserInfo user={user} />}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface DetailAlertProps {
+  variant?: AlertVariant // Visual variant (default: 'info')
+  title: I18nText // Alert title (required)
+  message?: I18nText | React.ReactNode // Alert message, plain or rich content
+  icon?: LucideIcon // Custom icon (overrides default)
+  dismissible?: boolean // Show a close button (default: false)
+  onDismiss?: () => void // Dismiss callback (the button renders only when set)
+  className?: string // Additional classes
+}
+
+type AlertVariant =
+  | 'info' // Blue - Informational
+  | 'success' // Green - Success messages
+  | 'warning' // Yellow - Warnings
+  | 'danger' // Red - Errors
+```
+
+---
+
+## Examples
+
+### Alert Variants
+
+```tsx
+<div className='space-y-4'>
+  <DetailAlert
+    variant='info'
+    title='Information'
+    message='This is an informational message.'
+  />
+
+  <DetailAlert
+    variant='success'
+    title='Success'
+    message='Your changes have been saved successfully.'
+  />
+
+  <DetailAlert
+    variant='warning'
+    title='Warning'
+    message='This action cannot be undone. Please proceed with caution.'
+  />
+
+  <DetailAlert
+    variant='danger'
+    title='Error'
+    message='An error occurred while processing your request.'
+  />
+</div>
+```
+
+**Default icons:**
+
+- **info** - Info icon (blue)
+- **success** - CheckCircle2 icon (green)
+- **warning** - AlertTriangle icon (yellow)
+- **danger** - AlertCircle icon (red)
+
+### Without Message
+
+```tsx
+<DetailAlert variant='info' title='User has been inactive for 30 days.' />
+```
+
+`title` is required; `message` is optional for simple notices.
+
+### Dismissible Alerts
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+export default function UserDetail({ user }) {
+  const [showAlert, setShowAlert] = useState(true)
+
+  if (!showAlert) return null
+
+  return (
+    <DetailAlert
+      variant='warning'
+      title='Action Required'
+      message='Please update your profile information.'
+      dismissible
+      onDismiss={() => setShowAlert(false)}
+    />
+  )
+}
+```
+
+Adds a close button that calls `onDismiss` when clicked.
+
+### With Action Buttons
+
+```tsx
+<DetailAlert
+  variant='warning'
+  title='Subscription Expiring'
+  message={
+    <div className='space-y-2'>
+      <p>Your subscription expires in 3 days.</p>
+      <div className='flex gap-2'>
+        <Button variant='outline' size='sm'>
+          Remind Me Later
+        </Button>
+        <Button size='sm'>Renew Now</Button>
+      </div>
+    </div>
+  }
+/>
+```
+
+There is no `actions` prop: `message` accepts a `ReactNode`, so put buttons inside it.
+
+### Custom Icons
+
+```tsx
+import { Mail } from 'lucide-react'
+;<DetailAlert
+  variant='info'
+  title='Email Verification'
+  message='Check your inbox for a verification email.'
+  icon={Mail}
+/>
+```
+
+Override default icon with custom Lucide icon.
+
+### In DetailLayout (Recommended)
+
+```tsx
+<DetailLayout
+  title='User Profile'
+  alerts={[
+    {
+      variant: 'warning',
+      title: 'Email Not Verified',
+      message: 'This user has not verified their email address.',
+    },
+    {
+      variant: 'info',
+      title: 'Last Login',
+      message: 'User last logged in 2 hours ago.',
+    },
+  ]}
+  leftColumn={<UserInfo user={user} />}
+/>
+```
+
+DetailLayout renders alerts at the top of the page automatically.
+
+---
+
+## Complete Example
+
+```tsx
+'use client'
+
+import { DetailLayout, DetailAlert, DetailCard } from '@telamonjs/ui'
+import { Button } from '@/components/ui/button'
+import { useState } from 'react'
+
+export default function OrderDetail({ order }) {
+  const [alertDismissed, setAlertDismissed] = useState(false)
+
+  const alerts = []
+
+  // Conditional alerts based on order status
+  if (order.status === 'PENDING' && !alertDismissed) {
+    alerts.push({
+      variant: 'warning' as const,
+      title: 'Payment Pending',
+      message: (
+        <div className='space-y-2'>
+          <p>This order is awaiting payment confirmation.</p>
+          <Button size='sm' onClick={() => handleSendReminder(order.id)}>
+            Send Payment Reminder
+          </Button>
+        </div>
+      ),
+      dismissible: true,
+      onDismiss: () => setAlertDismissed(true),
+    })
+  }
+
+  if (order.shippingDelay) {
+    alerts.push({
+      variant: 'danger' as const,
+      title: 'Shipping Delayed',
+      message: `Expected delivery delayed by ${order.shippingDelay} days due to carrier issues.`,
+    })
+  }
+
+  if (order.refundProcessing) {
+    alerts.push({
+      variant: 'info' as const,
+      title: 'Refund Processing',
+      message:
+        'A refund is being processed for this order. It will be completed within 5-7 business days.',
+    })
+  }
+
+  return (
+    <DetailLayout
+      title={`Order #${order.id}`}
+      alerts={alerts}
+      leftColumn={
+        <DetailCard title='Order Details'>{/* Order details */}</DetailCard>
+      }
+    />
+  )
+}
+
+async function handleSendReminder(orderId: string) {
+  // Send payment reminder logic
+}
+```
+
+---
+
+## Best Practices
+
+1. **Use appropriate variants** - Choose variant based on severity
+2. **Keep messages concise** - 1-2 sentences max for better scannability
+3. **Provide actions when needed** - Help users resolve the issue
+4. **Don't overuse** - Too many alerts reduce effectiveness
+5. **Make dismissible when appropriate** - Non-critical info should be dismissible
+6. **Position at top** - Use DetailLayout's alerts prop for page-level alerts
+
+---
+
+## Variant Guidelines
+
+| Variant     | Use For                | Examples                                          |
+| ----------- | ---------------------- | ------------------------------------------------- |
+| **info**    | Informational messages | Updates, tips, notifications                      |
+| **success** | Positive confirmations | Saved, updated, completed actions                 |
+| **warning** | Important notices      | Missing data, expiring items, confirmation needed |
+| **danger**  | Critical issues        | Errors, failures, blocked actions                 |
+
+---
+
+## When to Use
+
+Use `DetailAlert` when:
+
+- ✅ Displaying contextual warnings/errors on detail pages
+- ✅ Showing status updates or notifications
+- ✅ Providing actionable feedback
+- ✅ Highlighting important information requiring attention
+
+**Don't use when:**
+
+- ❌ Global app-level notifications → Use Toast/Notification system
+- ❌ Form validation errors → Use field-level errors
+- ❌ Loading states → Use Skeleton/Spinner
+- ❌ Static help text → Use regular text/Callout
+
+---
+
+## Accessibility
+
+- Proper color contrast ratios (WCAG AA)
+- Icons complement text (not sole indicator)
+- Keyboard navigable dismiss button with a localized `aria-label`
+- No `role="alert"`: the alert is static content, not a live announcement
+
+---
+
+## Related Components
+
+- [DetailLayout](/docs/components/detail-layout) - Page layout with built-in alerts
+- Callout - Documentation callouts (docs sites)
+- Toast - Temporary notifications
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- [Quick Start](/docs/getting-started/quick-start) - CRUD example
+
+---
+
+**Status:** ✅ Stable

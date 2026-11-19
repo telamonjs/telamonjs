@@ -1,0 +1,299 @@
+---
+title: LoadingSkeleton
+description: Unified loading skeleton with multiple shapes
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Unified loading skeleton component with consistent pulse animation for different content shapes.
+
+<LoadingSkeletonPreview />
+
+<Callout type='info' title='One component, several shapes'>
+  Pick a `shape` (`card`, `table`, `text`, `stat`, `avatar`) instead of
+  hand-building loading states. For a one-off block, use the lower-level
+  `Skeleton` primitive.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { LoadingSkeleton } from '@telamonjs/ui'
+import { useQuery } from '@tanstack/react-query'
+
+export default function MyPage() {
+  const { data, isLoading } = useQuery({ queryKey: ['items'], queryFn: fetchItems })
+
+  if (isLoading) {
+    return <LoadingSkeleton shape='card' />
+  }
+
+  return <div>{data}</div>
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface LoadingSkeletonProps {
+  shape?: 'card' | 'table' | 'text' | 'stat' | 'avatar' // Skeleton type (default: 'card')
+  count?: number // Cards, table rows or text lines to render (default: 1)
+  columns?: number // Table columns (default: 4, 'table' only)
+  className?: string // Additional classes
+}
+```
+
+`count` applies to `card`, `table` and `text`; `stat` and `avatar` always render one item.
+
+---
+
+## Shapes
+
+### Card Skeleton
+
+```tsx
+<LoadingSkeleton shape='card' />
+```
+
+**Use for:**
+
+- DetailCard loading
+- Dashboard widgets
+- Profile cards
+
+**Renders:**
+
+- Card header skeleton (title + description lines)
+- Three content lines
+- Consistent card shape
+
+### Multiple Cards
+
+```tsx
+<LoadingSkeleton shape='card' count={3} />
+```
+
+Shows 3 card skeletons stacked vertically.
+
+### Table Skeleton
+
+```tsx
+<LoadingSkeleton shape='table' />
+```
+
+**Use for:**
+
+- DataTable loading
+- List pages
+- Reports
+
+**Renders:**
+
+- Toolbar placeholders (search + button)
+- Table header row
+- `count` data rows × `columns` columns
+
+### Custom Rows and Columns
+
+```tsx
+<LoadingSkeleton shape='table' count={10} columns={6} />
+```
+
+Shows a 6-column table skeleton with 10 rows.
+
+### Text Skeleton
+
+```tsx
+<LoadingSkeleton shape='text' count={4} />
+```
+
+Renders `count` full-width text lines.
+
+### Stat Skeleton
+
+```tsx
+<LoadingSkeleton shape='stat' />
+```
+
+A KPI card placeholder: label, icon, value and description.
+
+### Avatar Skeleton
+
+```tsx
+<LoadingSkeleton shape='avatar' />
+```
+
+A round avatar with two text lines beside it.
+
+---
+
+## Examples
+
+### In ListPage
+
+```tsx
+'use client'
+
+import { LoadingSkeleton } from '@telamonjs/ui'
+import { Suspense } from 'react'
+
+export default function UsersPage() {
+  return (
+    <Suspense fallback={<LoadingSkeleton shape='table' count={10} />}>
+      <UsersTable />
+    </Suspense>
+  )
+}
+```
+
+### In DetailCard
+
+```tsx
+'use client'
+
+import { LoadingSkeleton, DetailCard } from '@telamonjs/ui'
+
+export default function UserCard({ userId }) {
+  const { data: user, isLoading } = useUser(userId)
+
+  if (isLoading) {
+    return <LoadingSkeleton shape='card' />
+  }
+
+  return <DetailCard title='User Information'>{/* Fields */}</DetailCard>
+}
+```
+
+### In Detail Page
+
+```tsx
+import { LoadingSkeleton } from '@telamonjs/ui'
+import { Suspense } from 'react'
+
+export default function UserDetailPage({ params }) {
+  return (
+    <Suspense
+      fallback={
+        <div className='space-y-6'>
+          <LoadingSkeleton shape='avatar' />
+          <LoadingSkeleton shape='card' count={3} />
+        </div>
+      }
+    >
+      <UserDetail params={params} />
+    </Suspense>
+  )
+}
+```
+
+### In Dashboard
+
+```tsx
+<div className='grid grid-cols-1 md:grid-cols-3 gap-6'>
+  <Suspense
+    fallback={
+      <>
+        <LoadingSkeleton shape='stat' />
+        <LoadingSkeleton shape='stat' />
+        <LoadingSkeleton shape='stat' />
+      </>
+    }
+  >
+    <DashboardWidgets />
+  </Suspense>
+</div>
+```
+
+---
+
+## Complete Example
+
+```tsx title="app/admin/users/page.tsx"
+import { Suspense } from 'react'
+import { LoadingSkeleton } from '@telamonjs/ui'
+import { UsersTable } from './components/users-table'
+import { StatsCards } from './components/stats-cards'
+
+export default function UsersPage() {
+  return (
+    <div className='space-y-6'>
+      {/* Stats cards with loading skeleton */}
+      <Suspense
+        fallback={
+          <div className='grid gap-4 md:grid-cols-4'>
+            {Array.from({ length: 4 }).map((_, i) => (
+              <LoadingSkeleton key={i} shape='stat' />
+            ))}
+          </div>
+        }
+      >
+        <StatsCards />
+      </Suspense>
+
+      {/* Users table with loading skeleton */}
+      <Suspense fallback={<LoadingSkeleton shape='table' count={15} />}>
+        <UsersTable />
+      </Suspense>
+    </div>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Suspense fallbacks** - React Suspense loading states
+- **Query loading** - TanStack Query, SWR loading
+- **Page transitions** - `loading.tsx` route segments
+- **Component loading** - Async component mounting
+
+---
+
+## Animation
+
+**Pulse animation:**
+
+- Consistent across all shapes
+- Tailwind `animate-pulse` utility on each block (via `Skeleton`)
+
+---
+
+## Best Practices
+
+1. **Match content shape** - Choose the shape matching the actual content
+2. **Consistent rows** - Use the same row count as typical data
+3. **Suspense boundaries** - Wrap async components
+4. **Avoid nested** - Don't nest multiple skeletons
+
+---
+
+## Accessibility
+
+- No interactive elements (no tab stops)
+- The skeleton has no `role` or live region: if screen readers should hear a loading message, wrap it in an element with `role="status"` and visually hidden text
+
+---
+
+## Related Components
+
+- [BaseCard](/docs/components/base-card) - Card with its own `isLoading` skeleton
+- [DataTable](/docs/components/data-table) - Table component
+- [DetailLayout](/docs/components/detail-layout) - Detail page layout
+
+---
+
+## See Also
+
+- Loading States - Loading patterns
+- Suspense - React Suspense guide
+
+---
+
+**Status:** ✅ Stable

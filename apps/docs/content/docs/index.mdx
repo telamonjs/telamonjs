@@ -1,0 +1,78 @@
+---
+title: Introduction
+description: TelamonJS is an admin framework for Next.js and React, with the auth, permissions, logging and queue packages around it
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+TelamonJS builds admin applications on Next.js and React. You describe a module once,
+in a typed `CrudConfig`, and `<ListPage config={config} />` renders the list with
+search, sorting, filters and export, plus the create, edit and view dialogs, all
+backed by React Query.
+
+## Start with the CLI
+
+```bash
+npx -p @telamonjs/cli create-telamonjs-app my-admin
+cd my-admin
+pnpm dev
+```
+
+You get a running Next.js admin: the `AdminShell` layout, NextAuth sign-in, a Prisma
+database in Docker and a reference CRUD module. Then generate a module from one of
+your Prisma models:
+
+```bash
+pnpm exec telamonjs generate crud products --model Product
+```
+
+The [CLI page](/docs/packages/cli) covers the options, the monorepo layout and the
+other commands. To add TelamonJS to an app you already have, follow
+[Installation](/docs/getting-started/installation).
+
+## What a module looks like
+
+```tsx title="app/admin/products/page.tsx"
+'use client'
+
+import { ListPage } from '@telamonjs/ui'
+import { config } from './config'
+
+export default function ProductsPage() {
+  return <ListPage config={config} />
+}
+```
+
+`config.tsx` holds the columns, the form sections, the Zod schema and the
+`query`/`mutations` that call your API. [Quick Start](/docs/getting-started/quick-start)
+walks through a generated one, and [CrudConfig](/docs/getting-started/crud-config)
+documents every key.
+
+## Packages
+
+| Package | What it does |
+| --- | --- |
+| [`@telamonjs/ui`](/docs/components) | `CrudConfig` and `ListPage`, forms and fields, dialogs, detail views, the app shell, dashboards, charts, i18n |
+| [`@telamonjs/cli`](/docs/packages/cli) | Creates apps, generates CRUD modules from Prisma, lints modules against the conventions |
+| [`@telamonjs/auth`](/docs/packages/auth) | One session token shared by a NextAuth v5 app and a NestJS API |
+| [`@telamonjs/permissions`](/docs/packages/permissions) | RBAC materialized in the JWT, so a permission check is an array lookup |
+| [`@telamonjs/logger`](/docs/packages/logger) | One logger API across browser, server and worker |
+| [`@telamonjs/queue`](/docs/queue) | BullMQ jobs and schedules declared in config, with a dashboard |
+
+The UI package supports Next.js 15 and 16 with React 18 or 19.
+
+## Where to go next
+
+<Cards>
+  <Card href='/docs/getting-started' title='Getting Started' description='Create an app or add TelamonJS to an existing one.' />
+  <Card href='/docs/patterns' title='Core Concepts' description='CrudConfig, module structure, the data layer, dialogs, forms and the app shell.' />
+  <Card href='/docs/components' title='Components' description='Every component, grouped as in the sidebar.' />
+  <Card href='/docs/hooks' title='Hooks' description='Table state, URL sync, shell pages and more.' />
+  <Card href='/docs/queue' title='Queue' description='Background jobs, scheduling and monitoring.' />
+  <Card href='/docs/reference' title='Decision trees' description='Which component, form or pattern fits your case.' />
+</Cards>
+
+## Community
+
+- **GitHub:** [telamonjs/telamonjs](https://github.com/telamonjs/telamonjs)
+- **Issues:** [Report a bug](https://github.com/telamonjs/telamonjs/issues)

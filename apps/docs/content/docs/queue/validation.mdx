@@ -1,0 +1,168 @@
+---
+title: Validation
+description: Automatic Zod validation of queue configuration, job options, names and job data
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+All queue configuration is validated automatically with **Zod**. Invalid input
+throws a structured error (a `QueueError` subclass with a `QUEUE_1xxx` code, see
+[Error Handling](/docs/queue/error-handling)) with a readable message, instead of
+failing later inside BullMQ.
+
+| What | Checked by | Throws |
+| --- | --- | --- |
+| `QueueManager` config | `new QueueManager()` | `ConfigurationError` |
+| Job name | `register()` | `InvalidJobNameError` |
+| Job options (merged) | `add()` / `addBulk()` | `InvalidJobOptionsError` |
+| Worker config | `createWorkers()` | `InvalidWorkerConfigError` |
+
+## What gets validated
+
+### QueueManager configuration
+
+```typescript
+import { QueueManager } from '@telamonjs/queue'
+import { ConfigurationError } from '@telamonjs/queue/utils'
+
+try {
+  const queueManager = new QueueManager({
+    redis: {
+      host: 'localhost', // default 'localhost'
+      port: 6379, // 1–65535, default 6379
+      db: 0, // 0–15, default 0
+    },
+    prefix: 'my-queue', // 1–50 chars, default 'telamonjs'
+  })
+} catch (error) {
+  if (error instanceof ConfigurationError) {
+    console.error(error.message, error.context)
+  }
+}
+```
+
+<Callout type='info' title='Extra Redis options pass through'>
+  The Redis config schema uses `.passthrough()` — valid ioredis options
+  beyond the validated core fields (e.g. `maxRetriesPerRequest`,
+  `enableReadyCheck`, TLS settings) are preserved instead of being silently
+  discarded.
+</Callout>
+
+### Job names
+
+Pattern `/^[a-z0-9-_]+$/`, 1–100 characters: lowercase letters, numbers, hyphens
+and underscores only. `SendEmail`, `send email`, `send.email` are all rejected at
+registration.
+
+### Job options
+
+```typescript
+await queueManager.add(MyJob, data, {
+  attempts: 5, // 1–100
+  priority: 1, // 1–10 (lower = higher)
+  timeout: 30000, // positive ms
+  delay: 5000, // non-negative ms
+  backoff: { type: 'exponential', delay: 1000 }, // or fixed / plain number
+  removeOnComplete: 10, // boolean or positive number
+  removeOnFail: 50,
+  jobId: 'unique-id', // non-empty string
+})
+```
+
+### Worker configuration
+
+```typescript
+await queueManager.createWorkers({
+  concurrency: 10, // 1–100
+  autoRun: true,
+  limiter: { max: 100, duration: 1000 }, // positive integers
+})
+```
+
+## Job data validation (custom)
+
+Validate payloads with the `validate()` hook and your own Zod schema:
+
+```typescript
+import { z } from 'zod'
+import { Job } from '@telamonjs/queue'
+
+const EmailSchema = z.object({
+  to: z.string().email(),
+  subject: z.string().min(1).max(200),
+  body: z.string().min(1),
+})
+
+type EmailData = z.infer<typeof EmailSchema>
+
+export class SendEmailJob extends Job<EmailData, void> {
+  name = 'send-email' as const
+
+  async validate(data: unknown): Promise<void> {
+    EmailSchema.parse(data) // throws ZodError if invalid
+  }
+
+  async process(data: EmailData): Promise<void> {
+    await sendEmail(data.to, data.subject, data.body)
+  }
+}
+```
+
+`validate()` runs **in the worker**, right before `process()` (and before the
+optional `transform()` hook), not when the job is added. A throw fails that
+attempt like any other error: it is retried according to `attempts`, and lands in
+the [Dead Letter Queue](/docs/queue/dead-letter-queue) after the last one. Data
+that can never become valid should be rejected before `add()`, at the API
+boundary.
+
+## Manual validation
+
+`@telamonjs/queue/utils` exports `validateJobOptions` (throws a `ZodError`, returns
+the validated options, typed as `ValidatedJobOptions`) for checking options before enqueueing —
+see the API-boundary example below. The other validators run inside `QueueManager` and are not
+exported.
+
+## Handling validation errors
+
+```typescript
+import { InvalidJobOptionsError, JobNotFoundError } from '@telamonjs/queue/utils'
+
+try {
+  await queueManager.add(MyJob, data, options)
+} catch (error) {
+  if (error instanceof InvalidJobOptionsError) {
+    logger.error('Invalid job options', error.toJSON())
+  } else if (error instanceof JobNotFoundError) {
+    logger.error('Job not registered', error.toJSON())
+  } else {
+    throw error
+  }
+}
+```
+
+Validating user input at API boundaries before enqueueing:
+
+```typescript
+import { ZodError } from 'zod'
+import { validateJobOptions } from '@telamonjs/queue/utils'
+
+app.post('/jobs', async (req, res) => {
+  try {
+    const options = validateJobOptions(req.body.options)
+    await queueManager.add(MyJob, req.body.data, options)
+    res.json({ success: true })
+  } catch (error) {
+    if (error instanceof ZodError) {
+      res.status(400).json({ error: error.message })
+      return
+    }
+    throw error
+  }
+})
+```
+
+## Related
+
+- [Error Handling](/docs/queue/error-handling)
+- [Scheduling](/docs/queue/scheduling)
+- [Logging](/docs/queue/logging)

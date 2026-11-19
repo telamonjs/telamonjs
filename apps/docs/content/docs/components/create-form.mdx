@@ -1,0 +1,161 @@
+---
+title: CreateForm
+description: Semantic wrapper for creation forms with automatic editOnly filtering
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Semantic wrapper component for creation forms that automatically filters out `editOnly` fields.
+
+<Callout type='success' title='Recommended for creation pages'>
+  `CreateForm` provides better semantics and TypeScript clarity for creation
+  pages compared to using `Form` directly.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { CreateForm } from '@telamonjs/ui'
+import { formSections, validationSchema, type UserFormData } from './config'
+import { usersApi } from '@/lib/api/users-client'
+
+export function AddUserForm() {
+  const router = useRouter()
+
+  return (
+    <CreateForm
+      sections={formSections}
+      validation={validationSchema}
+      onSubmitValues={async values => ({
+        success: true,
+        data: await usersApi.create(values as UserFormData),
+      })}
+      onSuccess={() => router.push('/admin/users')}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+Same submit contract as [`Form`](/docs/components/form#submitting).
+
+**Key Props:**
+
+- `sections?: FormSection[]` - Form sections (drops `editOnly` sections, and `editOnly` or `type: 'crud'` fields)
+- `fields?: FormField[]` - Flat field list, filtered the same way (alternative to `sections`)
+- `onSubmitValues?: (values: Record<string, unknown>) => Promise<FormActionResult<T> | void>` - Default submit path: typed values, ideal for a React Query mutation
+- `action?: (formData: FormData) => Promise<FormActionResult<T> | void>` - Alternative: a Server Action receiving `FormData` (mutually exclusive with `onSubmitValues`)
+- `defaultValues?: Partial<T>` - Initial values
+- `validation?: z.ZodType` - Zod validation schema
+- `submitText?: string` - Submit button text (default: localized "Create")
+- `cancelAction?: () => void` - Cancel button handler
+- `onSuccess?: (result) => void | Promise<void>` - Called after a successful submit
+- `useTabs?: boolean` - Sections as tabs (default: `false` for creation)
+- `grid`, `hideButtons`, `flush`, `onFieldChange`, `onDirtyChange` - Same as `Form`
+
+---
+
+## Automatic Filtering
+
+`CreateForm` automatically filters out fields and sections marked with `editOnly: true`, and fields of `type: 'crud'` (a nested CRUD needs a saved parent):
+
+```tsx title="config.tsx"
+export const formSections: FormSection[] = [
+  {
+    label: 'Basic Info',
+    fields: [
+      {
+        name: 'name',
+        label: 'Name',
+        type: 'text',
+        required: true,
+      },
+      {
+        name: 'createdAt',
+        label: 'Created At',
+        type: 'date',
+        editOnly: true, // ✅ Hidden in CreateForm, shown in EditForm
+      },
+    ],
+  },
+]
+```
+
+**Result:**
+
+- `CreateForm` → Shows only `name` field
+- `EditForm` → Shows both `name` and `createdAt` fields
+
+---
+
+## When to Use
+
+Use `CreateForm` when:
+
+- ✅ Building creation pages (`/new`, `/add`)
+- ✅ You want semantic clarity (code reads better)
+- ✅ You have fields that should only appear on edit (timestamps, IDs, etc.)
+
+**Don't use when:**
+
+- ❌ Building edit pages → Use [EditForm](/docs/components/edit-form)
+- ❌ Building multi-step wizards → Use [ZustandForm](/docs/components/zustand-form)
+- ❌ Need full control → Use [Form](/docs/components/form)
+
+---
+
+## CreateForm vs Form
+
+| Feature              | CreateForm    | Form       |
+| -------------------- | ------------- | ---------- |
+| **Filters editOnly** | ✅ Yes        | ❌ No      |
+| **Filters `crud`**   | ✅ Yes        | ❌ No      |
+| **Semantic clarity** | ✅ High       | ⚠️ Medium  |
+| **TypeScript hints** | ✅ Better     | ⚠️ Generic |
+| **Use case**         | Creation only | Any form   |
+
+---
+
+## With Page Wrapper
+
+`CreatePage` wraps `CreateForm` with a page title and description. It takes the `FormData`
+`action` (not `onSubmitValues`) — see the [Quick Start](/docs/getting-started/quick-start)
+for a complete example:
+
+```tsx
+<CreatePage title='New User' sections={formSections} validation={validationSchema} action={action} />
+```
+
+---
+
+## Best Practices
+
+1. **Always use for creation pages** (better semantics)
+2. **Mark edit-only fields** with `editOnly: true` in config
+3. **Resolve `{ success, data? }`** from `onSubmitValues`
+4. **Invalidate the list query** after creation (React Query `invalidateQueries`, or `invalidates` in `CrudConfig`)
+5. **Redirect** to the list page in `onSuccess`
+
+---
+
+## Related Components
+
+- [EditForm](/docs/components/edit-form) - For edit pages
+- [Form](/docs/components/form) - Base form component
+- [CreatePage](/docs/components/create-page) - Page wrapper with layout
+
+---
+
+## See Also
+
+- [Module Structure](/docs/patterns/admin-module-structure) - Organize form configuration
+- [Form Pattern](/docs/patterns/form-pattern) - Form best practices
+- [Quick Start](/docs/getting-started/quick-start) - Complete CRUD example

@@ -1,0 +1,119 @@
+---
+title: Field Types
+description: All 36 field types registered in the telamonjs-ui field system
+---
+
+Reference for all **36 field types** registered in the telamonjs-ui field system (list them with `getAvailableFieldTypes()`). Use these in `FormSection.fields[].type`.
+
+<Callout type='error' title="'select' does NOT exist">
+  There is no `'select'` field type. **Always use `'relationship'`** for
+  dropdowns.
+</Callout>
+
+```typescript
+// ❌ NEVER use 'select' (does not exist) — and there is no `options` prop either
+{ name: 'category', type: 'select', options: [...] }
+
+// ✅ ALWAYS use 'relationship'; options come from `loadField`
+{
+  name: 'category',
+  label: 'Category',
+  type: 'relationship',
+  loadField: async () => [
+    { value: 'a', label: 'Category A' },
+    { value: 'b', label: 'Category B' },
+  ],
+}
+```
+
+`loadField` has the type `() => Promise<IOption[]> | ((search, id, dependsOn?) => Promise<IOption[]>)`:
+return the options directly (`IOption` is `{ value: string | number; label }`), or return a
+search function for server-side filtering of large lists. Pair it with `dependsOn` to reload
+options when another field changes.
+
+---
+
+## Quick Reference
+
+| Field Type | When to Use | Special Props |
+| --- | --- | --- |
+| `'text'` | Simple text | `placeholder` |
+| `'email'` | Validated email | `placeholder` |
+| `'password'` | Password | `placeholder` |
+| `'textarea'` | Long text | `placeholder` |
+| `'number'` | Integer | `placeholder` |
+| `'float'` | Decimal number | `placeholder` |
+| `'boolean'` | On/off switch | `default` |
+| `'checkbox'` | Checkbox | `default` |
+| `'date'` | Date | `minDate`, `maxDate` |
+| `'datetime'` | Date + time | - |
+| `'masked-datetime'` | Masked date/time | `mask` |
+| **`'relationship'`** | **Dropdown / select** | `loadField`, `dependsOn` |
+| `'multiselect'` | Multiple select | `loadField`, `dependsOn` |
+| `'image'` | Image upload | `uploadFn`, `path` |
+| `'file'` | File upload | `uploadFn`, `path`, `resolveUrl` |
+| `'masked'` | Masked input (CPF, phone) | `mask`, `maskType` |
+| `'component'` | Custom component | `Component` |
+| `'crud'` | Nested data 1:N | See [CRUD Field Pattern](/docs/patterns/crud-field) |
+| `'hidden'` | Hidden field | - |
+
+Every field also accepts `name`, `label`, `type`, `required`, `description`, `placeholder`,
+`span`, `readOnly`, `default`, `editOnly` and `visibleWhen`.
+
+### Additional Types (full registry)
+
+| Field Type | Category | When to Use |
+| --- | --- | --- |
+| `'string'` | Text | Alias of `'text'` (same renderer) |
+| `'currency'` | Number | Formatted monetary values |
+| `'masked-date'` | Date/Time | Masked date (same renderer as `'date'`) |
+| `'time'` | Date/Time | Time only (HH:mm) |
+| `'daterange'` | Date/Time | Date interval (start/end) |
+| `'month'` | Date/Time | Month picker (HTML5 `month` input) |
+| `'week'` | Date/Time | Week picker (HTML5 `week` input) |
+| `'fileupload'` | File | Upload with advanced UI (progress/drag-drop) |
+| `'url'` | HTML5 | Validated URL (`url` input) |
+| `'tel'` | HTML5 | Phone (`tel` input) |
+| `'color'` | HTML5 | Color picker (`color` input) |
+| `'range'` | HTML5 | Numeric slider (`range` input) |
+| `'search'` | HTML5 | Search field (`search` input) |
+| `'richtext'` | Advanced | Rich text editor (TipTap — lazy-loaded) |
+| `'wizard'` | Advanced | Multi-step flow inside the form |
+| `'svg'` | Special | SVG upload/preview |
+| `'space'` | Special | Layout spacer (renders no input) |
+
+---
+
+## Categories
+
+| Category | Field Types |
+| --- | --- |
+| Text | `text`, `string`, `email`, `password`, `textarea`, `masked` |
+| Number | `number`, `float`, `currency` |
+| Boolean | `boolean`, `checkbox` |
+| Date/Time | `date`, `datetime`, `masked-date`, `masked-datetime`, `time`, `daterange`, `month`, `week` |
+| Select | `relationship`, `multiselect` |
+| File | `image`, `file`, `fileupload` |
+| HTML5 | `url`, `tel`, `color`, `range`, `search` |
+| Advanced | `richtext`, `wizard` |
+| Special | `component`, `crud`, `svg`, `space`, `hidden` |
+
+---
+
+## Field Width in BaseForm
+
+BaseForm uses CSS Grid (not flexbox), so `className='w-full'` is ignored. Use `span` instead, matching the section `grid` value:
+
+```typescript
+// span must match the section grid value (default '2')
+{ name: 'fullWidthField', type: 'relationship', span: '2' }
+// For grid='3' sections, use span='3' for full width
+```
+
+---
+
+## Related
+
+- [Form Pattern](/docs/patterns/form-pattern) — complete forms guide
+- [CRUD Field Pattern](/docs/patterns/crud-field) — nested 1:N and N:M data
+- [CrudConfig](/docs/getting-started/crud-config) — where form sections live

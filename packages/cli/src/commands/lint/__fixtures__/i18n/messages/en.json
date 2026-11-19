@@ -1,0 +1,9 @@
+{
+  "produtos": {
+    "title": "Produtos",
+    "description": "Product management",
+    "fields": {
+      "nome": "Name"
+    }
+  }
+}

@@ -1,0 +1,265 @@
+---
+title: CRUD Field Pattern
+description: Manage nested 1:N and N:M relationships directly inside the parent form
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+A `type: 'crud'` field manages a **child list inside the parent's form** — a table with add,
+edit and delete, each in a small dialog — without leaving the page. Typical uses:
+
+- **1:N** (one-to-many): Customer → Branches, Customer → Contacts
+- **N:M** (many-to-many): User → Customers (with `manyToMany: true`)
+
+The child list needs the parent's id, so it only exists once the parent is saved: CRUD fields
+render in **edit** contexts (the edit dialog, `EditForm`, `EditPage`), and `CreateForm` filters
+them out. Put them in a section with `editOnly: true`.
+
+---
+
+## When to Use
+
+### ✅ USE when
+
+- You need to create/edit/delete related entities in the same form
+- The relationship is **tightly coupled** to the parent (e.g. a customer's branches)
+- The user benefits from staying on the current page
+- The number of related items is **small/medium** (&lt;100 items)
+
+### ❌ Do NOT use when
+
+- The relationship is **weak** or independent (use a `relationship` field instead)
+- The child list is large or needs search, filters and paging — use an embedded `ListPage`
+  scoped with `withScope` (see [Lists Scoped to a Parent](/docs/patterns/listpage-pattern#lists-scoped-to-a-parent))
+- The related entity has many complex fields (10+): give it its own dialog or page
+- You need complex cross-entity validation
+
+---
+
+## Anatomy
+
+Two formats configure the same component. **Prefer `crudConfig`**: it keeps the list, the form
+and the operations together.
+
+```tsx
+{
+  name: 'branches',
+  label: 'Branches',
+  type: 'crud',
+
+  crudConfig: {
+    title: 'Branches',                       // heading above the list (I18nText)
+    columns: [{ header: 'Name', accessorKey: 'name' }],
+    fields: [{ name: 'name', label: 'Branch name', type: 'text', required: true }],
+    validation: branchSchema,                // Zod schema of the child form (optional)
+
+    loadData: ({ id }) => branchesApi.listByCustomer(id),         // id = parent
+    loadForEdit: (parentId, itemId) => branchesApi.get(itemId),
+    create: async (data, { id }) => { await branchesApi.create(id, data); return true },
+    update: async (data, { itemId }) => { await branchesApi.update(itemId, data); return true },
+    delete: ({ id }) => branchesApi.delete(id),                   // 1:N: 2nd arg is { parentId }
+  },
+
+  // Optional, on the field itself
+  manyToMany: false,   // true for N:M
+  readOnly: false,     // true hides add/edit/delete
+  Footer: BranchesFooter,
+}
+```
+
+`crudConfig` also takes `description`, `emptyTitle` and `emptyDescription` for the copy around
+the list.
+
+---
+
+## The Operations Contract
+
+What the field calls at runtime:
+
+| `crudConfig` | Field prop | Called with | Must resolve |
+| --- | --- | --- | --- |
+| `loadData` | `listingFn` | `({ id: parentId })` | the array of items |
+| `loadForEdit` | `loadFn` | `loadForEdit(parentId, itemId)` / `loadFn(itemId, parentId)` | the item |
+| `create` | `createFn` | `(values, { id: parentId })` | `true` or `{ status: 'success' \| 'error', description }` |
+| `update` | `editFn` | `(values, { id: parentId, itemId })` | same as `create` |
+| `delete` | `deleteFn` | 1:N `({ id }, { parentId })` · N:M `({ parentId, id })` | anything; a rejection shows an error |
+
+<Callout type='warn' title='The data comes first, the ids second'>
+  `create` and `update` receive the submitted values first and the ids second. The parent id is
+  never inside the values (the field removes it), so read it from the second argument. The
+  exported `CrudCreateFn`, `CrudEditFn` and `CrudDeleteFn` types describe exactly this order, for
+  both formats.
+</Callout>
+
+- **Resolve `true`**, or `{ status: 'success', description }` to choose the success toast.
+  Resolving the created entity is treated as a failure and shows a generic error, even though
+  the record was saved: adapt inside the function.
+- **Throw** (or resolve `{ status: 'error', description }`) to show a message in the child form,
+  such as the API's validation error.
+- Without `update`/`loadForEdit` the edit button is hidden; without `delete`, the delete button.
+
+```ts
+// ❌ WRONG — parent id first, entity returned
+create: (parentId: string, values: unknown) => branchesApi.create(parentId, values)
+
+// ✅ CORRECT — values first, { id: parentId } second, resolve true
+create: async (values, { id }) => {
+  await branchesApi.create(id, values)
+  return true
+}
+```
+
+---
+
+## Complete Example: Customer → Branches
+
+### 1. API client
+
+```ts title="lib/api/branches-client.ts"
+export const branchesApi = {
+  listByCustomer: (customerId: string) => api.get<Branch[]>(`/customers/${customerId}/branches`),
+  get: (id: string) => api.get<Branch>(`/branches/${id}`),
+  create: (customerId: string, data: unknown) => api.post<Branch>(`/customers/${customerId}/branches`, data),
+  update: (id: string, data: unknown) => api.patch<Branch>(`/branches/${id}`, data),
+  delete: (id: string) => api.delete(`/branches/${id}`),
+}
+```
+
+`api` stands for the app's fetch wrapper. The backend takes `customerId` from the route.
+
+### 2. config.tsx
+
+```tsx title="app/admin/customers/config.tsx (excerpt)"
+'use client'
+
+import type { CrudConfig, FormSection } from '@telamonjs/ui'
+import { customersApi } from '@/lib/api/customers-client'
+import { branchesApi } from '@/lib/api/branches-client'
+
+export const formSections: FormSection[] = [
+  {
+    label: 'General',
+    fields: [{ name: 'name', label: 'Customer name', type: 'text', required: true }],
+  },
+  {
+    label: 'Organization',
+    editOnly: true, // the list needs the parent's id: edit only
+    fields: [
+      {
+        name: 'branches',
+        label: 'Branches',
+        type: 'crud',
+        crudConfig: {
+          columns: [{ header: 'Name', accessorKey: 'name' }],
+          fields: [{ name: 'name', label: 'Branch name', type: 'text', required: true, focus: true }],
+          loadData: ({ id }) => branchesApi.listByCustomer(id),
+          loadForEdit: (_parentId, itemId) => branchesApi.get(itemId),
+          // the API returns the entity, so adapt here and resolve true
+          create: async (data, { id }) => {
+            await branchesApi.create(id, data)
+            return true
+          },
+          update: async (data, { itemId }) => {
+            await branchesApi.update(itemId, data)
+            return true
+          },
+          delete: ({ id }) => branchesApi.delete(id),
+        },
+      },
+    ],
+  },
+]
+
+export const customersConfig: CrudConfig<Customer, CustomerFormData> = {
+  // module, list, query...
+  form: { sections: formSections, validation: customerSchema },
+  mutations: {
+    // create / update of the customer itself...
+    getForEdit: customersApi.get,
+  },
+  dialogs: { edit: { title: 'Edit customer' }, create: { title: 'New customer' } },
+}
+```
+
+The `ListPage` edit dialog passes the customer's `id` to the form, and the CRUD field uses it as
+the parent. The field's operations do not go through the module's `mutations`: each one calls
+the API directly, then reloads the child list and the record of the dialog that contains it.
+
+---
+
+## The Child Form
+
+The add/edit dialog is an `AdminForm` in a two-column grid, filled with the item that
+`loadForEdit` returns. Field names are relative to that item, so dot notation reaches its nested
+relations (`person.name`) the same way as in any form — see the
+[Nested Data Pattern](/docs/patterns/nested-data).
+
+Child fields support `name`, `label`, `type`, `required`, `placeholder`, `readOnly`, `focus`,
+`default`, `span`, `description`, `loadField`/`dependsOn`, `mask`/`maskType`, `uploadFn`/`path`
+and `Component`. Other field props (such as `visibleWhen` or date limits) are not applied inside
+a CRUD field.
+
+---
+
+## Advanced Customization
+
+### Custom footer
+
+`Footer` renders under the list and receives `{ id, data, onRefresh }`:
+
+```tsx
+function BranchesFooter({ data }: { id?: string; data: unknown[]; onRefresh?: () => void }) {
+  return <div className='mt-4 text-sm text-muted-foreground'>Total branches: {data.length}</div>
+}
+```
+
+### Many-to-many (N:M)
+
+```tsx
+{
+  name: 'customers',
+  type: 'crud',
+  manyToMany: true,
+  crudConfig: {
+    // ...
+    // N:M: the parent id comes inside the first argument
+    delete: ({ parentId, id }) => usersApi.unlinkCustomer(parentId!, id),
+  },
+}
+```
+
+Delete signatures: 1:N `({ id }, { parentId })`, N:M `({ parentId, id })`.
+
+### Read-only
+
+```tsx
+{ name: 'branches', type: 'crud', readOnly: true, crudConfig: { /* ... */ } }
+```
+
+---
+
+## Troubleshooting
+
+### Saved in the backend, but the form shows an error
+
+`create`/`update` resolved the entity instead of `true`. Adapt inside the function (see the
+contract above).
+
+### "parentId is undefined" / `values.id` is the parent's id
+
+The parent comes in the second argument (`{ id }`), never inside the values:
+`create: async (data, { id: parentId }) => { await api.create(parentId, data); return true }`.
+
+### The list does not appear
+
+The form has no `id` yet (create mode): `loadData` only runs once the parent exists. Put the
+section under `editOnly: true`, or save the parent first.
+
+---
+
+## Related
+
+- [Nested Data Pattern](/docs/patterns/nested-data) — dot notation for nested fields
+- [Form Pattern](/docs/patterns/form-pattern) — general form configuration
+- [ListPage Pattern](/docs/patterns/listpage-pattern) — embedded child lists with `withScope`
+- [Field Types](/docs/reference/field-types) — the `'crud'` type in context

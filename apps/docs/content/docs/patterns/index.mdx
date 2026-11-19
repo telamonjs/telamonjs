@@ -1,0 +1,147 @@
+---
+title: Patterns
+description: The architectural patterns behind a TelamonJS app - CRUD modules, forms, dialogs, detail pages and the app shell
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+How TelamonJS apps are built. Read the relevant pattern **before** changing a CRUD module, a form,
+a dialog, a detail page or a dashboard.
+
+<Callout type='warn' title='Architecture'>
+  Data flows Client → REST API in one hop (cookie auth), through **React Query**.
+</Callout>
+
+---
+
+## Critical Rules
+
+<Callout type='error' title='Dynamic Zustand selectors inside custom hooks loop forever'>
+  A dynamic selector inside a custom hook causes an infinite loop (`getSnapshot should be
+  cached`). Subscribe to the store and select locally. See
+  [Zustand Selector Pattern](/docs/patterns/zustand-selector).
+</Callout>
+
+```ts
+// ✅ CORRECT
+const formState = useFormStore()
+const data = formState.forms[formId]
+
+// ❌ WRONG (inside a custom hook)
+const data = useFormStore(state => state.forms[formId])
+```
+
+- `config.tsx` starts with `'use client'`.
+- `query.queryFn` resolves `PaginatedResponse<T>`, and every `mutationFn` resolves
+  `{ success, data? }` — adapt inside the `mutationFn`, not in the API client.
+- There is no `'select'` field type: use `'relationship'` with `loadField`.
+
+---
+
+## CRUD Module
+
+| Pattern | Use it for |
+| --- | --- |
+| [Admin Module Structure](/docs/patterns/admin-module-structure) | Where each file of a module lives, and `config.tsx` (`'use client'`) with the module's `CrudConfig` |
+| [ListPage](/docs/patterns/listpage-pattern) | `<ListPage config={...} />`: infinite scroll (default), toolbar, filters, bulk actions, dialogs |
+| [Data Layer (React Query)](/docs/patterns/react-query) | API client, `queryFn` → `PaginatedResponse<T>`, `mutationFn` → `{ success, data? }`, invalidation |
+| [Form](/docs/patterns/form-pattern) | `AdminForm`/`CreateForm`/`EditForm`/`ZustandForm`: sections, grid, validation |
+| [CRUD Field](/docs/patterns/crud-field) | `type: 'crud'` for 1:N / N:M lists inside a form (`create(data, { id: parentId })`) |
+| [Nested Data](/docs/patterns/nested-data) | Nested records in forms with dot notation (`person.email`) |
+
+## Dialogs, Detail Pages and Shell
+
+| Pattern | Use it for |
+| --- | --- |
+| [Dialogs](/docs/patterns/dialogs) | View, edit and create dialogs, rich headers, sizes |
+| [Detail Page](/docs/patterns/detail-page) | A dedicated detail route with `DetailLayout`, `DetailCard`, `DetailField`... |
+| [Standalone Form Pages](/docs/patterns/edit-page) | Create/edit routes with `CreatePage`/`EditPage`, when a dialog is not enough (dialogs are the default) |
+| [Dashboard](/docs/patterns/dashboard) | `DashboardShell`, `ShellPage` + `AdminHeader` + `AdminTabs`, stat cards |
+| [Provider Setup](/docs/patterns/provider-setup) | `AppProviders`, the app's `QueryClient`, `AdminShell`, icon resolver |
+
+## Cross-Cutting
+
+| Pattern | Use it for |
+| --- | --- |
+| [i18n](/docs/patterns/i18n) | UI text: `msg()` in configs, `useTranslations()`/`getTranslations()`, `useFormat()` |
+| [Accessibility](/docs/patterns/accessibility) | `data-testid` conventions, ARIA attributes, `vitest-axe` tests |
+| [Zustand Selector](/docs/patterns/zustand-selector) | Reading stores without render loops |
+| [Troubleshooting](/docs/troubleshooting) | "No QueryClient set", linked packages, `getSnapshot should be cached` |
+
+---
+
+## A Complete CRUD Module
+
+```
+app/admin/users/
+├── config.tsx          'use client' — CrudConfig (module config + data layer)
+├── page.tsx            <ListPage config={config} />
+└── [id]/
+    └── page.tsx        Detail Page (optional — the view dialog covers most cases)
+
+lib/api/
+└── users-client.ts     list / get / create / update / delete against the API
+```
+
+```tsx title="config.tsx"
+'use client'
+import { type CrudConfig } from '@telamonjs/ui'
+import { usersApi } from '@/lib/api/users-client'
+
+export const config: CrudConfig<User, UserFormData> = {
+  module: { name: 'users', title: 'Users', description: 'Manage system users', route: '/admin/users' },
+  list: { title: 'Users', description: 'Registered users', columns, searchPlaceholder: 'Search...' },
+  form: { sections, validation: validationSchema },
+  // queryFn resolves PaginatedResponse<User> ({ data, total, page, pageSize, totalPages })
+  query: { queryKey: ['users'], queryFn: usersApi.list },
+  mutations: {
+    // mutationFn resolves { success, data? } — shape it here, not in the API client
+    create: {
+      mutationFn: async data => ({ success: true, data: await usersApi.create(data) }),
+      invalidates: [['users']],
+    },
+    update: {
+      mutationFn: async ({ id, data }) => ({ success: true, data: await usersApi.update(id, data) }),
+      invalidates: [['users']],
+    },
+    delete: {
+      mutationFn: async ({ id }) => {
+        await usersApi.delete(id)
+        return { success: true }
+      },
+      invalidates: [['users']],
+    },
+  },
+}
+```
+
+```tsx title="page.tsx"
+import { ListPage } from '@telamonjs/ui'
+import { config } from './config'
+
+export default function UsersPage() {
+  return <ListPage config={config} />
+}
+```
+
+---
+
+## Anti-Patterns
+
+- ❌ A dynamic Zustand selector inside a custom hook (see above)
+- ❌ `type: 'select'` — use `'relationship'` with `loadField`
+- ❌ Server Actions, `actions.ts` or `unstable_cache` as the data layer
+- ❌ `className: 'w-full'` on a form field — the grid ignores it; use `span`
+- ❌ `any` — use `unknown` or the real type
+- ❌ `redirect()` inside `try`/`catch` — the `NEXT_REDIRECT` error is caught; redirect outside the block
+- ❌ Looking for React Query hooks in `@telamonjs/ui` — they are not re-exported; import `@tanstack/react-query` directly
+
+---
+
+## Next Steps
+
+1. [Admin Module Structure](/docs/patterns/admin-module-structure) - What goes in `config.tsx`
+2. [ListPage](/docs/patterns/listpage-pattern) - Everything `ListPage` does with the config
+3. [Data Layer (React Query)](/docs/patterns/react-query) - API client, mutations and invalidation
+4. [Form Pattern](/docs/patterns/form-pattern) - Sections, grid and validation
+5. [Provider Setup](/docs/patterns/provider-setup) - App shell + providers

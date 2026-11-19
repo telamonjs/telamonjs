@@ -1,0 +1,261 @@
+---
+title: DetailStatsGrid
+description: Grid of metric cards for displaying statistics
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Grid component for displaying metrics, KPIs, and statistics in detail pages.
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailStatsGrid` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailStatsGrid } from '@telamonjs/ui'
+
+export default function UserDetail({ stats }) {
+  return (
+    <DetailStatsGrid
+      stats={[
+        { label: 'Total Posts', value: stats.postsCount },
+        { label: 'Comments', value: stats.commentsCount },
+        { label: 'Likes', value: stats.likesCount },
+      ]}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface DetailStatsGridProps {
+  stats: StatConfig[] // Array of stats to display
+  columns?: 2 | 3 | 4 // Number of columns (default: 2)
+  className?: string // Additional classes
+}
+
+interface StatConfig {
+  label: I18nText // Stat label
+  value: string | number | React.ReactNode // Stat value
+  icon?: LucideIcon // Optional icon before the label
+  color?: 'default' | 'success' | 'danger' | 'warning' | 'info' // Value text color (default: 'default')
+  description?: I18nText // Optional text below the value
+}
+```
+
+`StatConfig` is exported from `@telamonjs/ui` and `@telamonjs/ui/detail`. There is no `trend`, `href` or `variant` prop.
+
+---
+
+## Examples
+
+### Basic Stats
+
+```tsx
+<DetailStatsGrid
+  stats={[
+    { label: 'Revenue', value: '$12,345' },
+    { label: 'Users', value: 1234 },
+    { label: 'Orders', value: 567 },
+  ]}
+/>
+```
+
+Displays the stats in a 2-column grid (the default).
+
+### With Icons
+
+```tsx
+import { DollarSign, Users, ShoppingCart, TrendingUp } from 'lucide-react'
+;<DetailStatsGrid
+  stats={[
+    { label: 'Revenue', value: '$12,345', icon: DollarSign },
+    { label: 'Users', value: 1234, icon: Users },
+    { label: 'Orders', value: 567, icon: ShoppingCart },
+    { label: 'Growth', value: '+23%', icon: TrendingUp },
+  ]}
+/>
+```
+
+Icons improve visual recognition and hierarchy.
+
+### With Colors and Descriptions
+
+```tsx
+<DetailStatsGrid
+  columns={3}
+  stats={[
+    {
+      label: 'Revenue',
+      value: '$12,345',
+      color: 'success',
+      description: '+12% vs last month',
+    },
+    {
+      label: 'Users',
+      value: 1234,
+      color: 'info',
+      description: '+5% vs last month',
+    },
+    {
+      label: 'Churn',
+      value: '2.3%',
+      color: 'danger',
+      description: '-0.5% vs last month',
+    },
+  ]}
+/>
+```
+
+`color` tints the value text; `description` adds context below it.
+
+### Linked Values
+
+```tsx
+<DetailStatsGrid
+  stats={[
+    {
+      label: 'Posts',
+      value: <Link href={`/users/${userId}/posts`}>42</Link>,
+    },
+    {
+      label: 'Comments',
+      value: <Link href={`/users/${userId}/comments`}>128</Link>,
+    },
+  ]}
+/>
+```
+
+`value` accepts a `ReactNode`, so a link can drill down to the related list.
+
+### Custom Columns
+
+```tsx
+// 2 columns
+<DetailStatsGrid
+  columns={2}
+  stats={stats}
+/>
+
+// 4 columns
+<DetailStatsGrid
+  columns={4}
+  stats={stats}
+/>
+```
+
+---
+
+## Responsive Behavior
+
+The grid uses `grid-cols-{columns}` at every screen size: it does not collapse on mobile. For narrow containers, use `columns={2}` or pass breakpoint classes through `className` (e.g. `className='grid-cols-1 sm:grid-cols-2 lg:grid-cols-4'`).
+
+---
+
+## Complete Example
+
+```tsx
+import { DetailStatsGrid } from '@telamonjs/ui'
+import { DollarSign, Users, ShoppingCart, TrendingUp } from 'lucide-react'
+
+export default function DashboardStats({ stats }) {
+  return (
+    <DetailStatsGrid
+      columns={4}
+      stats={[
+        {
+          label: 'Total Revenue',
+          value: `$${stats.revenue.toLocaleString()}`,
+          icon: DollarSign,
+          color: stats.revenue > stats.lastMonthRevenue ? 'success' : 'danger',
+          description: `${stats.revenueGrowth}% vs last month`,
+        },
+        {
+          label: 'Active Users',
+          value: stats.activeUsers.toLocaleString(),
+          icon: Users,
+          description: '+12% vs last month',
+        },
+        {
+          label: 'Total Orders',
+          value: stats.orders.toLocaleString(),
+          icon: ShoppingCart,
+          description: '+8% vs last month',
+        },
+        {
+          label: 'Conversion Rate',
+          value: `${stats.conversionRate}%`,
+          icon: TrendingUp,
+          color: stats.conversionRate > 3 ? 'success' : 'default',
+          description: '+0.5% vs last month',
+        },
+      ]}
+    />
+  )
+}
+```
+
+---
+
+## Best Practices
+
+1. **Keep metrics simple** - Show only the most important KPIs
+2. **Use consistent time ranges** - All comparisons should cover the same periods
+3. **Add context** - Use descriptions to explain what the numbers mean
+4. **Use color for meaning** - `success`/`danger`/`warning` only when the value signals something
+5. **Limit number of stats** - 3-6 stats per grid for optimal readability
+6. **Format numbers** - Use locale formatting for large numbers
+
+---
+
+## When to Use
+
+Use `DetailStatsGrid` when:
+
+- ✅ Displaying metrics/KPIs in dashboard or detail pages
+- ✅ Showing summary statistics at the top of a page
+- ✅ Comparing multiple data points side-by-side
+- ✅ Building analytics or reporting interfaces
+
+**Don't use when:**
+
+- ❌ Displaying single metrics → Use DetailCard with single value
+- ❌ Complex charts needed → Use Chart components
+- ❌ Tabular data → Use DataTable
+
+---
+
+## Accessibility
+
+- Each stat is a card with its label as visible text
+- Icons are decorative and sit next to the visible label
+- Color is never the only signal: pair it with a `description`
+
+---
+
+## Related Components
+
+- [DetailCard](/docs/components/detail-card) - Card for grouping fields
+- [DetailLayout](/docs/components/detail-layout) - Page layout
+- [BarChart](/docs/components/bar-chart) - For detailed charts
+- [LineChart](/docs/components/line-chart) - For trend visualization
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- [Dashboard Components](/docs/components#dashboard) - Dashboard-specific components
+
+---
+
+**Status:** ✅ Stable

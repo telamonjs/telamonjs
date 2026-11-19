@@ -1,0 +1,110 @@
+---
+title: Breadcrumb
+description: Breadcrumb primitives, plus the route-aware breadcrumbs used by the admin shell
+---
+
+The library ships two layers of breadcrumbs:
+
+- **Primitives** — `Breadcrumb`, `BreadcrumbList`, `BreadcrumbItem`, `BreadcrumbLink`,
+  `BreadcrumbPage`, `BreadcrumbSeparator`, `BreadcrumbEllipsis` (root entry). Plain styled
+  elements: you decide every item.
+- **Route-aware** — `ResponsiveBreadcrumb` (root entry) builds the trail from the current
+  pathname. [AdminShell](/docs/components/admin-shell) already renders
+  `ResponsiveBreadcrumb` in its header, so most apps never mount one themselves.
+
+---
+
+## Primitives
+
+```tsx
+import Link from 'next/link'
+import {
+  Breadcrumb,
+  BreadcrumbList,
+  BreadcrumbItem,
+  BreadcrumbLink,
+  BreadcrumbPage,
+  BreadcrumbSeparator,
+} from '@telamonjs/ui'
+
+export function UserBreadcrumb({ name }: { name: string }) {
+  return (
+    <Breadcrumb>
+      <BreadcrumbList>
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link href='/admin'>Home</Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbLink asChild>
+            <Link href='/admin/users'>Users</Link>
+          </BreadcrumbLink>
+        </BreadcrumbItem>
+        <BreadcrumbSeparator />
+        <BreadcrumbItem>
+          <BreadcrumbPage>{name}</BreadcrumbPage>
+        </BreadcrumbItem>
+      </BreadcrumbList>
+    </Breadcrumb>
+  )
+}
+```
+
+| Part | Renders | Notes |
+| --- | --- | --- |
+| `Breadcrumb` | `<nav aria-label="breadcrumb">` | Accepts every `nav` prop |
+| `BreadcrumbList` | `<ol>` | Flex row, wraps on small screens |
+| `BreadcrumbItem` | `<li>` | |
+| `BreadcrumbLink` | `<a>` | `asChild` renders your own element (e.g. Next.js `Link`) |
+| `BreadcrumbPage` | `<span aria-current="page">` | The current page, not a link |
+| `BreadcrumbSeparator` | `<li aria-hidden>` | Chevron by default; pass `children` for a custom separator |
+| `BreadcrumbEllipsis` | `<span aria-hidden>` | "More" icon for collapsed items, with an sr-only label |
+
+There is no `items` array prop: compose the parts. To collapse a long trail, render
+`BreadcrumbEllipsis` (optionally as a [DropdownMenu](/docs/components/dropdown-menu) trigger)
+in place of the middle items.
+
+---
+
+## Route-aware breadcrumbs: ResponsiveBreadcrumb
+
+Builds segments from the pathname and the menu tree: menu routes get their menu label and icon,
+record ids become entity segments, and `create`/`edit`/`view` segments become action segments.
+Desktop shows up to five items (middle items collapse into a dropdown); mobile shows a home icon
+and the last segment.
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `menuConfig` | `MenuItem[]` | `[]` | Menu tree used to label segments |
+| `customSegments` | `BreadcrumbCustomSegments` | `{}` | Overrides keyed by full path (`/admin/settings`) or by segment (`settings`): a label, or `{ label, href }` to link a segment that is not a menu route |
+| `showActions` | `boolean` | `true` | Shows a "creating/editing/viewing" badge on create/edit/view pages |
+| `className` | `string` | — | Classes on the `nav` |
+
+Inside `AdminShell`, pass overrides through `breadcrumbProps`:
+
+```tsx
+<AdminShell
+  menuConfig={menu}
+  breadcrumbProps={{ customSegments: { '/admin/settings': { label: 'Settings', href: '/admin/settings' } } }}
+>
+  {children}
+</AdminShell>
+```
+
+---
+
+## Accessibility
+
+- The primitives render a labelled `nav` with an ordered list; the current page carries
+  `aria-current="page"`.
+- Separators and the ellipsis are `aria-hidden`, so screen readers announce only the items.
+
+---
+
+## Related
+
+- [AdminShell](/docs/components/admin-shell) — renders the route-aware breadcrumb in its header
+- [ModernSidebar](/docs/components/modern-sidebar) - Primary navigation
+- [Tabs](/docs/components/tabs) — in-page navigation

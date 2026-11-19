@@ -1,0 +1,246 @@
+---
+title: DetailField
+description: Display label-value pairs with optional icons
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Component for displaying label-value pairs in detail pages with optional icons, highlighting and two layouts.
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailField` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailCard, DetailField } from '@telamonjs/ui'
+
+export default function UserDetail({ user }) {
+  return (
+    <DetailCard title='User Info'>
+      <DetailField label='Name' value={user.name} />
+      <DetailField label='Email' value={user.email} />
+      <DetailField label='Role' value={user.role} />
+    </DetailCard>
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface DetailFieldProps {
+  label: I18nText // Field label (required)
+  value: React.ReactNode // Field value (string, number, JSX) (required)
+  icon?: LucideIcon // Icon before the label
+  variant?: 'default' | 'highlighted' // 'highlighted' = primary color, larger text (default: 'default')
+  border?: boolean // Top border to separate sections (default: false)
+  density?: 'compact' | 'comfortable' | 'spacious' // Spacing and sizing (default: 'comfortable')
+  layout?: 'stacked' | 'horizontal' // Label/value arrangement (default: 'stacked')
+  name?: string // Name for the test ID (defaults to the kebab-cased label)
+  className?: string // Additional classes
+}
+```
+
+`DetailField` renders `value` as-is: there is no `format`, `href`, `copyable` or `truncate` prop. Format, link or truncate the value yourself (see the examples).
+
+---
+
+## Examples
+
+### With Icon
+
+```tsx
+import { Mail, Phone, MapPin } from 'lucide-react'
+;<DetailCard title='Contact'>
+  <DetailField label='Email' value='john@example.com' icon={Mail} />
+  <DetailField label='Phone' value='+1 234 567 890' icon={Phone} />
+  <DetailField label='Address' value='123 Main St, NYC' icon={MapPin} />
+</DetailCard>
+```
+
+Icons improve scanability and visual hierarchy.
+
+### Highlighted Value
+
+```tsx
+<DetailField label='Total' value='$1,250.00' variant='highlighted' />
+```
+
+Renders the value in the primary color with larger text.
+
+### Horizontal Layout
+
+```tsx
+<DetailField label='Status' value='Active' layout='horizontal' />
+```
+
+Label on the left, value on the right. The default `stacked` layout renders `Label: Value` in one row.
+
+### Formatting Values
+
+```tsx
+<DetailField
+  label="Created At"
+  value={new Date(user.createdAt).toLocaleDateString()}
+/>
+
+<DetailField
+  label="Price"
+  value={new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(29.99)}
+/>
+```
+
+Format dates, numbers and currency before passing them as `value`.
+
+### Links
+
+```tsx
+<DetailField
+  label='Email'
+  value={<a href={`mailto:${user.email}`}>{user.email}</a>}
+/>
+<DetailField
+  label='Profile'
+  value={<Link href={`/users/${user.id}`}>View Profile</Link>}
+/>
+```
+
+Pass a link element as `value`.
+
+### Empty State
+
+```tsx
+<DetailField label='Bio' value={user.bio ?? 'Not provided'} />
+```
+
+`value` renders as-is, so provide your own fallback for null/undefined.
+
+### Custom JSX Values
+
+```tsx
+<DetailField
+  label='Status'
+  value={
+    <Badge variant={user.active ? 'default' : 'secondary'}>
+      {user.active ? 'Active' : 'Inactive'}
+    </Badge>
+  }
+/>
+```
+
+`value` can be any React node, not just strings.
+
+---
+
+## Layout
+
+The `layout` prop picks the arrangement (same at every screen size):
+
+**`stacked` (default):**
+
+```
+[icon] Label: Value
+```
+
+**`horizontal`:**
+
+```
+[icon] Label            Value
+```
+
+---
+
+## Complete Example
+
+```tsx
+import { Badge, DetailCard, DetailField } from '@telamonjs/ui'
+import { User, Mail, Phone, Calendar, DollarSign } from 'lucide-react'
+
+const currency = new Intl.NumberFormat('en-US', {
+  style: 'currency',
+  currency: 'USD',
+})
+
+export default function UserDetail({ user }) {
+  return (
+    <DetailCard title='User Information' icon={User}>
+      <DetailField label='Name' value={user.name} />
+      <DetailField
+        label='Email'
+        value={<a href={`mailto:${user.email}`}>{user.email}</a>}
+        icon={Mail}
+      />
+      <DetailField
+        label='Phone'
+        value={<a href={`tel:${user.phone}`}>{user.phone}</a>}
+        icon={Phone}
+      />
+      <DetailField
+        label='Status'
+        value={
+          <Badge variant={user.active ? 'default' : 'secondary'}>
+            {user.active ? 'Active' : 'Inactive'}
+          </Badge>
+        }
+      />
+      <DetailField
+        label='Member Since'
+        value={new Date(user.createdAt).toLocaleDateString()}
+        icon={Calendar}
+      />
+      <DetailField
+        label='Account Balance'
+        value={currency.format(user.balance)}
+        icon={DollarSign}
+        variant='highlighted'
+        border
+      />
+    </DetailCard>
+  )
+}
+```
+
+---
+
+## Best Practices
+
+1. **Use consistent ordering** - Most important fields first
+2. **Add icons sparingly** - Only for key fields to avoid visual clutter
+3. **Format before rendering** - Pass dates, numbers and currency already formatted
+4. **Handle empty states** - Always provide fallback for null/undefined
+5. **Make data actionable** - Wrap emails, phones and URLs in links
+6. **Highlight sparingly** - Reserve `variant='highlighted'` for key values like totals
+
+---
+
+## Accessibility
+
+- Label and value render as visible text in `<span>` elements (not a `<dl>`)
+- Icons are decorative and sit next to the visible label
+- Links you pass as `value` keep their own semantics
+
+---
+
+## Related Components
+
+- [DetailCard](/docs/components/detail-card) - Card wrapper for fields
+- [DetailLayout](/docs/components/detail-layout) - Page layout
+- [DetailStatus](/docs/components/detail-status) - Status badge field
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- [Quick Start](/docs/getting-started/quick-start) - CRUD example
+
+---
+
+**Status:** ✅ Stable

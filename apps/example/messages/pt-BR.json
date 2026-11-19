@@ -1,0 +1,76 @@
+{
+  "common": {
+    "appName": "TelamonJS App",
+    "welcome": "Bem-vindo"
+  },
+  "nav": {
+    "home": "Início",
+    "users": "Usuários"
+  },
+  "auth": {
+    "signIn": "Entrar",
+    "signOut": "Sair"
+  },
+  "usuarios": {
+    "title": "Usuários",
+    "description": "Gerenciamento de usuários do sistema",
+    "searchPlaceholder": "Buscar por nome ou email...",
+    "noName": "Sem nome",
+    "roleAdmin": "Administrador",
+    "roleUser": "Usuário",
+    "statusActive": "Ativo",
+    "statusInactive": "Inativo",
+    "sections": {
+      "personal": {
+        "label": "Dados Pessoais",
+        "description": "Informações básicas do usuário"
+      },
+      "access": {
+        "label": "Acesso",
+        "description": "Configurações de login e permissões"
+      }
+    },
+    "columns": {
+      "name": "Nome",
+      "role": "Perfil",
+      "status": "Status",
+      "createdAt": "Criado em"
+    },
+    "fields": {
+      "name": "Nome Completo",
+      "namePlaceholder": "Digite o nome do usuário",
+      "email": "Email",
+      "emailPlaceholder": "usuario@exemplo.com",
+      "password": "Senha",
+      "passwordPlaceholder": "Mínimo 5 caracteres",
+      "passwordDescription": "Deixe em branco para manter a senha atual (apenas ao editar)",
+      "role": "Perfil",
+      "ativo": "Usuário Ativo",
+      "ativoDescription": "Usuários inativos não podem fazer login"
+    },
+    "dialogs": {
+      "view": {
+        "title": "Detalhes do Usuário"
+      },
+      "edit": {
+        "title": "Editar Usuário",
+        "description": "Atualize as informações do usuário"
+      },
+      "create": {
+        "title": "Novo Usuário",
+        "description": "Cadastre um novo usuário no sistema"
+      }
+    },
+    "actions": {
+      "view": "Ver detalhes",
+      "edit": "Editar usuário",
+      "delete": "Desativar usuário"
+    },
+    "confirmDelete": {
+      "title": "Desativar {name}?",
+      "description": "Usuários desativados não poderão fazer login no sistema.",
+      "confirmText": "Desativar",
+      "cancelText": "Cancelar"
+    }
+  }
+}

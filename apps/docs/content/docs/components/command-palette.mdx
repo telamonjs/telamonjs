@@ -1,0 +1,281 @@
+---
+title: CommandPalette
+description: Keyboard-driven command palette (Cmd+K) for quick navigation and actions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Keyboard-driven command palette (Cmd+K) for quick navigation, search, and actions inspired by VS Code and Linear. Built on [cmdk](https://cmdk.paco.me/).
+
+<Callout type='success' title='Power User Tool'>
+  `CommandPalette` dramatically improves navigation speed - users can access any
+  page or action with just a few keystrokes. It is part of the canonical app
+  shell (see [AdminShell](/docs/components/admin-shell)).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { CommandPalette, type CommandPaletteItem } from '@telamonjs/ui'
+import { Home, Users } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+
+export default function AppCommandPalette() {
+  const router = useRouter()
+
+  const items: CommandPaletteItem[] = [
+    {
+      id: 'dashboard',
+      label: 'Go to Dashboard',
+      type: 'navigation',
+      icon: Home,
+      href: '/admin',
+      keywords: ['home', 'overview'],
+    },
+    {
+      id: 'users',
+      label: 'Go to Users',
+      type: 'navigation',
+      icon: Users,
+      href: '/admin/users',
+      keywords: ['people', 'accounts'],
+    },
+  ]
+
+  return (
+    <CommandPalette
+      items={items}
+      onSelect={item => item.href && router.push(item.href)}
+    />
+  )
+}
+```
+
+Press `Cmd+K` (Mac) or `Ctrl+K` (Windows/Linux) to open (enabled by default).
+
+<Callout type='warn' title='The prop is `items`, and navigation is yours'>
+  `CommandPalette` uses `items: CommandPaletteItem[]`: grouping comes from the item's `type`, the
+  per-item callback is `onSelect`, and `href` is data — wire navigation in the component-level
+  `onSelect` (e.g. `router.push`). There is no built-in recent-commands storage; feed
+  `type: 'recent'` items yourself if you want that group.
+</Callout>
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    items: { description: 'Command items — grouped in the UI by their type', type: 'CommandPaletteItem[]', required: true },
+    onSelect: { description: 'Called with the selected item (after the item’s own onSelect). The palette closes automatically', type: '(item: CommandPaletteItem) => void' },
+    placeholder: { description: 'Search input placeholder (localized default from the shell.searchPlaceholder message)', type: 'I18nText', default: "t('shell.searchPlaceholder')" },
+    open: { description: 'Controlled open state (pair with onOpenChange)', type: 'boolean' },
+    onOpenChange: { description: 'Called when the open state changes', type: '(open: boolean) => void' },
+    enableShortcut: { description: 'Register the global Cmd/Ctrl + shortcutKey listener', type: 'boolean', default: 'true' },
+    shortcutKey: { description: 'Key combined with Cmd/Ctrl to toggle', type: 'string', default: "'k'" },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+### CommandPaletteItem
+
+<TypeTable
+  type={{
+    id: { description: 'Unique item ID', type: 'string', required: true },
+    label: { description: 'Display label — a literal or msg()', type: 'I18nText', required: true },
+    type: {
+      description: 'Group the item renders under — localized headings (Navigation, Actions, Search, Recent in en)',
+      type: "'navigation' | 'action' | 'search' | 'recent'",
+      required: true,
+    },
+    icon: { description: 'Icon component reference (e.g. lucide icon)', type: 'IconComponent' },
+    shortcut: { description: 'Keyboard shortcut display text (e.g. "⌘N") — display only, not registered', type: 'string' },
+    keywords: { description: 'Extra terms for search matching', type: 'string[]' },
+    onSelect: { description: 'Action executed when this item is selected', type: '() => void' },
+    href: { description: 'Navigation URL — data only, consumed by your component-level onSelect', type: 'string' },
+    disabled: { description: 'Leaves the item out of the palette', type: 'boolean' },
+  }}
+/>
+
+---
+
+## Examples
+
+### With Actions
+
+```tsx
+import { Plus, Download } from 'lucide-react'
+
+const items: CommandPaletteItem[] = [
+  {
+    id: 'new-user',
+    label: 'Create New User',
+    type: 'action',
+    icon: Plus,
+    shortcut: '⌘N',
+    onSelect: () => openCreateUserDialog(),
+  },
+  {
+    id: 'export',
+    label: 'Export Data',
+    type: 'action',
+    icon: Download,
+    onSelect: () => openExportDialog(),
+  },
+]
+
+<CommandPalette items={items} />
+```
+
+### Controlled
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import {
+  CommandPalette,
+  Button,
+  type CommandPaletteItem,
+} from '@telamonjs/ui'
+
+export function Toolbar({ items }: { items: CommandPaletteItem[] }) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <>
+      <Button variant='outline' onClick={() => setOpen(true)}>
+        Search... <kbd className='ml-2 text-xs'>⌘K</kbd>
+      </Button>
+
+      <CommandPalette
+        items={items}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
+  )
+}
+```
+
+### Custom Shortcut
+
+```tsx
+<CommandPalette items={items} shortcutKey='p' />  {/* Cmd/Ctrl+P */}
+<CommandPalette items={items} enableShortcut={false} />  {/* controlled only */}
+```
+
+The shortcut always combines `shortcutKey` with Cmd/Ctrl — a bare `/` trigger
+is not supported.
+
+---
+
+## Complete Example
+
+```tsx title="components/app-command-palette.tsx"
+'use client'
+
+import { CommandPalette, type CommandPaletteItem } from '@telamonjs/ui'
+import { Home, Users, Package, Plus, Moon, Sun } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { useTheme } from 'next-themes'
+
+export default function AppCommandPalette() {
+  const router = useRouter()
+  const { setTheme } = useTheme()
+
+  const items: CommandPaletteItem[] = [
+    // Navigation group
+    { id: 'nav-dashboard', label: 'Go to Dashboard', type: 'navigation', icon: Home, href: '/admin', keywords: ['home'] },
+    { id: 'nav-users', label: 'Go to Users', type: 'navigation', icon: Users, href: '/admin/users', keywords: ['people', 'accounts'] },
+    { id: 'nav-products', label: 'Go to Products', type: 'navigation', icon: Package, href: '/admin/products' },
+
+    // Actions group
+    { id: 'action-new-user', label: 'Create New User', type: 'action', icon: Plus, shortcut: '⌘N', href: '/admin/users/new' },
+    { id: 'theme-light', label: 'Switch to Light Theme', type: 'action', icon: Sun, onSelect: () => setTheme('light') },
+    { id: 'theme-dark', label: 'Switch to Dark Theme', type: 'action', icon: Moon, onSelect: () => setTheme('dark') },
+  ]
+
+  return (
+    <CommandPalette
+      items={items}
+      placeholder='Type a command or search...'
+      onSelect={item => item.href && router.push(item.href)}
+    />
+  )
+}
+```
+
+---
+
+## Search & Filtering
+
+Filtering comes from cmdk (accent-insensitive) — type to filter across labels, with `keywords`
+adding extra matchable terms per item:
+
+```tsx
+{
+  label: 'Go to Users',
+  keywords: ['people', 'accounts', 'customers'],
+  // Also matches: "people", "accounts", "customers"
+}
+```
+
+---
+
+## Use Cases
+
+- **Quick navigation** - Jump to any page instantly
+- **Actions** - Execute common operations
+- **Settings** - Toggle themes, preferences
+- **Admin tools** - Debug, clear cache, etc.
+
+---
+
+## Best Practices
+
+1. **Add all pages** - Every major page should have a `navigation` item
+2. **Use keywords** - Add search aliases for better discovery
+3. **Group by type** - `navigation` / `action` / `search` / `recent` drive the section headings
+4. **Clear labels** - Use action-oriented labels ("Go to...", "Create...")
+5. **Add icons** - Improve visual scanning
+6. **Limit items** - 50-100 max; filtering is client-side and instant
+
+---
+
+## Keyboard Shortcuts
+
+- `Cmd+K` / `Ctrl+K` - Toggle palette (configurable via `shortcutKey`)
+- `↓` / `↑` - Move selection
+- `Enter` - Execute selected item
+- `Esc` - Close palette
+
+---
+
+## Accessibility
+
+- Keyboard-only operation (cmdk + Radix Dialog)
+- Focus trapped in the dialog while open
+- `shortcut` text renders as a `<kbd>` hint next to the item
+
+---
+
+## Related Components
+
+- [AdminShell](/docs/components/admin-shell) - Canonical shell (palette included)
+- [ModernSidebar](/docs/components/modern-sidebar) - Primary navigation
+
+---
+
+## See Also
+
+- [cmdk Library](https://cmdk.paco.me/) - Underlying library
+
+---
+
+**Status:** ✅ Stable

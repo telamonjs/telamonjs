@@ -1,0 +1,88 @@
+---
+title: useTableState
+description: Read the state of a DataTable or ListPage from the shared table store
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Every `DataTable` and `ListPage` keeps its state (search, filters, sorting, pagination,
+selection, view mode) in one shared Zustand store, keyed by a **table id**.
+`useTableState(tableId)` reads the whole state of one table, so any component on the page —
+a header counter, an export button, a bulk-action bar — can follow what the table shows.
+
+```tsx
+'use client'
+
+import { useTableState } from '@telamonjs/ui'
+
+export function UsersSelectionCount() {
+  const { rowSelection, globalFilter } = useTableState('users')
+  const selected = Object.values(rowSelection).filter(Boolean).length
+
+  return (
+    <span>
+      {selected} selected{globalFilter ? ` matching "${globalFilter}"` : ''}
+    </span>
+  )
+}
+```
+
+The table id is the `tableId` prop of `ListPage` (it defaults to `config.module.route`):
+
+```tsx
+<ListPage config={usersConfig} tableId='users' />
+```
+
+<Callout type='info' title='State lives in memory'>
+  The store survives client-side navigation but not a full reload. To keep pagination in the
+  URL, set `urlSync` on `ListPage`; for other state, use [useUrlSync](/docs/hooks/use-url-sync).
+</Callout>
+
+---
+
+## API
+
+```ts
+useTableState(tableId: string): TableState
+```
+
+Returns the table's state, or the defaults below when the table was never initialised. The
+selector is shallow-compared, so the component re-renders only when a field actually changes.
+
+| Field | Type | Default |
+| --- | --- | --- |
+| `globalFilter` | `string` | `''` |
+| `columnFilters` | `Record<string, unknown>` | `{}` |
+| `sorting` | `SortField[]` (`{ field, order: 'asc' \| 'desc' }`) | `[]` |
+| `page` | `number` | `1` |
+| `pageSize` | `number` | `10` |
+| `rowSelection` | `Record<string, boolean>` | `{}` |
+| `columnVisibility` | `Record<string, boolean>` | `{}` |
+| `viewMode` | `'compact' \| 'comfortable' \| 'spacious'` | `'comfortable'` |
+| `currentViewMode` | `'table' \| 'cards'` | `'table'` |
+| `isFullscreen` | `boolean` | `false` |
+| `showFilters` | `boolean` | `false` |
+
+---
+
+## Reading a single field
+
+`useTableState` only reads. When a component needs only the sorting, `useTableSorting(tableId)`
+(`SortField[]`) subscribes to that slice and re-renders less.
+
+---
+
+## Pitfalls
+
+- **Two lists, one table id.** Two `ListPage`s for the same `config` on one screen share their
+  state, because both default to `config.module.route`. Give each a distinct `tableId`.
+- **A custom list doesn't need a second pagination state.** `DataTable` already paginates from
+  this store when given a `tableId`.
+
+---
+
+## Related
+
+- [ListPage](/docs/components/list-page) — owns a table in the store
+- [DataTable](/docs/components/data-table) — the table itself
+- [useUrlSync](/docs/hooks/use-url-sync) — URL-backed state

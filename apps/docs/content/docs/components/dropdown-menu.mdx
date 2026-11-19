@@ -1,0 +1,527 @@
+---
+title: DropdownMenu
+description: Dropdown menu component for actions and options
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Dropdown menu component for displaying contextual actions, options, and navigation in a floating menu.
+
+<DropdownMenuPreview />
+
+<Callout type='info' title='Built on Radix UI'>
+  `DropdownMenu` uses [Radix
+  UI](https://www.radix-ui.com/primitives/docs/components/dropdown-menu) for
+  accessible, keyboard-friendly interactions.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+} from '@telamonjs/ui'
+import { MoreVertical } from 'lucide-react'
+
+export default function ActionsMenu() {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger>
+        <MoreVertical className='w-4 h-4' />
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent>
+        <DropdownMenuItem>Edit</DropdownMenuItem>
+        <DropdownMenuItem>Duplicate</DropdownMenuItem>
+        <DropdownMenuItem>Delete</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+```
+
+---
+
+## Components
+
+```typescript
+// Main container
+<DropdownMenu>
+  <DropdownMenuTrigger />  // Trigger button
+  <DropdownMenuContent>    // Floating menu
+    <DropdownMenuItem />   // Menu item
+    <DropdownMenuSeparator />  // Divider
+    <DropdownMenuLabel />  // Section label
+    <DropdownMenuSub />    // Submenu (with SubTrigger + SubContent)
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+<Callout type='warn' title='Root barrel exports'>
+  The root barrel exports: `DropdownMenu`, `DropdownMenuTrigger`,
+  `DropdownMenuContent`, `DropdownMenuItem`, `DropdownMenuLabel`,
+  `DropdownMenuSeparator`, `DropdownMenuShortcut`, `DropdownMenuCheckboxItem`,
+  `DropdownMenuRadioGroup`, `DropdownMenuRadioItem`, `DropdownMenuSub`,
+  `DropdownMenuSubTrigger`, `DropdownMenuSubContent`. There is no
+  `DropdownMenuGroup` or `DropdownMenuPortal`: use labels + separators for
+  grouping; `DropdownMenuContent` already renders in a portal.
+</Callout>
+
+---
+
+## Props
+
+All sub-components forward the props of their [Radix UI
+counterparts](https://www.radix-ui.com/primitives/docs/components/dropdown-menu).
+The ones you will actually reach for:
+
+### DropdownMenuContent
+
+<TypeTable
+  type={{
+    align: {
+      description: 'Alignment relative to the trigger',
+      type: "'start' | 'center' | 'end'",
+      default: "'center'",
+    },
+    side: {
+      description: 'Preferred side of the trigger',
+      type: "'top' | 'right' | 'bottom' | 'left'",
+      default: "'bottom'",
+    },
+    sideOffset: { description: 'Distance from the trigger in px', type: 'number', default: '4' },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+### DropdownMenuItem
+
+<TypeTable
+  type={{
+    onSelect: { description: 'Called when the item is selected (also fires for keyboard selection)', type: '(event: Event) => void' },
+    onClick: { description: 'Regular React click handler — also works', type: 'React.MouseEventHandler' },
+    disabled: { description: 'Disable the item', type: 'boolean', default: 'false' },
+    inset: { description: 'Indent to align with items that have icons/indicators', type: 'boolean', default: 'false' },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+### DropdownMenuCheckboxItem
+
+<TypeTable
+  type={{
+    checked: { description: 'Controlled checked state', type: "boolean | 'indeterminate'" },
+    onCheckedChange: { description: 'Called when the checked state changes', type: '(checked: boolean) => void' },
+    disabled: { description: 'Disable the item', type: 'boolean', default: 'false' },
+  }}
+/>
+
+### DropdownMenuRadioGroup / DropdownMenuRadioItem
+
+<TypeTable
+  type={{
+    value: { description: 'Group: selected value. Item: the value this item represents', type: 'string', required: true },
+    onValueChange: { description: 'Group only — called with the newly selected value', type: '(value: string) => void' },
+  }}
+/>
+
+---
+
+## Examples
+
+### With Icons
+
+```tsx
+import { Edit, Copy, Trash2, Download } from 'lucide-react'
+;<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant='outline'>Actions</Button>
+  </DropdownMenuTrigger>
+
+  <DropdownMenuContent>
+    <DropdownMenuItem>
+      <Edit className='w-4 h-4 mr-2' />
+      Edit
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+      <Copy className='w-4 h-4 mr-2' />
+      Duplicate
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+      <Download className='w-4 h-4 mr-2' />
+      Download
+    </DropdownMenuItem>
+    <DropdownMenuSeparator />
+    <DropdownMenuItem className='text-destructive'>
+      <Trash2 className='w-4 h-4 mr-2' />
+      Delete
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+### With Shortcuts
+
+```tsx
+<DropdownMenuItem>
+  <span>Edit</span>
+  <span className="ml-auto text-xs text-muted-foreground">⌘E</span>
+</DropdownMenuItem>
+<DropdownMenuItem>
+  <span>Duplicate</span>
+  <span className="ml-auto text-xs text-muted-foreground">⌘D</span>
+</DropdownMenuItem>
+```
+
+### With Separators and Labels
+
+```tsx
+<DropdownMenuContent>
+  <DropdownMenuLabel>Account</DropdownMenuLabel>
+  <DropdownMenuSeparator />
+  <DropdownMenuItem>Profile</DropdownMenuItem>
+  <DropdownMenuItem>Billing</DropdownMenuItem>
+  <DropdownMenuItem>Settings</DropdownMenuItem>
+  <DropdownMenuSeparator />
+  <DropdownMenuLabel>Danger Zone</DropdownMenuLabel>
+  <DropdownMenuItem className='text-destructive'>
+    Delete Account
+  </DropdownMenuItem>
+</DropdownMenuContent>
+```
+
+### With Submenu
+
+```tsx
+import { ChevronRight } from 'lucide-react'
+;<DropdownMenuContent>
+  <DropdownMenuItem>Edit</DropdownMenuItem>
+
+  <DropdownMenuSub>
+    <DropdownMenuSubTrigger>
+      Export
+      <ChevronRight className='w-4 h-4 ml-auto' />
+    </DropdownMenuSubTrigger>
+    <DropdownMenuSubContent>
+      <DropdownMenuItem>Export as CSV</DropdownMenuItem>
+      <DropdownMenuItem>Export as Excel</DropdownMenuItem>
+      <DropdownMenuItem>Export as PDF</DropdownMenuItem>
+    </DropdownMenuSubContent>
+  </DropdownMenuSub>
+
+  <DropdownMenuItem>Delete</DropdownMenuItem>
+</DropdownMenuContent>
+```
+
+### With Checkboxes
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+export default function ViewOptionsMenu() {
+  const [showSidebar, setShowSidebar] = useState(true)
+  const [showToolbar, setShowToolbar] = useState(true)
+
+  return (
+    <DropdownMenuContent>
+      <DropdownMenuLabel>View Options</DropdownMenuLabel>
+      <DropdownMenuSeparator />
+
+      <DropdownMenuCheckboxItem
+        checked={showSidebar}
+        onCheckedChange={setShowSidebar}
+      >
+        Show Sidebar
+      </DropdownMenuCheckboxItem>
+
+      <DropdownMenuCheckboxItem
+        checked={showToolbar}
+        onCheckedChange={setShowToolbar}
+      >
+        Show Toolbar
+      </DropdownMenuCheckboxItem>
+    </DropdownMenuContent>
+  )
+}
+```
+
+### With Radio Items
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+export default function ThemeMenu() {
+  const [theme, setTheme] = useState('light')
+
+  return (
+    <DropdownMenuContent>
+      <DropdownMenuLabel>Theme</DropdownMenuLabel>
+      <DropdownMenuSeparator />
+
+      <DropdownMenuRadioGroup value={theme} onValueChange={setTheme}>
+        <DropdownMenuRadioItem value='light'>Light</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value='dark'>Dark</DropdownMenuRadioItem>
+        <DropdownMenuRadioItem value='system'>System</DropdownMenuRadioItem>
+      </DropdownMenuRadioGroup>
+    </DropdownMenuContent>
+  )
+}
+```
+
+### User Menu
+
+```tsx
+import { User, Settings, LogOut } from 'lucide-react'
+;<DropdownMenu>
+  <DropdownMenuTrigger asChild>
+    <Button variant='ghost' size='icon'>
+      <Avatar className='h-8 w-8'>
+        <AvatarFallback>JD</AvatarFallback>
+      </Avatar>
+    </Button>
+  </DropdownMenuTrigger>
+
+  <DropdownMenuContent align='end'>
+    <DropdownMenuLabel>
+      <div>John Doe</div>
+      <div className='text-xs text-muted-foreground'>john@example.com</div>
+    </DropdownMenuLabel>
+    <DropdownMenuSeparator />
+    <DropdownMenuItem>
+      <User className='w-4 h-4 mr-2' />
+      Profile
+    </DropdownMenuItem>
+    <DropdownMenuItem>
+      <Settings className='w-4 h-4 mr-2' />
+      Settings
+    </DropdownMenuItem>
+    <DropdownMenuSeparator />
+    <DropdownMenuItem onClick={() => signOut()}>
+      <LogOut className='w-4 h-4 mr-2' />
+      Log out
+    </DropdownMenuItem>
+  </DropdownMenuContent>
+</DropdownMenu>
+```
+
+---
+
+## Complete Example
+
+```tsx title="components/row-actions-menu.tsx"
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubTrigger,
+  DropdownMenuSubContent,
+} from '@telamonjs/ui'
+import {
+  MoreVertical,
+  Edit,
+  Copy,
+  Download,
+  Share2,
+  Trash2,
+} from 'lucide-react'
+import { Button } from '@/components/ui/button'
+
+interface RowActionsMenuProps {
+  row: { id: string }
+  onEdit: (id: string) => void
+  onDuplicate: (id: string) => void
+  onDelete: (id: string) => void
+}
+
+export default function RowActionsMenu({
+  row,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: RowActionsMenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button variant='ghost' size='icon'>
+          <MoreVertical className='w-4 h-4' />
+          <span className='sr-only'>Open menu</span>
+        </Button>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align='end'>
+        <DropdownMenuItem onClick={() => onEdit(row.id)}>
+          <Edit className='w-4 h-4 mr-2' />
+          Edit
+        </DropdownMenuItem>
+
+        <DropdownMenuItem onClick={() => onDuplicate(row.id)}>
+          <Copy className='w-4 h-4 mr-2' />
+          Duplicate
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuSub>
+          <DropdownMenuSubTrigger>
+            <Download className='w-4 h-4 mr-2' />
+            Export
+          </DropdownMenuSubTrigger>
+          <DropdownMenuSubContent>
+            <DropdownMenuItem onClick={() => exportAs(row.id, 'csv')}>
+              Export as CSV
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportAs(row.id, 'excel')}>
+              Export as Excel
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => exportAs(row.id, 'pdf')}>
+              Export as PDF
+            </DropdownMenuItem>
+          </DropdownMenuSubContent>
+        </DropdownMenuSub>
+
+        <DropdownMenuItem onClick={() => shareRecord(row.id)}>
+          <Share2 className='w-4 h-4 mr-2' />
+          Share
+        </DropdownMenuItem>
+
+        <DropdownMenuSeparator />
+
+        <DropdownMenuItem
+          onClick={() => onDelete(row.id)}
+          className='text-destructive focus:text-destructive'
+        >
+          <Trash2 className='w-4 h-4 mr-2' />
+          Delete
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Row actions** - Table row operations (edit, delete, etc.)
+- **User menus** - Profile, settings, logout
+- **Context menus** - Right-click or click actions
+- **Bulk actions** - Operations on selected items
+- **Settings** - Theme, language, preferences
+- **Navigation** - Quick access to pages
+
+---
+
+## Best Practices
+
+1. **Group related actions** - Use separators and labels
+2. **Destructive actions last** - Place delete/remove at bottom
+3. **Show shortcuts** - Display keyboard shortcuts
+4. **Use icons** - Improve scanability
+5. **Align properly** - Use `align` prop for positioning
+6. **Limit items** - 5-10 items max (use submenu for more)
+7. **Disable when needed** - Show disabled state for unavailable actions
+
+---
+
+## Positioning
+
+```tsx
+<DropdownMenuContent
+  align='start' // left-aligned
+  align='center' // centered (default)
+  align='end' // right-aligned
+  side='top' // above trigger
+  side='bottom' // below trigger (default)
+  side='left' // left of trigger
+  side='right' // right of trigger
+/>
+```
+
+---
+
+## Accessibility
+
+- ✅ Keyboard navigation (Tab, Arrow keys, Enter, Esc)
+- ✅ Focus management
+- ✅ ARIA roles and attributes
+- ✅ Screen reader announcements
+- ✅ Focus trap within menu
+- ✅ Escape to close
+
+**Keyboard shortcuts:**
+
+- `Space/Enter` - Open menu
+- `↓` - Next item
+- `↑` - Previous item
+- `→` - Open submenu
+- `←` - Close submenu
+- `Esc` - Close menu
+- `Home/End` - First/last item
+
+---
+
+## Trigger Variations
+
+**Icon button:**
+
+```tsx
+<DropdownMenuTrigger asChild>
+  <Button variant='ghost' size='icon'>
+    <MoreVertical />
+  </Button>
+</DropdownMenuTrigger>
+```
+
+**Text button:**
+
+```tsx
+<DropdownMenuTrigger asChild>
+  <Button variant='outline'>
+    Actions <ChevronDown className='ml-2' />
+  </Button>
+</DropdownMenuTrigger>
+```
+
+**Avatar:**
+
+```tsx
+<DropdownMenuTrigger asChild>
+  <Button variant='ghost' size='icon' className='rounded-full'>
+    <Avatar className='h-8 w-8'>
+      <AvatarFallback>U</AvatarFallback>
+    </Avatar>
+  </Button>
+</DropdownMenuTrigger>
+```
+
+---
+
+## Related Components
+
+- `Popover` - Floating content
+- `Select` - Form select input
+
+---
+
+## See Also
+
+- [Radix UI Dropdown](https://www.radix-ui.com/primitives/docs/components/dropdown-menu) - Full API
+- [Menu Design Patterns](https://www.nngroup.com/articles/menu-design/) - UX best practices
+
+---
+
+**Status:** ✅ Stable

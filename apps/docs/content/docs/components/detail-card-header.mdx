@@ -1,0 +1,301 @@
+---
+title: DetailCardHeader
+description: Reusable card header component with icon, badge, and actions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Reusable header component for DetailCard and similar card components, providing consistent styling and layout.
+
+<Callout type='info' title='Where it is used'>
+  `DetailCard` renders `DetailCardHeader` internally. Use it directly when you
+  build a custom card. It is exported from `@telamonjs/ui` only (not from
+  `@telamonjs/ui/detail`).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailCardHeader } from '@telamonjs/ui'
+import { User } from 'lucide-react'
+
+export default function MyCard() {
+  return (
+    <div className='rounded-lg border p-6'>
+      <DetailCardHeader title='User Information' icon={User} />
+      {/* Card content */}
+    </div>
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface DetailCardHeaderProps {
+  title?: string // Header title
+  description?: string // Optional subtitle
+  icon?: IconType // Lucide component, ReactNode or icon name string
+  badge?: React.ReactNode // Badge content (top-right)
+  actions?: React.ReactNode // Actions (buttons, menu), rendered below the title row
+  size?: 'sm' | 'md' | 'lg' // Title size (default: 'md')
+  className?: string // Additional classes
+  titleClassName?: string // Classes for the title
+  descriptionClassName?: string // Classes for the description
+}
+```
+
+---
+
+## Examples
+
+### Basic Header
+
+```tsx
+<DetailCardHeader title='Personal Information' />
+```
+
+### With Icon
+
+```tsx
+import { Mail } from 'lucide-react'
+;<DetailCardHeader title='Email Settings' icon={Mail} />
+```
+
+### With Badge
+
+```tsx
+<DetailCardHeader
+  title="Notifications"
+  badge={5}
+/>
+
+// Custom badge
+<DetailCardHeader
+  title="Status"
+  badge={<span className="text-green-600">Active</span>}
+/>
+```
+
+### With Actions
+
+```tsx
+import { MoreVertical } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+;<DetailCardHeader
+  title='User Profile'
+  icon={User}
+  actions={
+    <Button variant='ghost' size='icon'>
+      <MoreVertical className='w-4 h-4' />
+    </Button>
+  }
+/>
+```
+
+### With Description
+
+```tsx
+<DetailCardHeader
+  title='Dashboard Settings'
+  description='Configure your dashboard preferences'
+  icon={Settings}
+/>
+```
+
+### Multiple Actions
+
+```tsx
+import { Edit, Trash2 } from 'lucide-react'
+;<DetailCardHeader
+  title='User Account'
+  icon={User}
+  actions={
+    <div className='flex gap-2'>
+      <Button variant='ghost' size='icon'>
+        <Edit className='w-4 h-4' />
+      </Button>
+      <Button variant='ghost' size='icon'>
+        <Trash2 className='w-4 h-4' />
+      </Button>
+    </div>
+  }
+/>
+```
+
+---
+
+## Complete Example
+
+```tsx title="components/custom-card.tsx"
+import { DetailCardHeader } from '@telamonjs/ui'
+import { Settings, MoreVertical } from 'lucide-react'
+import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+
+export default function SettingsCard() {
+  return (
+    <div className='rounded-lg border bg-card'>
+      <div className='p-6 border-b'>
+        <DetailCardHeader
+          title='Account Settings'
+          description='Manage your account preferences and security'
+          icon={Settings}
+          badge={
+            <span className='text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded-full'>
+              Premium
+            </span>
+          }
+          actions={
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant='ghost' size='icon'>
+                  <MoreVertical className='w-4 h-4' />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem>Edit Settings</DropdownMenuItem>
+                <DropdownMenuItem>Reset to Default</DropdownMenuItem>
+                <DropdownMenuItem className='text-destructive'>
+                  Delete Account
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          }
+        />
+      </div>
+
+      <div className='p-6'>
+        {/* Card content */}
+        <div className='space-y-4'>
+          <div className='flex items-center justify-between'>
+            <span>Email Notifications</span>
+            <input type='checkbox' />
+          </div>
+          <div className='flex items-center justify-between'>
+            <span>Two-Factor Authentication</span>
+            <input type='checkbox' />
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **DetailCard headers** - Consistent header styling
+- **Custom card components** - Reusable header pattern
+- **Dashboard cards** - Widget headers
+- **Modal headers** - Dialog title sections
+- **Panel headers** - Collapsible panel titles
+
+---
+
+## Layout Behavior
+
+- Title, icon and description on the left
+- Badge on the right of the title row
+- Actions in their own row below the title row (at every screen size)
+
+---
+
+## Best Practices
+
+1. **Clear titles** - Use descriptive, concise titles
+2. **Appropriate icons** - Match icon to content
+3. **Limit actions** - 1-3 actions max
+4. **Badge usage** - Show status or count
+5. **Description optional** - Only when context needed
+6. **Consistent styling** - Use across similar cards
+
+---
+
+## Integration with DetailCard
+
+**DetailCardHeader is used internally by DetailCard:**
+
+```tsx
+// This...
+<DetailCard title='User Info' icon={User} headerBadge={<Badge>5</Badge>}>
+  Content
+</DetailCard>
+
+// ...renders DetailCardHeader internally (headerBadge → badge, headerSize → size)
+```
+
+**Manual usage for custom layouts:**
+
+```tsx
+<div className='custom-card'>
+  <DetailCardHeader title='Custom Card' icon={Star} />
+  <div className='custom-content'>{/* Your custom content layout */}</div>
+</div>
+```
+
+---
+
+## Accessibility
+
+- The title renders in a `<div>` (`CardTitle`), not a heading element; wrap it if you need a heading level
+- Add ARIA labels to icon-only action buttons you pass in
+- Keyboard navigable actions
+- Screen reader friendly badge content
+- Focus indicators on interactive elements
+
+---
+
+## Customization
+
+**Custom styling:**
+
+```tsx
+<DetailCardHeader
+  title='Styled Header'
+  className='bg-blue-50 border-b-2 border-blue-200'
+/>
+```
+
+**Custom badge styling:**
+
+```tsx
+<DetailCardHeader
+  title='Custom Badge'
+  badge={
+    <div className='px-2 py-1 bg-gradient-to-r from-purple-500 to-pink-500 text-white text-xs rounded-full'>
+      Featured
+    </div>
+  }
+/>
+```
+
+---
+
+## Related Components
+
+- [BaseCard](/docs/components/base-card) - Foundation card
+- [DetailCard](/docs/components/detail-card) - Detail page cards (uses this header)
+- [DashboardGrid](/docs/components/dashboard-grid) - Dashboard layout
+
+---
+
+## See Also
+
+- Component Architecture - Reusable patterns
+- [Detail Views](/docs/patterns/detail-page) - Detail page pattern
+
+---
+
+**Status:** ✅ Stable

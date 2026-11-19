@@ -1,0 +1,195 @@
+---
+title: Quick Start
+description: Create an app with the CLI, generate a CRUD module from a Prisma model, and read its config
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+
+From an empty folder to a working **Products** module: list, search, create, edit,
+view and delete, all in one route. You need Node.js 22+, pnpm and Docker (for the
+database).
+
+<Steps>
+
+<Step>
+
+### Create the app
+
+```bash
+npx -p @telamonjs/cli create-telamonjs-app my-admin
+cd my-admin
+pnpm dev
+```
+
+The CLI installs the dependencies, starts the database with Docker Compose,
+migrates and seeds it (flags and the monorepo option are on
+[Installation](/docs/getting-started/installation#new-app)). Open
+`http://localhost:3001` and sign in as `admin@example.com` / `12345`.
+
+The app ships one complete module, `src/app/admin/usuarios/`. It is the
+reference for everything below, and `AGENTS.md` at the app root explains the
+conventions to coding agents.
+
+</Step>
+
+<Step>
+
+### Add a Prisma model
+
+```prisma title="prisma/schema.prisma"
+model Product {
+  id        String   @id @default(cuid())
+  name      String
+  sku       String   @unique
+  price     Decimal
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("products")
+}
+```
+
+```bash
+pnpm db:migrate
+```
+
+</Step>
+
+<Step>
+
+### Generate the module
+
+```bash
+pnpm telamonjs generate crud products --model Product
+```
+
+The generator reads the model, maps each column to a field type, asks for the
+module path (Enter accepts `src/app/admin/products`) and writes:
+
+```
+src/app/admin/products/
+├── config.tsx                    # CrudConfig — the whole module
+├── page.tsx                      # <ListPage config={productsConfig} />
+└── _components/ProductDetail.tsx # body of the view dialog
+src/lib/api/products-client.ts    # the only file that calls fetch()
+src/app/api/products/route.ts     # GET list, POST create (Prisma)
+src/app/api/products/[id]/route.ts# GET, PATCH, DELETE (Prisma)
+```
+
+It also adds a menu entry to `src/config/menu.ts` and the module's keys to
+`messages/{pt-BR,en,es}.json`. Reload the app: **Products** is in the sidebar.
+
+</Step>
+
+<Step>
+
+### Read the config
+
+Data moves in one direction: Route Handler (Prisma) → `products-client.ts`
+(`fetch`) → `config.tsx`. The config never touches Prisma or `fetch()`; it wires
+the client into one `CrudConfig` object, and `page.tsx` renders it:
+
+```tsx title="src/app/admin/products/page.tsx"
+'use client'
+
+import { ListPage } from '@telamonjs/ui'
+import { productsConfig } from './config'
+
+export default function ProductsPage() {
+  return <ListPage config={productsConfig} />
+}
+```
+
+`config.tsx` starts with `'use client'` (its queries and mutations run through
+React Query hooks). Its key parts:
+
+**`query`** loads the list. `queryFn` must resolve a `PaginatedResponse<T>`
+(`data`, `page`, `total`, `totalPages`), not a bare array: the list is an
+infinite, virtualized scroll that pages through it.
+
+```tsx
+query: { queryKey: ['products'], queryFn: productsApi.list, staleTime: 30_000 },
+```
+
+**`mutations`** write. Each `mutationFn` resolves `{ success, data? }`, so the
+config adapts the client's raw entity; `invalidates` refreshes the list.
+`getForEdit` and `getForView` fetch one record when a dialog opens — `getForEdit`
+maps it to the form's shape:
+
+```tsx
+mutations: {
+  create: {
+    mutationFn: async (data) => ({ success: true, data: await productsApi.create(data) }),
+    invalidates: [['products']],
+  },
+  // update and delete follow the same shape
+  getForEdit: async (id) => {
+    const item = await productsApi.getById(id)
+    return { name: item.name, sku: item.sku, price: item.price, active: item.active }
+  },
+  getForView: productsApi.getById,
+},
+```
+
+**`dialogs`** are where create, edit and view happen. Each one syncs to a URL
+parameter (`?view=<id>`, `?edit=<id>`, `?create=1`), so it can be linked to and
+Back closes it. The edit and create dialogs render `form.sections`; the view
+dialog renders the detail component:
+
+```tsx
+dialogs: {
+  view: {
+    urlParam: 'view',
+    title: msg('products.dialogs.view.title'),
+    headerConfig,
+    renderContent: (item) => <ProductDetail item={item} />,
+  },
+  edit: { urlParam: 'edit', title: msg('products.dialogs.edit.title'), headerConfig },
+  create: { urlParam: 'create', title: msg('products.dialogs.create.title'), headerConfig },
+},
+```
+
+**`actionsConfig`** adds the row buttons (view, edit, delete with a confirmation
+dialog). **`form`** holds the field sections and the Zod schema shared by the
+create and edit dialogs. Text slots use `msg('<key>')` so they follow the active
+locale.
+
+[CrudConfig](/docs/getting-started/crud-config) has the full annotated example
+and every key.
+
+</Step>
+
+<Step>
+
+### Check it
+
+```bash
+pnpm lint:telamonjs   # telamonjs lint src/app/admin
+pnpm type-check
+```
+
+`telamonjs lint` checks modules against the list, dialog and hub conventions and
+exits 1 on any error. A fresh module has no errors; it warns
+(`i18n-untranslated`) about `en.json` and `es.json` keys that still hold the
+pt-BR text, until you translate them.
+
+</Step>
+
+</Steps>
+
+<Callout type='warn' title='No create, edit or detail routes'>
+  A module is one route. Don't add `new/`, `[id]/` or `[id]/edit/` pages next to
+  `config.tsx`: create, edit and view are the dialogs above, and delete is a row
+  action. `telamonjs lint` fails on a `[id]/page.tsx` next to a `config.tsx`
+  (`no-crud-pages`). For a form that genuinely needs its own page (a settings
+  screen, a long wizard), see [Standalone form pages](/docs/patterns/edit-page).
+</Callout>
+
+## Next steps
+
+- [CrudConfig](/docs/getting-started/crud-config) — the canonical example, key by key
+- [Dialogs](/docs/patterns/dialogs) — rich headers, detail tabs, the portal view for large records
+- [Form Pattern](/docs/patterns/form-pattern) and [Field Types](/docs/reference/field-types) — sections, validation, `relationship` fields
+- [i18n](/docs/patterns/i18n) — `msg()`, `<Msg>` and the message files

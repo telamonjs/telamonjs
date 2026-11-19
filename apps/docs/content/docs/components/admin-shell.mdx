@@ -1,0 +1,221 @@
+---
+title: AdminShell
+description: Canonical app shell — ModernSidebar + Cmd+K CommandPalette + ResponsiveBreadcrumb
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+`AdminShell` is the canonical shell for TelamonJS applications. It composes
+`ModernSidebar` + `CommandPalette` (Cmd+K) + `ResponsiveBreadcrumb` + header actions into a
+single client component.
+
+---
+
+## Basic Usage
+
+Fetch the session on the server, pass it down to a small `'use client'` wrapper that renders
+`AdminShell`. Menu icons are passed as **strings**, resolved internally via `getIcon` — never
+import the Lucide component directly in the menu config.
+
+```tsx title="src/components/providers/LayoutProviders.tsx"
+'use client'
+import { AdminShell, Toaster } from '@telamonjs/ui'
+import { useRouter } from 'next/navigation'
+import { menuConfig } from '@/config/menu'
+
+export function LayoutProviders({ children, session }) {
+  const router = useRouter()
+  return (
+    <>
+      <AdminShell
+        menuConfig={menuConfig}
+        session={session ?? undefined}
+        systemName='My App'
+        logoUrl='/logo.png'
+        onSignOut={() => router.push('/sign-out')}
+      >
+        {children}
+      </AdminShell>
+      <Toaster />
+    </>
+  )
+}
+```
+
+```tsx title="app/admin/layout.tsx"
+import { auth } from '@/lib/auth'
+import { LayoutProviders } from '@/components/providers/LayoutProviders'
+
+export default async function AdminLayout({ children }) {
+  const session = await auth()
+  return <LayoutProviders session={session}>{children}</LayoutProviders>
+}
+```
+
+```tsx title="src/config/menu.ts"
+import type { MenuItem } from '@telamonjs/ui'
+
+export const menuConfig: MenuItem[] = [
+  { id: 'dashboard', type: 'single', title: 'Dashboard', href: '/admin', icon: 'LayoutDashboard' },
+  {
+    id: 'admin-group',
+    type: 'group',
+    title: 'Administration',
+    icon: 'Settings',
+    children: [
+      { id: 'users', type: 'single', title: 'Users', href: '/admin/users', icon: 'Users' },
+    ],
+  },
+]
+```
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    children: {
+      description: 'Page content rendered inside the scrollable <main>',
+      type: 'React.ReactNode',
+      required: true,
+    },
+    menuConfig: {
+      description: 'Menu tree passed to ModernSidebar, breadcrumb and CommandPalette',
+      type: 'MenuItem[]',
+      required: true,
+    },
+    session: {
+      description: 'Session data forwarded to ModernSidebar (user name/email/role, impersonation)',
+      type: "ModernSidebarProps['session']",
+    },
+    systemName: { description: 'App name displayed in the sidebar header', type: 'string' },
+    logoUrl: { description: 'Full logo URL (expanded sidebar)', type: 'string' },
+    compactLogoUrl: { description: 'Compact logo URL (collapsed sidebar)', type: 'string' },
+    logoHeight: { description: 'Logo height in pixels', type: 'number | string' },
+    logoMaxWidth: { description: 'Logo max width (expanded sidebar)', type: 'number | string' },
+    compactLogoHeight: {
+      description: 'Logo height when the sidebar is collapsed (falls back to logoHeight)',
+      type: 'number | string',
+    },
+    compactLogoMaxWidth: {
+      description: 'Logo max width when the sidebar is collapsed (falls back to logoMaxWidth)',
+      type: 'number | string',
+    },
+    onSignOut: { description: 'Callback for sign-out, wired to the sidebar user menu', type: '() => void' },
+    onStopImpersonation: {
+      description: 'Callback to stop impersonation; forwarded to ModernSidebar',
+      type: '() => Promise<void>',
+    },
+    showImpersonationBanner: {
+      description: 'Renders the ImpersonationBanner above the header while session.isImpersonating is true',
+      type: 'boolean',
+      default: 'false',
+    },
+    localeSwitcher: {
+      description: 'Shows the language item in the user menu when more than one locale is configured',
+      type: 'boolean',
+      default: 'true',
+    },
+    profileHref: {
+      description: 'Route for the sidebar user menu "Profile" item (disabled without it)',
+      type: 'string',
+    },
+    headerActions: {
+      description: 'Slot for header right-side actions (notifications, settings buttons, etc.)',
+      type: 'React.ReactNode',
+    },
+    commandActions: {
+      description: 'App-specific quick actions appended after the auto-generated menuConfig items',
+      type: 'CommandPaletteItem[]',
+    },
+    breadcrumbProps: { description: 'Passthrough props for the breadcrumb', type: 'AdminShellBreadcrumbProps' },
+    className: { description: 'Extra CSS classes on the scrollable <main> (merged after contentClassName)', type: 'string' },
+    contentClassName: {
+      description: 'Extra CSS classes on the scrollable <main> content area',
+      type: 'string',
+    },
+  }}
+/>
+
+`MenuItem.icon` accepts `string | IconComponent` — prefer `string` and register icons via the
+project's `iconRegistry` (see [Provider Setup Pattern](/docs/patterns/provider-setup#icon-resolver-seticonresolver)).
+
+<details>
+<summary>Full interface</summary>
+
+```typescript
+interface AdminShellProps {
+  children: React.ReactNode
+  menuConfig: MenuItem[]
+  session?: ModernSidebarProps['session']
+  systemName?: string
+  logoUrl?: string
+  compactLogoUrl?: string
+  logoHeight?: number | string
+  logoMaxWidth?: number | string
+  compactLogoHeight?: number | string
+  compactLogoMaxWidth?: number | string
+  onSignOut?: () => void
+  onStopImpersonation?: () => Promise<void>
+  showImpersonationBanner?: boolean // default false
+  localeSwitcher?: boolean // default true
+  profileHref?: string
+  headerActions?: React.ReactNode
+  commandActions?: CommandPaletteItem[]
+  breadcrumbProps?: AdminShellBreadcrumbProps
+  className?: string
+  contentClassName?: string
+}
+```
+
+</details>
+
+---
+
+## What it composes
+
+- **`ModernSidebar`** — compact/expanded sidebar + mobile drawer, hierarchical menu, avatar/role,
+  impersonation banner.
+- **`CommandPalette`** — Cmd+K palette, items auto-generated from `menuConfig` plus `commandActions`.
+- **`ResponsiveBreadcrumb`** — auto-detects the current route.
+
+---
+
+## Dashboards with tabs
+
+For an internal page with multiple views (not the top-level shell), use `ShellPage` +
+`AdminHeader` + `AdminTabs` + `useTabUrlSync` instead of a standalone page per module:
+
+```tsx
+'use client'
+import { ShellPage, AdminHeader, AdminTabs, useTabUrlSync, type TabItem } from '@telamonjs/ui'
+
+const TAB_VALUES = ['overview', 'details'] as const
+
+const tabs: TabItem[] = [
+  { value: 'overview', label: 'Overview', content: <OverviewTab /> },
+  { value: 'details', label: 'Details', content: <DetailsTab /> },
+]
+
+export default function DashboardPage() {
+  const { activeTab, setTab } = useTabUrlSync({ tabs: TAB_VALUES })
+  return (
+    <ShellPage>
+      <AdminHeader title='Dashboard' />
+      <AdminTabs tabs={tabs} value={activeTab} onValueChange={setTab} />
+    </ShellPage>
+  )
+}
+```
+
+Each tab that lists a CRUD module renders `<ListPage config={config} embedded />`.
+
+---
+
+## See Also
+
+- [ModernSidebar](/docs/components/modern-sidebar) - Sidebar composed by `AdminShell`
+- [Provider Setup Pattern](/docs/patterns/provider-setup) - Full provider hierarchy
+- [AppShell](/docs/components/app-shell) - Flexible primitive shell for non-standard layouts

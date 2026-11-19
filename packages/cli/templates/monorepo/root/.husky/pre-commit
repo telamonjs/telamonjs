@@ -1,0 +1,16 @@
+#!/bin/sh
+# Commits never carry a link: to the local telamonjs checkout; post-commit relinks.
+# The telamonjs checkout sits next to this project unless TELAMONJS_UI says otherwise.
+TELAMONJS_UI="${TELAMONJS_UI:-$(cd .. && pwd)/telamonjs/packages/ui}"
+if grep -q '"link:' apps/web/package.json 2>/dev/null; then
+  V=$(node -e "console.log(require('$TELAMONJS_UI/package.json').version)")
+  node -e "
+    const f='apps/web/package.json';
+    const p=JSON.parse(require('fs').readFileSync(f,'utf-8'));
+    p.dependencies['@telamonjs/ui']='^$V';
+    require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\n');
+  "
+  pnpm install --lockfile-only --silent 2>/dev/null
+  git add apps/web/package.json pnpm-lock.yaml
+  echo "telamonjs-ui: link: -> ^$V for this commit"
+fi

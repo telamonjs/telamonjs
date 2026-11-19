@@ -1,0 +1,95 @@
+---
+title: TabToolbar
+description: Composable compound toolbar for filters, search, and actions inside tab panels
+---
+
+Compound component for building toolbars inside tab panels — filters, search, counters, refresh, and live status. The root lays its children out as a two-column grid on small screens and a single row from the `lg` breakpoint. Compose exactly the pieces you need from its sub-components.
+
+```tsx
+import { TabToolbar } from '@telamonjs/ui'
+
+<TabToolbar>
+  <TabToolbar.Search placeholder='Search...' value={search} onChange={setSearch} />
+  <TabToolbar.Spacer />
+  <TabToolbar.LiveIndicator connected={isConnected} />
+  <TabToolbar.Refresh onClick={refetch} loading={isFetching} />
+</TabToolbar>
+```
+
+---
+
+## Sub-Components
+
+| Sub-component | Purpose | Main props |
+| --- | --- | --- |
+| `TabToolbar.Select` | Generic dropdown | `options`, `value`, `onChange` |
+| `TabToolbar.PeriodSelector` | Period buttons | `options`, `value`, `onChange`, `loading?`, `icon?` |
+| `TabToolbar.StatsPills` | Inline stat badges | `items: TabToolbarStatPill[]` |
+| `TabToolbar.Search` | Search input with icon | `placeholder`, `value`, `onChange` |
+| `TabToolbar.Refresh` | Refresh button with spin | `onClick`, `loading?` |
+| `TabToolbar.Counter` | Result counter | `count`, `label` (string or `(count) => string`), `loading?`, `countIncluded?` |
+| `TabToolbar.AutoRefresh` | Auto-refresh status toggle showing live/paused and the last update time (doesn't spin — pair with `Refresh`) | `enabled`, `onToggle: () => void`, `updatedAt?`, `loading?` |
+| `TabToolbar.Fullscreen` | Fullscreen toggle | `isFullscreen`, `onToggle` |
+| `TabToolbar.Spacer` | Flex spacer (pushes items right) | - |
+| `TabToolbar.LiveIndicator` | SSE/WebSocket status pill | `connected`, `onlineLabel?`, `offlineLabel?` |
+| `TabToolbar.FilterButtons` | Button-group filter; the first option is the implicit "all" value and is not rendered | `options: TabToolbarFilterButtonOption[]`, `value`, `onChange` |
+| `TabToolbar.FilterSelect` | Dropdown filter with optional dot and count per option | `options`, `value`, `onChange`, `label?` |
+| `TabToolbar.AddButton` | Primary "create" button | `onClick`, `label?`, `onPrefetch?` |
+| `TabToolbar.DateRange` | Date range picker (lazy-loaded) | `value: DateRange`, `onChange`, `maxDays?` (default `7`), `labels?` |
+
+Root props: `children`, `className?`.
+
+**Exported types:** `TabToolbarSelectOption`, `TabToolbarPeriodOption`, `TabToolbarStatPill`, `TabToolbarFilterButtonOption`. `DateRange` comes from `@telamonjs/ui/pickers`.
+
+---
+
+## LiveIndicator
+
+Real-time connection status pill for SSE/WebSocket-backed tabs:
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `connected` | `boolean` | - | Connection state |
+| `onlineLabel` | `string` | `'Ao vivo'` | Label when connected (green pulsing dot) |
+| `offlineLabel` | `string` | `'Offline'` | Label when disconnected (red dot) |
+| `className` | `string` | - | Extra classes |
+
+---
+
+## Full Example
+
+`TabToolbarStatPill` needs a `key`, an `icon` component and a `color` class, which is applied to the icon and the value.
+
+```tsx
+import { Wifi, WifiOff } from 'lucide-react'
+
+<TabToolbar>
+  <TabToolbar.PeriodSelector
+    options={[
+      { value: '24h', label: '24h' },
+      { value: '7d', label: '7 days' },
+      { value: '30d', label: '30 days' },
+    ]}
+    value={period}
+    onChange={setPeriod}
+  />
+  <TabToolbar.StatsPills
+    items={[
+      { key: 'online', label: 'Online', value: stats.online, icon: Wifi, color: 'text-green-600' },
+      { key: 'offline', label: 'Offline', value: stats.offline, icon: WifiOff, color: 'text-red-600' },
+    ]}
+  />
+  <TabToolbar.Spacer />
+  <TabToolbar.Counter count={rows.length} label='results' loading={isLoading} />
+  <TabToolbar.AutoRefresh enabled={auto} onToggle={() => setAuto((v) => !v)} />
+  <TabToolbar.Refresh onClick={refetch} loading={isFetching} />
+</TabToolbar>
+```
+
+---
+
+## Related
+
+- [AdminTabs](/docs/components/admin-tabs) — the tab panels this toolbar lives in
+- [ShellPage](/docs/components/shell-page) — page container
+- [AdminHeader](/docs/components/admin-header) — page-level header (title/status/fullscreen)

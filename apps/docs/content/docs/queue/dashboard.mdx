@@ -1,0 +1,249 @@
+---
+title: Dashboard
+description: The Jobs Dashboard — real-time queue monitoring UI from @telamonjs/ui/queue, plus the embeddable Bull Board server
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Tabs, Tab } from 'fumadocs-ui/components/tabs'
+
+The **Jobs Dashboard** is a complete React monitoring UI for BullMQ queues, shipped
+in the `@telamonjs/ui/queue` subpath. It talks to your backend through a
+pluggable **adapter** (NestJS, Next.js or custom) and uses React Query for data
+fetching plus **Server-Sent Events (SSE)** for real-time updates.
+
+Features:
+
+- **Real time** — live queue stats, job event timeline (started / completed /
+  failed / progress / retrying) over SSE with automatic reconnection and graceful
+  degradation to polling when SSE is unavailable
+- **History** — completed/failed job history across all queues with search, date
+  range filters and aggregate stats
+- **Queue actions** — pause, resume, clean, retry-all, drain; per-job retry,
+  remove, promote; bulk retry/remove; manual job dispatch
+- **Job configuration** — enable/disable jobs (per job or per module), edit cron
+  pattern, priority, concurrency and timeout at runtime, with a change history
+  audit trail
+- **Redis metrics** — connection utilization and health
+
+## Mounting in your app
+
+The plug-and-play entry point is `QueueTabbedDashboard` — a shell page with four
+lazy-loaded tabs (`tempo-real`, `configuracao`, `redis`, `historico`) built on the
+canonical TelamonJS shell (`ShellPage` + `AdminHeader` + `AdminTabs`).
+
+```tsx title="app/admin/jobs/page.tsx"
+'use client'
+
+import {
+  QueueTabbedDashboard,
+  QueueApiProvider,
+  createNestJSAdapter,
+} from '@telamonjs/ui/queue'
+
+const adapter = createNestJSAdapter({
+  baseUrl: process.env.NEXT_PUBLIC_API_URL!,
+  getAuthToken: async () => {
+    const session = await getSession()
+    return session?.user?.accessToken ?? null
+  },
+})
+
+export default function JobsPage() {
+  return (
+    <QueueApiProvider adapter={adapter}>
+      <QueueTabbedDashboard syncTabWithUrl />
+    </QueueApiProvider>
+  )
+}
+```
+
+<Callout type='info' title='Auto-provider'>
+  If no `QueueApiProvider` is present, `QueueTabbedDashboard` creates a NestJS
+  adapter automatically from `apiUrl` (default:
+  `process.env.NEXT_PUBLIC_API_URL`, falling back to relative URLs). Wrapping it
+  explicitly is only needed for custom adapters or auth logic.
+</Callout>
+
+### QueueTabbedDashboard props
+
+| Prop             | Type                       | Default                             |
+| ---------------- | -------------------------- | ----------------------------------- |
+| `initialTab`     | `'tempo-real' \| 'configuracao' \| 'redis' \| 'historico'` | `'tempo-real'` |
+| `tabs`           | subset of the four tab ids | all four                            |
+| `title`          | `string`                   | `'Central de Jobs'`                 |
+| `description`    | `string`                   | queue monitoring subtitle           |
+| `icon`           | `ComponentType`            | —                                   |
+| `moduleIcons`    | `Record<string, string>`   | — (icons for the config tab)        |
+| `enableSSE`      | `boolean`                  | `true`                              |
+| `syncTabWithUrl` | `boolean`                  | `false` (reads/writes `?tab=` param)|
+| `onTabChange`    | `(tab: string) => void`    | —                                   |
+| `apiUrl`         | `string`                   | `process.env.NEXT_PUBLIC_API_URL`   |
+
+## Adapters
+
+An adapter implements the `QueueApiAdapter` interface (or the superset
+`QueueConfigApiAdapter`, which adds job configuration and SSE methods). Two
+factories ship with the package:
+
+<Tabs items={['NestJS', 'Next.js', 'Custom']}>
+<Tab value='NestJS'>
+
+For a separate NestJS REST API. Supports Bearer token and cookie auth, custom
+headers and a custom response parser (e.g. SuperJSON):
+
+```typescript
+import { createNestJSAdapter } from '@telamonjs/ui/queue'
+
+const adapter = createNestJSAdapter({
+  baseUrl: 'https://api.example.com', // endpoints prefixed with /v1
+  getAuthToken: async () => token, // optional Bearer token
+  headers: { 'X-Custom': 'value' }, // optional
+  parseResponse: async res => res.json(), // optional (default)
+})
+```
+
+</Tab>
+<Tab value='Next.js'>
+
+For queue endpoints hosted in the same Next.js app (API routes):
+
+```typescript
+import { createNextJSAdapter } from '@telamonjs/ui/queue'
+
+const adapter = createNextJSAdapter({
+  /* NextJSAdapterConfig */
+})
+```
+
+</Tab>
+<Tab value='Custom'>
+
+Implement the interface directly for any backend:
+
+```typescript
+import type { QueueConfigApiAdapter } from '@telamonjs/ui/queue'
+
+const adapter: QueueConfigApiAdapter = {
+  getStats: async () => fetchMyBackend('/queue/stats'),
+  // ... remaining methods
+}
+```
+
+</Tab>
+</Tabs>
+
+## Expected server contract
+
+The dashboard is backend-agnostic — whatever the adapter resolves is what renders.
+The reference NestJS backend exposes this REST surface (all under `/v1`):
+
+| Method   | Endpoint                                  | Purpose                                        |
+| -------- | ----------------------------------------- | ---------------------------------------------- |
+| `GET`    | `/v1/queue/stats`                         | `DashboardStats` — totals + per-queue stats    |
+| `GET`    | `/v1/admin/metrics/redis`                 | Redis connection metrics                       |
+| `GET`    | `/v1/queue/jobs?queue&state&limit`        | Jobs of one queue/state                        |
+| `GET`    | `/v1/queue/jobs/all?status&queue&search&limit&offset` | Jobs across all queues, filtered   |
+| `GET`    | `/v1/queue/history?queue&limit`           | History of one queue                           |
+| `GET`    | `/v1/queue/history/all?statuses&queue&search&startDate&endDate&limit&offset` | Global history + aggregate stats |
+| `POST`   | `/v1/queue/actions`                       | `{ type, queueName, status? }` — pause/resume/clean/retry-all/drain |
+| `POST`   | `/v1/queue/jobs/retry` / `remove` / `promote` | `{ queueName, jobId }` single-job actions  |
+| `POST`   | `/v1/queue/jobs/bulk`                     | `{ queueName, jobIds, operation }` bulk retry/remove |
+| `GET`    | `/v1/queue/dispatch`                      | List manually dispatchable jobs                |
+| `POST`   | `/v1/queue/dispatch`                      | `{ queueName, data }` — dispatch a job         |
+| `GET`    | `/v1/queue/config`                        | All job configurations                         |
+| `GET/PATCH` | `/v1/queue/config/:jobName`            | Read / update one job config                   |
+| `POST`   | `/v1/queue/config/:jobName/toggle`        | Enable/disable a job                           |
+| `POST`   | `/v1/queue/config/modules/:module/toggle` | Enable/disable all jobs of a module            |
+| `GET`    | `/v1/queue/config/:jobName/history`       | Config change audit trail                      |
+| `GET`    | `/v1/queue/events`                        | **SSE stream** (stats + job events)            |
+
+Contract notes (enforced by the reference backend and reflected in the adapter
+types):
+
+- `queueName: '*'` (all queues) is only accepted with `type: 'clean'` — any other
+  action targeting `'*'` returns 400.
+- `startDate`/`endDate` are ISO 8601 strings; unparseable dates return 400.
+- History/jobs responses may set `approximate: true` when `total` is a
+  post-filter count (active search/date filters).
+- The SSE endpoint requires the `jobs.execute` permission in the reference
+  backend — the connection is rejected otherwise.
+
+## Real-time updates (SSE)
+
+With `enableSSE` (the default), the dashboard connects to the adapter's
+`getSSEConfig()` URL and feeds the React Query cache:
+
+- **Stats updates** pushed by the server (~5s cadence) refresh the queue cards
+- **Job events** (`job:started`, `job:completed`, `job:failed`, `job:progress`,
+  `job:retrying`) update the live timeline in real time
+- Rapid event bursts are debounced into a single stats refetch
+- Automatic reconnection with status reporting
+  (`connecting | connected | disconnected | error`)
+- If the adapter does not implement `getSSEConfig()`, the dashboard falls back to
+  React Query polling
+
+## Other components
+
+The tabs, modals, tables and data hooks inside the dashboard are internal. Besides
+`QueueTabbedDashboard`, the subpath exports two more ready-made screens (both under the same
+`QueueApiProvider`):
+
+```tsx
+import { QueueDashboard, JobDetailPage } from '@telamonjs/ui/queue'
+
+// Single-page (non-tabbed) dashboard: stats cards + per-queue table with actions
+<QueueDashboard pollInterval={10000} showHeader settingsHref='/admin/jobs/config' />
+
+// Configuration + change history of one job (fetched through the adapter)
+<JobDetailPage jobName='send-email' backHref='/admin/jobs' onRefresh={() => router.refresh()} />
+```
+
+| `JobDetailPage` prop | Type | Description |
+| --- | --- | --- |
+| `jobName` | `string` | Job whose config and history are fetched |
+| `apiUrl` | `string` | API URL override (default: env var) |
+| `config` / `history` | `JobConfig` / `JobHistoryEntry[]` | Pre-fetched data; skips the fetch |
+| `backHref` / `onBack` | `string` / `() => void` | Back navigation |
+| `onRefresh` | `() => void` | Called after a successful update |
+
+Types (`QueueStats`, `DashboardStats`, `JobInfo`, `JobConfig`, `JobHistoryEntry`,
+`QueueApiAdapter`, `QueueConfigApiAdapter`, …) are exported from the same subpath.
+
+## Bull Board (server-side dashboard)
+
+Independently of the React dashboard, `@telamonjs/queue/dashboard`
+ships an embeddable **Bull Board** UI for low-level queue inspection:
+
+```typescript
+import { startDashboard } from '@telamonjs/queue/dashboard'
+
+// Standalone Express server (default port 3005)
+startDashboard({
+  port: 3005,
+  queueManager,
+  auth: {
+    enabled: true,
+    username: 'admin',
+    password: process.env.DASHBOARD_PASSWORD!,
+  },
+})
+```
+
+Or mount it into an existing Express app:
+
+```typescript
+import { createDashboardRouter } from '@telamonjs/queue/dashboard'
+
+const app = express()
+app.use('/admin/queue', createDashboardRouter({ queueManager }))
+```
+
+`startDashboard` also exposes a `/health` endpoint listing registered queues and
+handles SIGTERM shutdown. Basic-auth protection is opt-in via the `auth` config —
+always enable it outside local development.
+
+## Related
+
+- [Queue overview](/docs/queue)
+- [Bulk Operations](/docs/queue/bulk-operations) — the backend counterparts of dashboard actions
+- [Metrics](/docs/queue/metrics) — Prometheus, for alerting rather than browsing

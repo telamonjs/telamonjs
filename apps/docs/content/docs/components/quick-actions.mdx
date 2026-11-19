@@ -1,0 +1,225 @@
+---
+title: QuickActionCard / QuickActionGrid
+description: Shortcut cards for frequent dashboard actions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Two composable pieces: `QuickActionCard` (one shortcut) and `QuickActionGrid` (the responsive grid container).
+Import them from `@telamonjs/ui` or `@telamonjs/ui/cards`.
+
+<QuickActionsPreview />
+
+---
+
+## Basic Usage
+
+```tsx
+import { QuickActionCard, QuickActionGrid } from '@telamonjs/ui'
+import { Plus, Upload, Download, Mail } from 'lucide-react'
+
+export default function Dashboard() {
+  return (
+    <QuickActionGrid columns={4}>
+      <QuickActionCard title='New Order' icon={Plus} color='blue' href='/admin/orders/new' />
+      <QuickActionCard title='Import Data' icon={Upload} color='green' href='/admin/import' />
+      <QuickActionCard title='Export' icon={Download} color='purple' onClick={() => handleExport()} />
+      <QuickActionCard title='Send Email' icon={Mail} color='orange' onClick={() => openEmailDialog()} />
+    </QuickActionGrid>
+  )
+}
+```
+
+---
+
+## Props
+
+### QuickActionCard
+
+<TypeTable
+  type={{
+    title: { description: 'Card label', type: 'I18nText', required: true },
+    icon: { description: 'Icon — string key, LucideIcon, or component reference', type: 'string | LucideIcon | ComponentType', required: true },
+    color: {
+      description: 'Color variant, drives the icon gradient',
+      type: "'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'orange' | 'gray'",
+      required: true,
+    },
+    href: { description: 'Navigation URL — renders as a Next.js `Link` (to `#` when omitted). Ignored when `onClick` is set.', type: 'string' },
+    onClick: { description: 'Click handler — renders as a `<button>` instead of a link, and takes precedence over `href`.', type: '() => void' },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+### QuickActionGrid
+
+<TypeTable
+  type={{
+    children: { description: 'One or more `QuickActionCard` elements', type: 'React.ReactNode', required: true },
+    columns: { description: 'Grid columns', type: '3 | 4 | 5 | 6', default: '6' },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+<Callout type='warn' title='No variant/badge/shortcut/loading/permission system'>
+  There is no `list`/`compact` layout variant, no `badge`, `shortcut`,
+  `loading`, `disabled`, or `requiresPermission` prop on either component, and
+  no single `actions` array — compose one `QuickActionCard` per shortcut
+  inside `QuickActionGrid`.
+</Callout>
+
+---
+
+## Examples
+
+### Grid Layout
+
+```tsx
+<QuickActionGrid columns={4}>
+  <QuickActionCard title='New Order' icon={Plus} color='blue' href='/admin/orders/new' />
+  <QuickActionCard title='Import' icon={Upload} color='green' href='/admin/import' />
+  <QuickActionCard title='Export' icon={Download} color='purple' onClick={handleExport} />
+  <QuickActionCard title='Email' icon={Mail} color='orange' onClick={openEmailDialog} />
+</QuickActionGrid>
+```
+
+`columns` accepts `3 | 4 | 5 | 6` — the grid is responsive (fewer columns on
+smaller screens) regardless of the value passed.
+
+### 3-Column Grid
+
+```tsx
+<QuickActionGrid columns={3}>
+  <QuickActionCard title='New Order' icon={Plus} color='blue' href='/admin/orders/new' />
+  <QuickActionCard title='Manage Users' icon={Users} color='gray' href='/admin/users' />
+  <QuickActionCard title='Reports' icon={FileText} color='yellow' href='/admin/reports' />
+</QuickActionGrid>
+```
+
+### Click Handler (no navigation)
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import { QuickActionCard, QuickActionGrid } from '@telamonjs/ui'
+import { Download } from 'lucide-react'
+
+export default function QuickActionsWithExport() {
+  const [exporting, setExporting] = useState(false)
+
+  async function handleExport() {
+    setExporting(true)
+    try {
+      await exportData()
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  return (
+    <QuickActionGrid columns={4}>
+      <QuickActionCard
+        title={exporting ? 'Exporting…' : 'Export'}
+        icon={Download}
+        color='purple'
+        onClick={handleExport}
+      />
+    </QuickActionGrid>
+  )
+}
+```
+
+There is no built-in `loading` state on the card — reflect it in `title`/`icon`
+yourself, as shown above.
+
+### String Icon (project icon registry)
+
+```tsx
+<QuickActionCard title='New Order' icon='Plus' color='blue' href='/admin/orders/new' />
+```
+
+`icon` also accepts a string key resolved through the project's icon
+registry (`setIconResolver`) — see
+[Icon Resolver](/docs/patterns/provider-setup#icon-resolver-seticonresolver).
+
+---
+
+## Complete Example
+
+```tsx title="components/dashboard-quick-actions.tsx"
+'use client'
+
+import { QuickActionCard, QuickActionGrid } from '@telamonjs/ui'
+import { Plus, Upload, Download, Mail, Users, FileText } from 'lucide-react'
+
+export default function DashboardQuickActions() {
+  return (
+    <QuickActionGrid columns={3}>
+      <QuickActionCard title='New Order' icon={Plus} color='blue' href='/admin/orders/new' />
+      <QuickActionCard title='Import Data' icon={Upload} color='green' href='/admin/import' />
+      <QuickActionCard title='Export All' icon={Download} color='purple' onClick={() => exportAllData()} />
+      <QuickActionCard title='Bulk Email' icon={Mail} color='orange' onClick={() => sendBulkEmail()} />
+      <QuickActionCard title='Manage Users' icon={Users} color='gray' href='/admin/users' />
+      <QuickActionCard title='Reports' icon={FileText} color='yellow' href='/admin/reports' />
+    </QuickActionGrid>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Dashboard shortcuts** - Frequent operations
+- **Admin panels** - Common admin tasks
+- **User dashboards** - User-specific actions
+- **Workflow accelerators** - Reduce navigation
+- **Context actions** - Page-specific shortcuts
+
+---
+
+## Best Practices
+
+1. **Limit actions** - 4-8 most important shortcuts per grid
+2. **Clear labels** - Descriptive, action-oriented `title`
+3. **Consistent icons** - Use the same icon set (Lucide, or the project icon registry)
+4. **`href` vs `onClick`** - Use `href` for navigation, `onClick` for in-page actions — not both
+5. **Color coding** - Give related actions distinct `color` values
+6. **Keyboard shortcuts / badges / permissions** - Not built in; wrap `QuickActionCard`
+   in your own component if you need those (e.g. gate on permission before rendering)
+
+---
+
+## Accessibility
+
+- `href` cards render as a Next.js `Link` (keyboard/focus native)
+- `onClick` cards render as a real `<button type="button">`
+- Icon-only visual weight is paired with a visible `title` label
+
+---
+
+## Responsive Design
+
+`QuickActionGrid` is responsive regardless of the `columns` value:
+
+- Desktop: up to the configured column count
+- Tablet/mobile: fewer columns, wrapping automatically
+
+---
+
+## Related Components
+
+- [DashboardGrid](/docs/components/dashboard-grid) - Dashboard layout
+- [CommandPalette](/docs/components/command-palette) - Keyboard-driven commands
+
+---
+
+## See Also
+
+- [Dashboard Patterns](/docs/patterns/dashboard) - Dashboard design
+
+---
+
+**Status:** ✅ Stable

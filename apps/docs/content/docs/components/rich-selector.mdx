@@ -1,0 +1,215 @@
+---
+title: RichSelector
+description: Searchable selector with a title and a detail line per option, server search, multiple selection and a form adapter
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Pick one or many records from a searchable list. Each option shows a title and a detail line, so users can tell two similar records apart: a client name over its tax ID, a SKU over its supplier.
+
+---
+
+## Which selector?
+
+| Need | Use |
+| --- | --- |
+| Plain select in a form, label only | `type: 'relationship'` field |
+| Records that need a detail line, server search or custom display | `RichSelector` / `RichSelectorField` |
+| Toolbar filter over a list already loaded, with "All" and "Select all" | `PopoverSelector` |
+| Tags, or creating options on the fly | `MultiSelect` |
+
+---
+
+## Basic usage
+
+A fixed list is filtered in the browser, ignoring accents and case. It matches the label, a text description and `searchText`.
+
+```tsx
+import { RichSelector } from '@telamonjs/ui'
+
+<RichSelector<number>
+  items={[
+    { value: 1, label: 'Transportes Ação', description: '11.222.333/0001-81' },
+    { value: 2, label: 'Beta Logística', searchText: 'matriz' },
+  ]}
+  value={clientId}
+  onChange={setClientId}
+/>
+```
+
+## Server search
+
+Give it `load` and a `queryKey`. It runs on react-query, so it needs a `QueryClient`, which `AppProviders` provides.
+
+```tsx
+<RichSelector<number>
+  queryKey={['clients', 'options']}
+  load={async (search, { selected, signal }) => {
+    const options = await clientsApi.getOptions({ search, currentId: selected[0] }, { signal })
+    return options.map(option => ({
+      value: option.id,
+      label: option.name,
+      description: option.taxId,
+    }))
+  }}
+  value={clientId}
+  onChange={setClientId}
+  icon={Building2}
+  labels={{ placeholder: t('selectClient'), none: t('noClient') }}
+/>
+```
+
+<Callout type='warn' title='Return the selected items too'>
+  `load` receives the current selection in `selected`. Include those items in the result, even when the search or the page limit would leave them out. It's how the trigger knows the label of a value loaded with the form.
+</Callout>
+
+Put everything `load` closes over in `queryKey`, as with any react-query key. The component adds the search term to it.
+
+## In a form
+
+`RichSelectorField` connects it to `type: 'component'` fields. Create a module-level component and spread the props it receives:
+
+```tsx
+import { RichSelectorField, type RichSelectorFieldInjectedProps } from '@telamonjs/ui'
+
+function ContractField(props: RichSelectorFieldInjectedProps) {
+  const t = useTranslations('contracts')
+  return (
+    <RichSelectorField<number>
+      {...props}
+      valueType='string'
+      dependsOn='clientId'
+      requireDeps
+      queryKey={['contracts', 'options']}
+      load={async (search, { selected, deps }) =>
+        (await contractsApi.getOptions({ search, currentId: selected[0], clientId: deps.clientId }))
+          .map(option => ({ value: option.id, label: option.number, description: option.status }))
+      }
+      icon={FileText}
+      mono
+      labels={{ placeholder: t('selectContract') }}
+    />
+  )
+}
+
+// In the form config
+{ name: 'contractId', label: 'Contract', type: 'component', Component: ContractField }
+```
+
+<Callout type='warn' title='Never an inline arrow in the config'>
+  `Component: props => <RichSelectorField ... />` creates a new component on every render, which remounts the field and loses its state. Always declare it at module level.
+</Callout>
+
+What the field adds:
+
+- **`valueType`**: the type the form stores, `'string'` or `'number'`. Use it when the API returns numeric ids and the schema expects strings. Without it, the field emits the option's own `value`.
+- **`dependsOn`**: form fields the list depends on. Their values join the `queryKey` and reach `load` in `deps`. It needs a form around the field; without `dependsOn`, the field also works outside one.
+- **`requireDeps`**: stays disabled until every dependency has a value.
+- **`clearOnDepsChange`**: clears the selection when a dependency changes from one value to another. Filling an empty dependency doesn't clear, so edit forms keep their loaded value.
+- **`onItemsChange`**: receives the picked records, to fill other fields. The form's `onChange` only stores the value.
+- **Form config**: `placeholder`, `focus` and `label` work as on other fields, and a failed submit focuses the trigger. `label` names the trigger unless you set `aria-label`.
+- **Click to open**: the field doesn't open on hover, so passing the mouse over it never takes the caret from another field. Set `openOnHover` to change that.
+
+## Multiple selection
+
+With `multiple`, the value is an array and the panel stays open between picks. The trigger shows the title for one item and a count for more.
+
+```tsx
+<RichSelector<number>
+  multiple
+  maxSelected={5}
+  items={assets}
+  value={assetIds}
+  onChange={setAssetIds}
+/>
+```
+
+## Customizing
+
+```tsx
+<RichSelector
+  items={items}
+  value={value}
+  onChange={(value, item) => setSelection(value, item)}
+  renderItem={(item, { selected }) => <AssetRow asset={item} highlighted={selected} />}
+  renderValue={items => <AssetChip asset={items[0]} />}
+  footer={<Link href='/assets/new'>New asset</Link>}
+  openOnHover={false}
+/>
+```
+
+`onChange` also gives you the whole item, useful to fill other fields from the picked record (in a form, use `onItemsChange`). Set `group` on items to list them under headers, and `icon` or `disabled` per item. Items without a group come first.
+
+---
+
+## Props
+
+### Data source: pick one
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `items` | `RichSelectorItem<V>[]` | | Fixed list, filtered in the browser |
+| `filter` | `(item, search) => boolean` | label, description, `searchText` | Replaces the local match (`items` only) |
+| `load` | `(search, { selected, signal }) => Promise<Item[]>` | | Server search |
+| `queryKey` | `readonly unknown[]` | | Required with `load` |
+| `debounceMs` | `number` | `250` | Search debounce |
+| `minSearchLength` | `number` | `0` | Shorter terms are sent as an empty search |
+| `staleTime` | `number` | `30000` | react-query staleness, in ms |
+| `lazy` | `boolean` | `false` | Load on first open, or earlier if a selected label is unknown |
+| `selectedItems` | `RichSelectorItem<V>[]` | | Items at hand: their labels show without a request |
+
+### Selection
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `V \| null`, or `V[]` with `multiple` | | Numbers and strings match by text |
+| `onChange` | `(value, item) => void`, or `(values, items)` with `multiple` | | |
+| `multiple` | `boolean` | `false` | |
+| `maxSelected` | `number` | | Other options turn disabled once reached |
+| `required` | `boolean` | `false` | Hides the clearing row |
+| `clearable` | `boolean` | `!required` | Shows the clearing row |
+| `closeOnSelect` | `boolean` | `!multiple` | |
+
+### Display and behavior
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `icon` | `ComponentType` | | Trigger icon |
+| `mono` | `boolean` | `false` | Monospace title (serial, plate) |
+| `labels` | `Partial<RichSelectorLabels>` | i18n | `placeholder`, `search`, `none`, `clear`, `empty`, `error`, `retry`, `selected(count)` |
+| `renderItem` | `(item, { selected }) => ReactNode` | | Replaces an option's content |
+| `renderValue` | `(items) => ReactNode` | | Replaces the trigger's text |
+| `footer` | `ReactNode` | | Pinned under the list |
+| `openOnHover` | `boolean` | `true` | Off, it opens by click only. `RichSelectorField` defaults to `false` |
+| `searchable` | `boolean` | `true` | Shows the search box |
+| `disabled`, `readOnly` | `boolean` | `false` | |
+| `onOpenChange` | `(open) => void` | | |
+| `align` | `'start' \| 'center' \| 'end'` | `'start'` | Panel position |
+| `side` | `'top' \| 'right' \| 'bottom' \| 'left'` | | Panel position |
+| `className`, `contentClassName` | `string` | | Trigger and panel |
+| `id`, `aria-label`, `aria-invalid`, `aria-describedby` | | | Trigger |
+| `triggerRef`, `autoFocus` | | | Trigger button |
+| `onBlur` | `() => void` | | Focus left the closed trigger, or the panel closed |
+
+### `RichSelectorItem<V>`
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `value` | `string \| number` | |
+| `label` | `string` | Title line |
+| `description` | `ReactNode` | Detail line |
+| `icon` | `ComponentType` | Icon for this option |
+| `disabled` | `boolean` | |
+| `group` | `string` | Options with the same group are listed together under this header |
+| `searchText` | `string` | Extra text for the local search |
+
+---
+
+## Behavior
+
+- **Hover**: `RichSelector` opens on hover, like the other `@telamonjs/ui` selectors. The click that follows keeps it open. On touch devices, a tap toggles it. It stays open while the search has text, and a hover doesn't move the caret out of a field being typed in.
+- **Keyboard**: the arrow keys open the panel and move through the options, skipping disabled ones. Enter picks the highlighted option: without a highlight, the current value, then the first enabled option. It waits for a running search to finish, so it never picks from an old list. Enter never submits the surrounding form. Esc closes. With `searchable={false}`, Space also picks.
+- **Failures**: a failed load shows the error and a retry button.
+- **Reopening**: closing clears the search and the highlight, so the next opening starts with the full list.
+- **Requests**: picking from the list doesn't trigger a request, and a label stays on the trigger while a search filters its item out.
+- **Unknown labels**: the trigger shows a spinner while the label loads. If `load` never returns the selected item, it shows the raw value.

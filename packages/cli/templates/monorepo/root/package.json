@@ -1,0 +1,43 @@
+{
+  "name": "{{projectName}}-monorepo",
+  "version": "1.0.0",
+  "description": "{{appName}} — admin application built with the TelamonJS framework (monorepo)",
+  "private": true,
+  "packageManager": "pnpm@9.15.9",
+  "scripts": {
+    "dev": "pnpm --filter {{scope}}/web dev",
+    "dev:api": "pnpm --filter {{scope}}/api dev",
+    "worker": "pnpm --filter {{scope}}/jobs worker",
+    "scheduler": "pnpm --filter {{scope}}/jobs scheduler",
+    "build": "pnpm --filter {{scope}}/shared build && pnpm --filter {{scope}}/api build && pnpm --filter {{scope}}/web build",
+    "build:shared": "pnpm --filter {{scope}}/shared build",
+    "build:api": "pnpm --filter {{scope}}/api build",
+    "build:web": "pnpm --filter {{scope}}/web build",
+    "type-check": "pnpm --filter {{scope}}/shared --filter {{scope}}/api --filter {{scope}}/web type-check",
+    "test": "pnpm --filter {{scope}}/shared --filter {{scope}}/api test",
+    "lint:telamonjs": "pnpm --filter {{scope}}/web lint:telamonjs",
+    "db:generate": "pnpm --filter {{scope}}/shared prisma:generate",
+    "db:push": "pnpm --filter {{scope}}/shared prisma:push",
+    "db:migrate": "pnpm --filter {{scope}}/shared prisma:migrate",
+    "db:studio": "pnpm --filter {{scope}}/shared prisma:studio",
+    "db:seed": "pnpm --filter {{scope}}/shared prisma:seed",
+    "telamonjs:link": "node -e \"const f='apps/web/package.json';const p=JSON.parse(require('fs').readFileSync(f,'utf-8'));p.dependencies['@telamonjs/ui']='link:'+require('path').resolve(process.env.TELAMONJS_UI||'../telamonjs/packages/ui');require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\\n')\" && pnpm install",
+    "telamonjs:unlink": "node -e \"const f='apps/web/package.json';const p=JSON.parse(require('fs').readFileSync(f,'utf-8'));const v=require(require('path').resolve(process.env.TELAMONJS_UI||'../telamonjs/packages/ui')+'/package.json').version;p.dependencies['@telamonjs/ui']='^'+v;require('fs').writeFileSync(f,JSON.stringify(p,null,2)+'\\n')\" && pnpm install",
+    "prepare": "husky"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.10",
+    "tsx": "4.8.1",
+    "typescript": "5.9.3",
+    "husky": "^9.1.7"
+  },
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=9.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "framer-motion@12.23.22>motion-dom": "~12.23.23"
+    }
+  }
+}

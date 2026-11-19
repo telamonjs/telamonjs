@@ -1,0 +1,35 @@
+import type { MessagesShape } from '../shape'
+import type { dashboard as base } from '../pt-BR/dashboard'
+
+export const dashboard = {
+  closeFullscreen: 'Cerrar pantalla completa',
+  now: 'ahora',
+  enableAutoRefresh: 'Activar actualización automática',
+  disableAutoRefresh: 'Desactivar actualización automática',
+  auto: 'Auto',
+  saveLayout: 'Guardar diseño',
+  editLayout: 'Editar diseño',
+  exitFullscreen: 'Salir de pantalla completa',
+  fullscreen: 'Pantalla completa',
+  statusOnline: 'En vivo',
+  statusOffline: 'Sin conexión',
+  statusLoading: 'Cargando',
+  noActivity: 'Sin actividad reciente',
+  noData: 'Sin datos disponibles',
+  previousPeriodChange: 'vs. período anterior',
+  feature: 'Funcionalidad',
+  accessModule: 'Acceder al módulo',
+  unavailable: 'No disponible',
+  exportPDF: 'Exportar PDF',
+  exportExcel: 'Exportar Excel',
+  exportCSV: 'Exportar CSV',
+  statusLabel: 'Estado',
+  movingCount: '{count} mov.',
+  stoppedCount: '{count} par.',
+  offlineCount: '{count} apag.',
+  onlineAria: '{count} en línea',
+  stoppedAria: '{count} detenidos',
+  offlineAria: '{count} sin conexión',
+  statusSummaryAria:
+    'Estado: {online} en línea, {stopped} detenidos, {offline} sin conexión',
+} satisfies MessagesShape<typeof base>

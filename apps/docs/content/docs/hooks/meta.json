@@ -1,0 +1,11 @@
+{
+  "title": "Hooks",
+  "pages": [
+    "index",
+    "use-table-state",
+    "use-url-sync",
+    "use-tab-url-sync",
+    "use-shell-page",
+    "use-animated-counter"
+  ]
+}

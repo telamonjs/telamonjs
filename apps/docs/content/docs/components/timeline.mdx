@@ -1,0 +1,354 @@
+---
+title: Timeline
+description: Timeline component for displaying chronological events and activities
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Timeline component for displaying chronological events, activities, and status updates in a vertical or horizontal layout.
+
+<TimelinePreview />
+
+<Callout type='info' title='Business Component'>
+  `Timeline` is perfect for activity feeds, order tracking, audit logs, and any
+  chronological data visualization. Import it from `@telamonjs/ui` or `@telamonjs/ui/business`.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { Timeline, type TimelineItem } from '@telamonjs/ui'
+
+const events = [
+  {
+    id: '1',
+    title: 'Order Placed',
+    description: 'Customer placed order #12345',
+    timestamp: new Date('2024-01-20T10:30:00Z'),
+    variant: 'success',
+  },
+  {
+    id: '2',
+    title: 'Payment Confirmed',
+    description: 'Payment processed successfully',
+    timestamp: new Date('2024-01-20T10:32:00Z'),
+    variant: 'success',
+  },
+  {
+    id: '3',
+    title: 'Order Shipped',
+    description: 'Package handed to carrier',
+    timestamp: new Date('2024-01-21T14:15:00Z'),
+  },
+] satisfies TimelineItem[]
+
+export default function OrderTimeline() {
+  return <Timeline items={events} />
+}
+```
+
+Each item's `timestamp` is rendered as relative time ("2 hours ago"), in the active locale.
+
+---
+
+## Props
+
+```typescript
+interface TimelineProps {
+  items: TimelineItem[] // Timeline events (required)
+  variant?: 'vertical' | 'horizontal' // Layout direction (default: 'vertical')
+  showConnector?: boolean // Show line between events (default: true)
+  className?: string // Additional classes
+}
+
+interface TimelineItem {
+  id: string // Unique identifier
+  title: string // Event title
+  description?: string // Event description
+  timestamp: Date // Event time (required), shown as relative time
+  user?: { name: string; avatar?: string } // Actor, shown with an avatar
+  icon?: React.ReactNode // Rendered element inside the dot (default: the item's 1-based index)
+  variant?: 'default' | 'success' | 'warning' | 'error' // Dot/connector color (default: 'default')
+}
+```
+
+`TimelineItem` and `TimelineProps` are exported types. There is no `status`, `content`,
+`iconColor` or `orientation` — use `variant` on the item for color and `variant` on the
+`Timeline` for layout.
+
+---
+
+## Examples
+
+### Vertical Timeline (Default)
+
+```tsx
+<Timeline
+  items={[
+    {
+      id: '1',
+      title: 'Account Created',
+      description: 'User signed up successfully',
+      timestamp: new Date('2024-01-15T09:00:00Z'),
+      variant: 'success',
+    },
+    {
+      id: '2',
+      title: 'Email Verified',
+      description: 'User verified their email address',
+      timestamp: new Date('2024-01-15T09:15:00Z'),
+      variant: 'success',
+    },
+    {
+      id: '3',
+      title: 'Profile Setup',
+      description: 'Currently adding profile information',
+      timestamp: new Date(),
+    },
+  ]}
+/>
+```
+
+### With Custom Icons
+
+`icon` is a rendered element, not a component reference:
+
+```tsx
+import { ShoppingCart, CreditCard, Truck } from 'lucide-react'
+;<Timeline
+  items={[
+    {
+      id: '1',
+      title: 'Order Placed',
+      timestamp: new Date('2024-01-20T10:30:00Z'),
+      variant: 'success',
+      icon: <ShoppingCart className='h-4 w-4' />,
+    },
+    {
+      id: '2',
+      title: 'Payment Confirmed',
+      timestamp: new Date('2024-01-20T10:32:00Z'),
+      variant: 'success',
+      icon: <CreditCard className='h-4 w-4' />,
+    },
+    {
+      id: '3',
+      title: 'Out for Delivery',
+      timestamp: new Date('2024-01-22T06:00:00Z'),
+      icon: <Truck className='h-4 w-4' />,
+    },
+  ]}
+/>
+```
+
+### With User
+
+```tsx
+<Timeline
+  items={[
+    {
+      id: '1',
+      title: 'Code Review Requested',
+      timestamp: new Date('2024-01-20T14:00:00Z'),
+      user: { name: 'John Doe', avatar: '/avatars/john.jpg' },
+    },
+    {
+      id: '2',
+      title: 'Review Completed',
+      description: '2 approvals received',
+      timestamp: new Date('2024-01-20T16:30:00Z'),
+      user: { name: 'Jane Smith' },
+      variant: 'success',
+    },
+  ]}
+/>
+```
+
+Without `avatar`, the first letter of `name` is shown.
+
+### Horizontal Timeline
+
+```tsx
+<Timeline
+  variant='horizontal'
+  items={[
+    { id: '1', title: 'Step 1', timestamp: step1At, variant: 'success' },
+    { id: '2', title: 'Step 2', timestamp: step2At, variant: 'success' },
+    { id: '3', title: 'Step 3', timestamp: step3At },
+  ]}
+/>
+```
+
+Scrolls horizontally when the items don't fit. For a step-by-step progress view without
+timestamps, use [ProgressTracker](/docs/components/progress-tracker).
+
+### Error State
+
+```tsx
+<Timeline
+  items={[
+    {
+      id: '1',
+      title: 'Payment Initiated',
+      timestamp: new Date('2024-01-20T10:00:00Z'),
+      variant: 'success',
+    },
+    {
+      id: '2',
+      title: 'Payment Failed',
+      description: 'Insufficient funds',
+      timestamp: new Date('2024-01-20T10:01:00Z'),
+      variant: 'error',
+    },
+  ]}
+/>
+```
+
+---
+
+## Complete Example
+
+```tsx title="components/order-tracking.tsx"
+'use client'
+
+import { Timeline, type TimelineItem } from '@telamonjs/ui'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { ShoppingCart, CreditCard, Package, Truck, Home } from 'lucide-react'
+
+interface OrderEvent {
+  id: string
+  title: string
+  description: string
+  occurredAt: string
+  failed?: boolean
+}
+
+const iconMap = {
+  'Order Placed': ShoppingCart,
+  'Payment Confirmed': CreditCard,
+  'Package Prepared': Package,
+  'Out for Delivery': Truck,
+  Delivered: Home,
+}
+
+export default function OrderTracking({ events }: { events: OrderEvent[] }) {
+  const timelineItems: TimelineItem[] = events.map(event => {
+    const Icon = iconMap[event.title as keyof typeof iconMap]
+    return {
+      id: event.id,
+      title: event.title,
+      description: event.description,
+      timestamp: new Date(event.occurredAt),
+      variant: event.failed ? 'error' : 'success',
+      icon: Icon ? <Icon className='h-4 w-4' /> : undefined,
+    }
+  })
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Order Tracking</CardTitle>
+        <CardDescription>Track your order status in real-time</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Timeline items={timelineItems} />
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Order tracking** - E-commerce shipment status
+- **Activity feeds** - User actions, system events
+- **Audit logs** - Security events, data changes
+- **Process workflows** - Multi-step processes
+- **Project milestones** - Development timeline
+- **Status updates** - Ticket resolution, support cases
+- **User onboarding** - Progress through setup steps
+
+---
+
+## Variant Colors
+
+Each item's `variant` sets the color of its dot and connector:
+
+| `variant` | Color |
+| --- | --- |
+| `default` | Blue |
+| `success` | Green |
+| `warning` | Yellow |
+| `error` | Red |
+
+There is no custom color per item; pick the closest `variant`.
+
+---
+
+## Best Practices
+
+1. **Order chronologically** - Most recent first or last (be consistent)
+2. **Use meaningful icons** - Match icons to event types
+3. **Limit items** - Show 5-10 most recent, paginate rest
+4. **Add descriptions** - Provide context for each event
+5. **Use `variant` for meaning** - `success`/`error` for outcomes, `default` for neutral events
+
+---
+
+## Accessibility
+
+- Timestamps render in a `<time>` element
+- Event titles are `<h4>` headings
+- Color is never the only signal: title and description are always text
+
+---
+
+## Performance
+
+**Optimization tips:**
+
+- Paginate or "load more" for long timelines
+- Memoize the `items` array when it is derived from query data
+
+**Example with pagination:**
+
+```tsx
+const [page, setPage] = useState(1)
+const itemsPerPage = 10
+const visibleItems = items.slice(0, page * itemsPerPage)
+
+<Timeline items={visibleItems} />
+{visibleItems.length < items.length && (
+  <Button onClick={() => setPage(p => p + 1)}>
+    Load More
+  </Button>
+)}
+```
+
+---
+
+## Related Components
+
+- [DetailCard](/docs/components/detail-card) - For static event details
+- [DataTable](/docs/components/data-table) - Tabular event log
+- [KanbanBoard](/docs/components/kanban-board) - Visual workflow
+
+---
+
+## See Also
+
+- Audit Log Implementation - Backend setup
+
+---
+
+**Status:** ✅ Stable

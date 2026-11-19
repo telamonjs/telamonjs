@@ -1,0 +1,37 @@
+@import 'tailwindcss';
+@import 'fumadocs-ui/css/neutral.css';
+@import 'fumadocs-ui/css/preset.css';
+
+@source '../node_modules/fumadocs-ui/dist/**/*.js';
+@source '../node_modules/@telamonjs/ui/dist/**/*.js';
+
+/*
+ * telamonjs-ui components are built against shadcn/ui's unprefixed token
+ * names (bg-card, text-muted-foreground, ring-ring, ...). This site only
+ * ships fumadocs' `--color-fd-*` palette. Rather than importing a second
+ * color system, alias the shadcn tokens onto the fd palette so component
+ * previews inherit the site's theme (light/dark) for free.
+ * ponytail: aliases only the tokens the previewed components (base cards,
+ * badges, tables) actually use — extend if a future preview needs more.
+ */
+@theme inline {
+  --color-background: var(--color-fd-background);
+  --color-foreground: var(--color-fd-foreground);
+  --color-card: var(--color-fd-card);
+  --color-card-foreground: var(--color-fd-card-foreground);
+  --color-popover: var(--color-fd-popover);
+  --color-popover-foreground: var(--color-fd-popover-foreground);
+  --color-primary: var(--color-fd-primary);
+  --color-primary-foreground: var(--color-fd-primary-foreground);
+  --color-secondary: var(--color-fd-secondary);
+  --color-secondary-foreground: var(--color-fd-secondary-foreground);
+  --color-muted: var(--color-fd-muted);
+  --color-muted-foreground: var(--color-fd-muted-foreground);
+  --color-accent: var(--color-fd-accent);
+  --color-accent-foreground: var(--color-fd-accent-foreground);
+  --color-destructive: var(--color-fd-error);
+  --color-destructive-foreground: white;
+  --color-border: var(--color-fd-border);
+  --color-input: var(--color-fd-border);
+  --color-ring: var(--color-fd-ring);
+}

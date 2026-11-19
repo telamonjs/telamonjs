@@ -1,0 +1,48 @@
+{
+  "name": "telamonjs",
+  "private": true,
+  "type": "module",
+  "description": "TelamonJS — the admin framework that holds your systems up",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telamonjs/telamonjs.git"
+  },
+  "packageManager": "pnpm@9.15.9",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm --filter '!@telamonjs/docs' -r build",
+    "test": "pnpm --filter '!@telamonjs/docs' -r test",
+    "lint": "pnpm --filter '!@telamonjs/docs' --filter '!@telamonjs/example' -r lint",
+    "example:dev": "pnpm --filter @telamonjs/example dev",
+    "example:build": "pnpm --filter @telamonjs/example build",
+    "type-check": "pnpm --filter '!@telamonjs/docs' -r type-check",
+    "docs:dev": "pnpm --filter @telamonjs/docs dev",
+    "docs:build": "pnpm --filter @telamonjs/docs build",
+    "docs:check": "pnpm --filter @telamonjs/docs check:content",
+    "docs:generate": "node scripts/docs/generate.mjs",
+    "example:generate": "node scripts/example/generate.mjs",
+    "changeset": "changeset",
+    "version-packages": "changeset version && node scripts/release/sync-version.mjs && pnpm install --lockfile-only",
+    "release": "pnpm build && changeset publish"
+  },
+  "devDependencies": {
+    "@changesets/cli": "^2.29.7",
+    "@eslint/js": "^9.37.0",
+    "@typescript-eslint/eslint-plugin": "^8.46.0",
+    "@typescript-eslint/parser": "^8.46.0",
+    "eslint": "^9.37.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.4.23",
+    "eslint-plugin-storybook": "^10.5.10",
+    "prettier": "^3.6.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "framer-motion@12.23.22>motion-dom": "~12.23.23"
+    }
+  }
+}

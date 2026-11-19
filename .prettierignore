@@ -1,0 +1,26 @@
+# Dependencies
+node_modules
+
+# Build outputs
+dist
+build
+.next
+coverage
+storybook-static
+
+# Package-specific dist folders
+packages/*/dist
+packages/cli/dist
+
+# Lock files
+pnpm-lock.yaml
+
+# Generated files
+*.d.ts
+
+# Config files that should not be formatted
+.github/workflows/*.yml
+
+# CLI templates with placeholders (not valid YAML/syntax)
+packages/cli/templates/app/docker-compose.yml
+packages/cli/templates/app/docker-compose.prod.yml

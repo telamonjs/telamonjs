@@ -1,0 +1,201 @@
+---
+title: Scheduling
+description: Cron scheduling with human-readable helpers, timezone support and pattern validation
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Recurring jobs use standard cron expressions
+(`minute hour day month dayOfWeek [year]`), but the package provides
+human-readable helpers so you rarely write raw cron:
+
+```typescript
+import { dailyAt, Timezones } from '@telamonjs/queue'
+
+// Instead of: schedule = '0 9 * * *'
+const schedule = dailyAt(9, 0, Timezones.AMERICA_NEW_YORK)
+// { pattern: '0 9 * * *', tz: 'America/New_York' }
+```
+
+## Declaring a scheduled job
+
+A job class declares its default cron in `configDefaults`. That value seeds a
+`JobConfigStore` (Redis), and a `SchedulerReconciler` keeps BullMQ repeatables in
+sync with the store, so the cron can be toggled or edited from the
+[Jobs Dashboard](/docs/queue/dashboard) without a redeploy:
+
+```typescript
+import { Job, QueueRegistry, dailyAt, Timezones, type JobConstructor } from '@telamonjs/queue'
+import { JobConfigStore, setupFromConfig } from '@telamonjs/queue/job-config'
+import { SchedulerReconciler } from '@telamonjs/queue/scheduler'
+
+export class DailyReportJob extends Job<void, void> {
+  name = 'daily-report' as const
+  configDefaults = {
+    cronPattern: dailyAt(9, 0).pattern, // '0 9 * * *'
+    timezone: Timezones.AMERICA_SAO_PAULO,
+    enabled: true, // without it the job is seeded disabled
+  }
+
+  async process(): Promise<void> {
+    const report = await generateDailyReport()
+    await sendReport(report)
+  }
+}
+
+const redis = { host: 'localhost', port: 6379 }
+const jobs = new Map<string, JobConstructor>([['daily-report', DailyReportJob]])
+const store = new JobConfigStore({ redis })
+
+// Seeds the store from Job.configDefaults and registers the enabled jobs
+await setupFromConfig(queueManager, store, jobs)
+
+// Adds/removes/updates BullMQ repeatables to match the store, every minute
+const reconciler = new SchedulerReconciler(new QueueRegistry({ redis, prefix: 'myapp' }), store, jobs)
+await reconciler.start()
+```
+
+`enabled` seeds as `false` when omitted: without `enabled: true` the job starts
+disabled (not registered, no repeatable) until it is turned on from the
+dashboard. `configDefaults` only seeds — a value already in Redis wins.
+
+`configDefaults` takes the same fields as `JobConfigInput` from
+`@telamonjs/queue/job-config`: `description`, `enabled`, `cronPattern`,
+`timezone`, `priority`, `concurrency` and `timeout`. `setupFromConfig` also
+accepts per-job `defaults` in its options, merged over the class's
+`configDefaults` field by field, to override a seed without touching the class.
+
+<Callout type='warn' title='The cron lives in configDefaults'>
+  A job class has no `schedule` field. A class that declares one makes
+  `QueueManager.register()` and the `SchedulerReconciler` constructor throw, so a
+  job can never be silently left unscheduled.
+</Callout>
+
+### What `setupFromConfig` does
+
+1. **Bootstrap** (`store.bootstrap()`) reconciles the jobs in code with the
+   configs in Redis. A job missing from Redis is created from its defaults. A
+   field present in the defaults but empty in Redis is backfilled; a value
+   already set in Redis (an edit made from the dashboard) is never overwritten.
+   A config whose job no longer exists in code is marked `orphan` and disabled;
+   if the job comes back, the orphan flag is cleared but the job is **not**
+   re-enabled. Running it twice changes nothing.
+2. **Registration** registers on the `QueueManager` only the jobs that are
+   `enabled` and not `orphan`.
+3. **Fallback.** If Redis is unreachable, every job is registered
+   unconditionally and the result reports `mode: 'fallback'`, so a config
+   outage never takes the workers down with it.
+
+The result lists `registered`, `skipped` (disabled, orphan or without a
+config) and `missing` (enabled in Redis with no class in code) job names.
+
+## SchedulePatterns
+
+Pre-defined constants for common scenarios:
+
+```typescript
+import { SchedulePatterns } from '@telamonjs/queue'
+
+SchedulePatterns.EVERY_MINUTE // '* * * * *'
+SchedulePatterns.EVERY_5_MINUTES // '*/5 * * * *'
+SchedulePatterns.EVERY_15_MINUTES // '*/15 * * * *'
+SchedulePatterns.EVERY_30_MINUTES // '*/30 * * * *'
+SchedulePatterns.EVERY_HOUR // '0 * * * *'
+SchedulePatterns.EVERY_6_HOURS // '0 */6 * * *'
+SchedulePatterns.EVERY_12_HOURS // '0 */12 * * *'
+SchedulePatterns.DAILY_AT_MIDNIGHT // '0 0 * * *'
+SchedulePatterns.DAILY_AT_NOON // '0 12 * * *'
+SchedulePatterns.WEEKLY_MONDAY // '0 0 * * 1'
+SchedulePatterns.WEEKLY_SUNDAY // '0 0 * * 0'
+SchedulePatterns.MONTHLY_FIRST // '0 0 1 * *'
+SchedulePatterns.MONTHLY_LAST // '0 0 L * *'
+SchedulePatterns.YEARLY // '0 0 1 1 *'
+```
+
+## Schedule helpers
+
+All helpers return `{ pattern, tz? }` and validate their inputs (throwing on
+out-of-range values):
+
+| Helper                                    | Example                                | Result pattern        |
+| ----------------------------------------- | -------------------------------------- | --------------------- |
+| `everyMinutes(n, tz?)` (1–59)             | `everyMinutes(5)`                      | `*/5 * * * *`         |
+| `everyHours(n, tz?)` (1–23)               | `everyHours(6)`                        | `0 */6 * * *`         |
+| `dailyAt(hour, minute?, tz?)`             | `dailyAt(9, 30)`                       | `30 9 * * *`          |
+| `weeklyOn(days, hour?, minute?, tz?)`     | `weeklyOn([1, 3, 5], 9, 0)`            | `0 9 * * 1,3,5`       |
+| `monthlyOn(day \| 'L', hour?, minute?, tz?)` | `monthlyOn('L', 23, 59)`            | `59 23 L * *`         |
+| `yearlyOn(month, day, hour?, minute?, tz?)` | `yearlyOn(12, 25, 9, 0)`             | `0 9 25 12 *`         |
+| `weekdays(hour?, minute?, tz?)`           | `weekdays(9, 0)`                       | `0 9 * * 1,2,3,4,5`   |
+| `weekends(hour?, minute?, tz?)`           | `weekends(10, 0)`                      | `0 10 * * 0,6`        |
+
+Day-of-week values: 0 = Sunday … 6 = Saturday.
+
+## Timezones
+
+The `Timezones` constant covers common IANA zones (`UTC`,
+`AMERICA_SAO_PAULO`, `AMERICA_NEW_YORK`, `EUROPE_LONDON`, `ASIA_TOKYO`, …), and any
+valid IANA string is accepted:
+
+```typescript
+import { dailyAt, Timezones } from '@telamonjs/queue'
+
+dailyAt(9, 0, Timezones.AMERICA_SAO_PAULO)
+dailyAt(9, 0, 'America/Mexico_City') // custom IANA zone
+```
+
+## Validation and parsing
+
+```typescript
+import {
+  isValidCronPattern,
+  parseSchedule,
+  formatCronPattern,
+} from '@telamonjs/queue'
+
+// Validate (5 or 6 fields, supports * / - , L W)
+isValidCronPattern('0 9 * * *') // true
+isValidCronPattern('60 25 * * *') // false
+
+// Parse human-readable strings → cron
+parseSchedule('every 5 minutes') // '*/5 * * * *'
+parseSchedule('daily at 9:30am') // '30 9 * * *'
+parseSchedule('daily at 12am') // '0 0 * * *' (midnight)
+parseSchedule('weekdays at 9am') // '0 9 * * 1-5'
+parseSchedule('hourly') // '0 * * * *'
+parseSchedule('monthly') // '0 0 1 * *'
+
+// Format cron → human-readable (unknown patterns returned as-is)
+formatCronPattern('*/5 * * * *') // 'Every 5 minutes'
+formatCronPattern('30 14 * * *') // 'Daily at 2:30 PM'
+formatCronPattern('0 9 * * 1-5') // 'Weekdays at 9:00 AM'
+```
+
+## Dynamic scheduling
+
+`QueueManager.add()` deliberately leaves out BullMQ's `repeat` option. For a
+one-off repeatable outside the `JobConfigStore`, add it through the raw queue,
+with a fixed `jobId` so a restart does not register it twice:
+
+```typescript
+import { everyMinutes } from '@telamonjs/queue'
+
+const schedule = everyMinutes(5)
+
+await queueManager
+  .getQueue('monitor')
+  ?.getRawQueue()
+  .add('monitor', {}, {
+    repeat: { pattern: schedule.pattern, tz: schedule.tz },
+    jobId: 'monitor-repeat',
+  })
+```
+
+<Callout type='info'>
+  In the [Jobs Dashboard](/docs/queue/dashboard) configuration tab, cron patterns
+  of registered jobs can be inspected and edited at runtime per job.
+</Callout>
+
+## Related
+
+- [Priorities](/docs/queue/priorities)
+- [Validation](/docs/queue/validation)

@@ -1,0 +1,164 @@
+---
+title: Zustand Selector Pattern
+description: Avoid infinite loops - the getSnapshot should be cached warning
+---
+
+How to avoid the React warning `The result of getSnapshot should be cached to avoid an infinite loop` when using Zustand in custom hooks.
+
+<Callout type='error' title='Critical'>
+  Dynamic selectors inside custom hooks cause **infinite loops** in React. This
+  pattern is mandatory when writing hooks around Zustand stores.
+</Callout>
+
+---
+
+## The Problem
+
+Using dynamic selectors (selectors that depend on hook parameters) inside custom hooks recreates the selector on every render:
+
+```typescript
+// ❌ WRONG - dynamic selectors cause infinite loops
+export const useForm = (formId: string) => {
+  // Selector is recreated on every render
+  const data = useFormStore((state) => state.forms[formId])
+  const meta = useFormStore((state) => state.formMeta[formId])
+
+  return { data, meta }
+}
+```
+
+### Attempts That Do NOT Work
+
+```typescript
+// ❌ useCallback does not fix it (mutable deps recreate the function)
+const data = useFormStore(
+  React.useCallback((state) => state.forms[formId], [formId])
+)
+
+// ❌ useMemo does not fix it either
+const selectData = React.useMemo(() => (state) => state.forms[formId], [formId])
+const data = useFormStore(selectData)
+
+// ❌ useRef with useEffect causes race conditions
+const selectorRef = React.useRef((state) => state.forms[formId])
+React.useEffect(() => {
+  selectorRef.current = (state) => state.forms[formId]
+}, [formId])
+const data = useFormStore(selectorRef.current)
+```
+
+---
+
+## The Solution
+
+**Subscribe to the entire store and select in the component:**
+
+```typescript
+export const useForm = (formId: string) => {
+  // ✅ CORRECT - subscribe to the whole store (stable reference)
+  const formState = useFormStore()
+
+  // ✅ Selection happens in the component (not in the selector)
+  const data = formState.forms[formId] || {}
+  const meta = formState.formMeta[formId] || defaultMeta
+  const isValid = formState.isFormValid(formId)
+
+  return { data, meta, isValid }
+}
+```
+
+---
+
+## Golden Rules
+
+### 1. NEVER use dynamic selectors in custom hooks
+
+```typescript
+// ❌ DON'T
+const useMyHook = (id: string) => {
+  return useStore((state) => state.items[id])
+}
+
+// ✅ DO
+const useMyHook = (id: string) => {
+  const store = useStore()
+  return store.items[id]
+}
+```
+
+### 2. Static selectors are OK
+
+```typescript
+// ✅ OK - selector does not depend on props/state
+const allItems = useStore((state) => state.items)
+const count = useStore((state) => state.count)
+```
+
+### 3. Prefer full subscription in custom hooks
+
+```typescript
+// ✅ Best approach for custom hooks
+const useFormData = (formId: string) => {
+  const store = useFormStore() // subscribe to whole store
+  return store.forms[formId] // select locally
+}
+```
+
+---
+
+## Trade-offs
+
+**Full subscription advantages:** zero warnings, simple and predictable code, no race conditions, works every time.
+
+**Disadvantages:** re-renders on ANY store change (not just the selected slice), less optimized for large stores.
+
+### When is that OK?
+
+- Small/medium stores
+- Specific custom hooks (e.g. `useForm(id)`)
+- When simplicity beats micro-optimization
+
+### When to optimize
+
+If the store is very large and there are measurable performance issues:
+
+```typescript
+import { useShallow } from 'zustand/react/shallow'
+
+const { data, meta } = useFormStore(
+  useShallow((state) => ({
+    data: state.forms[formId],
+    meta: state.formMeta[formId],
+  }))
+)
+```
+
+<Callout type='warn'>
+  `useShallow` can still have edge cases. Prefer full subscription.
+</Callout>
+
+---
+
+## How to Identify the Problem
+
+1. **Console warning:** `The result of getSnapshot should be cached to avoid an infinite loop`
+2. **Stack trace shows Zustand:** `useSyncExternalStore` → `useStore (zustand)` → your hook
+3. **Code uses a dynamic selector in a hook:** grep for `useStore(state => state.items[id])`-style calls inside parameterized hooks
+
+## Checklist
+
+- Does the hook receive dynamic parameters (id, formId, etc.)?
+- Does it use `useStore(selector)` with those parameters?
+- If YES → refactor to full subscription
+- If NO → static selector is fine
+- Test in the browser and verify the console has no warnings
+
+If there are too many re-renders afterwards: memoize consumer components with `React.memo`, split the store into sub-stores, or use `useShallow` as a last resort.
+
+---
+
+## Related
+
+- [Troubleshooting](/docs/troubleshooting) — this and the other hard-to-read runtime errors
+- [Provider Setup](/docs/patterns/provider-setup) — store/provider hierarchy
+- [useTableState](/docs/hooks/use-table-state) — table state without hand-rolled selectors

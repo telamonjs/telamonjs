@@ -1,0 +1,168 @@
+---
+title: Logger
+description: Structured logging for TelamonJS — one ILogger interface for browser, server and workers, with child loggers, timers, audit and perf extensions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+`@telamonjs/logger` (current version: <PkgVersion pkg='logger' />) is
+the shared logging system of the TelamonJS ecosystem — one `ILogger` interface for
+Node.js, browser and SSR, with structured context, correlation IDs, performance
+timers and audit trails. It is also the logger injected into
+[`@telamonjs/queue`](/docs/queue/logging).
+
+```bash
+pnpm add @telamonjs/logger
+```
+
+## Quick start
+
+```typescript
+import { logger } from '@telamonjs/logger'
+
+// Standard levels (RFC 5424)
+logger.debug('Debugging info', { component: 'UserService' })
+logger.info('User logged in', { userId: '123' })
+logger.warn('API rate limit approaching', { remaining: 10 })
+logger.error('Payment failed', { orderId: '456', error: err.message })
+logger.fatal('Database connection lost')
+
+// TelamonJS extensions
+logger.success('User created successfully', { userId: '789' })
+logger.perf('Query executed', 1234, { query: 'SELECT * FROM users' })
+```
+
+The default `logger` instance is a `ConsoleLogger` whose level is auto-detected
+from `LOG_LEVEL`/`NODE_ENV`.
+
+## ILogger interface
+
+Every adapter implements the same contract:
+
+```typescript
+interface ILogger {
+  // Standard levels
+  debug(message: string, context?: LogContext): void
+  info(message: string, context?: LogContext): void
+  warn(message: string, context?: LogContext): void
+  error(message: string, context?: LogContext): void
+  fatal(message: string, context?: LogContext): void
+
+  // TelamonJS extensions
+  success(message: string, context?: LogContext): void
+  audit(action: AuditAction, context?: AuditContext): void
+  perf(label: string, durationMs: number, context?: LogContext): void
+
+  // Context management
+  child(context: LogContext): ILogger
+  withRequestId(requestId: string): ILogger
+  withUser(user: { id: string; email?: string; role?: string }): ILogger
+
+  // Timers
+  startTimer(label?: string): LogTimer
+
+  // Configuration
+  setLevel(level: LogLevel): void
+  getLevel(): LogLevel
+  isLevelEnabled(level: LogLevel): boolean
+}
+```
+
+Levels: `FATAL(0)` → `ERROR(1)` → `WARN(2)` → `INFO(3)` → `DEBUG(4)` → `TRACE(5)`.
+`LOG_LEVEL` env var overrides; otherwise `NODE_ENV` picks a sensible default
+(development → DEBUG, production → INFO, test → ERROR).
+
+## Factories
+
+Environment-specific factory functions:
+
+```typescript
+import {
+  createLogger,
+  createServerLogger,
+  createBrowserLogger,
+  createWorkerLogger,
+  createTestLogger,
+} from '@telamonjs/logger'
+
+// Level from LOG_LEVEL / NODE_ENV unless you pass one
+const logger = createLogger({
+  level: LogLevel.INFO,
+  context: { service: 'my-app' },
+})
+
+createServerLogger() // Server Components: no ANSI colors
+createBrowserLogger() // colorized console output
+createWorkerLogger({ context: { jobId, jobName } }) // background jobs: no ANSI colors
+createTestLogger() // silent no-op for tests
+```
+
+Every factory returns a `ConsoleLogger` (or a `NoOpLogger` when `enabled: false`), configured
+through `LoggerConfig`: `level`, `enabled`, `context`, `colorize`, `showTimestamps`, `showLevel`,
+`showContext`. Output is human-readable text on the console.
+
+## Adapters
+
+| Adapter         | Use case                                              | Extras                                       |
+| --------------- | ----------------------------------------------------- | -------------------------------------------- |
+| `ConsoleLogger` | Development and browser                               | colorize, timestamps, context display        |
+| `PrettyLogger`  | CLIs                                                  | `banner()`, `step()`, `newLine()`            |
+| `BrowserLogger` | Client components                                     | `flush()`, `getBuffer()`, `clearBuffer()`    |
+| `NoOpLogger`    | Tests, benchmarks                                     | silent                                       |
+
+<Callout type='info' title='One entry point, console output'>
+  Everything is exported from one browser-safe entry point, `@telamonjs/logger`. The adapters
+  write to the console; the package ships no transports. To send logs to an aggregator or an
+  error tracker, implement `ILogger` (or extend `BaseLogger`) in your app — see
+  [Custom sinks](/docs/queue/logging#custom-sinks-sentry-datadog-).
+</Callout>
+
+## Context management
+
+```typescript
+// Child logger — context merged into every log
+const userLogger = logger.child({ userId: user.id, email: user.email })
+userLogger.info('Profile updated')
+
+// Request correlation
+const requestLogger = logger.withRequestId(req.headers['x-request-id'])
+requestLogger.info('Request started')
+requestLogger.info('Request completed') // same requestId — traceable
+
+// Performance timers
+const timer = logger.startTimer('Database query')
+const users = await prisma.user.findMany()
+timer.done('Users fetched') // "Users fetched (1234ms)"
+```
+
+### Audit trails
+
+```typescript
+logger.audit('user.created', {
+  userId: newUser.id,
+  resource: 'user',
+  resourceId: newUser.id,
+  changes: { email: { before: null, after: newUser.email } },
+  compliance: ['GDPR', 'LGPD'],
+})
+```
+
+## Best practices
+
+```typescript
+// ✅ Structured context, not string concatenation
+logger.info('User logged in', { userId: user.id })
+
+// ✅ Scoped child loggers per request/job
+const requestLogger = logger.withRequestId(requestId)
+
+// ✅ The error level for errors, not info
+logger.error('Payment failed', { error: err.message })
+
+// ❌ Never log sensitive data — the logger does not redact anything
+logger.info('User password', { password: user.password })
+```
+
+## Related
+
+- [Queue logging](/docs/queue/logging) — injecting an `ILogger` into the queue system

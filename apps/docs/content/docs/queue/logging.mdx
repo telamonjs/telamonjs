@@ -1,0 +1,146 @@
+---
+title: Logging
+description: Structured logging via ILogger injection from @telamonjs/logger
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+`@telamonjs/queue` does not ship its own logger.
+All logging goes through the **`ILogger`** interface from
+[`@telamonjs/logger`](/docs/packages/logger), injected via the `logger`
+config option.
+
+## Logger resolution
+
+The `QueueManager` resolves its logger in this order:
+
+1. **`config.logger`** — the `ILogger` you inject (recommended). Pass
+   `new NoOpLogger()` from `@telamonjs/logger` for a silent manager
+   (useful in tests).
+2. **Default** — `createLogger({ context: { service: 'telamonjs-queue' } })` from
+   `@telamonjs/logger` (environment auto-detection)
+
+The same logger instance is propagated to the job registry, workers, the DLQ and
+the flow producer.
+
+## Injecting a logger
+
+```typescript
+import { QueueManager } from '@telamonjs/queue'
+import { createLogger, LogLevel } from '@telamonjs/logger'
+
+const logger = createLogger({
+  level: LogLevel.INFO,
+  context: { service: 'my-queue-service' },
+})
+
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  logger,
+})
+```
+
+Worker-oriented logging with scoped context:
+
+```typescript
+import { createWorkerLogger } from '@telamonjs/logger'
+
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  logger: createWorkerLogger({ context: { service: 'queue-worker' } }),
+})
+```
+
+## Silent logging (tests)
+
+```typescript
+import { NoOpLogger } from '@telamonjs/logger'
+
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  logger: new NoOpLogger(),
+})
+```
+
+## What gets logged
+
+All queue logs carry structured metadata:
+
+| Event             | Level | Example message            | Metadata                          |
+| ----------------- | ----- | -------------------------- | --------------------------------- |
+| QueueManager init | info  | `QueueManager initialized` | `prefix`, `redisHost`, `redisPort`|
+| Job registration  | debug | `Job registered`           | `jobName`                         |
+| Job added         | debug | `Job added to queue`       | `jobName`, `jobId`                |
+| Job completed     | debug | `Job completed`            | `jobId`, `jobName`                |
+| Job failed        | error | `Job failed`               | `jobId`, `error`, `attemptsMade`  |
+| Bulk add          | debug | `Bulk jobs added to queue` | `jobName`, `count`                |
+| Bulk remove/retry | info  | `Bulk jobs removed` / `Bulk jobs retried` | counts             |
+| Queue actions     | info  | `Queue cleaned` / `Queue drained` / `Queues paused` | queue names, counts |
+| Cron scheduled    | info  | `SchedulerReconciler scheduled job` | `jobName`, `cronPattern`, `timezone` |
+
+## Correlation IDs
+
+Use the logger's own context management:
+
+```typescript
+import { logger } from '@telamonjs/logger'
+
+const requestLogger = logger.withRequestId(req.headers['x-request-id'])
+
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  logger: requestLogger,
+})
+```
+
+Or scope per-job context inside `process()`:
+
+```typescript
+import { createWorkerLogger } from '@telamonjs/logger'
+
+export class SendEmailJob extends Job<EmailData, void> {
+  name = 'send-email' as const
+
+  async process(data: EmailData): Promise<void> {
+    const log = createWorkerLogger({ context: { jobName: this.name } })
+    log.info('Job started', { to: data.to })
+    await sendEmail(data)
+    log.success('Email sent')
+  }
+}
+```
+
+## Custom sinks (Sentry, Datadog, …)
+
+Any object implementing `ILogger` works. The shortest adapter extends one of the package's
+loggers and overrides the levels it cares about:
+
+```typescript
+import * as Sentry from '@sentry/node'
+import { ConsoleLogger, type LogContext } from '@telamonjs/logger'
+
+class SentryLogger extends ConsoleLogger {
+  override error(message: string, context?: LogContext): void {
+    super.error(message, context)
+    Sentry.captureException(new Error(message), { extra: context })
+  }
+}
+
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  logger: new SentryLogger({ context: { service: 'queue' } }),
+})
+```
+
+## Best practices
+
+- **Structured context** — put IDs and counts in the context object, not in the message, so
+  they stay searchable.
+- **Appropriate levels** — `debug` for development detail, `info` for normal
+  operations, `warn` for recoverable issues, `error` for failures.
+- **No PII in log context** — log IDs, never emails/passwords/tokens.
+
+## Related
+
+- [Logger package](/docs/packages/logger) — adapters, factories and the full `ILogger` API
+- [Error Handling](/docs/queue/error-handling) — `toJSON()` for structured error logs

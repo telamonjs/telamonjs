@@ -1,0 +1,148 @@
+---
+title: AreaChart
+description: Area chart component for cumulative trends and stacked volumes
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Area chart component built on Recharts for visualizing volume over time —
+optionally stacked to show how parts compose a total.
+
+<AreaChartPreview />
+
+<Callout type='info' title='Built on Recharts'>
+  All chart components are built on [Recharts](https://recharts.org/) with
+  pre-configured theming and responsive behavior. Recharts ships with
+  `@telamonjs/ui` — no separate install.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { AreaChart } from '@telamonjs/ui'
+
+const data = [
+  { name: 'Mon', visits: 1200 },
+  { name: 'Tue', visits: 1900 },
+  { name: 'Wed', visits: 1500 },
+  { name: 'Thu', visits: 2200 },
+  { name: 'Fri', visits: 2600 },
+]
+
+export default function TrafficChart() {
+  return <AreaChart data={data} dataKeys={['visits']} />
+}
+```
+
+<Callout type='warn' title='The X axis reads the `name` field'>
+  Like the other charts, `AreaChart` takes flat `dataKeys: string[]`, one area per key, with the
+  X axis fixed to the `name` field.
+</Callout>
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    data: { description: 'Chart data — each point needs a `name` field (X axis) plus numeric series fields', type: 'ChartData[]', required: true },
+    dataKeys: { description: 'Field names plotted as areas', type: 'string[]', required: true },
+    colors: { description: 'Area colors, matched by index to dataKeys (defaults to the built-in palette)', type: 'string[]' },
+    height: { description: 'Chart height in pixels', type: 'number', default: '300' },
+    stacked: { description: 'Stack the areas (parts of a total) instead of overlapping them', type: 'boolean', default: 'false' },
+    showGrid: { description: 'Show the cartesian grid', type: 'boolean', default: 'true' },
+    showLegend: { description: 'Show the legend', type: 'boolean', default: 'true' },
+    xAxisLabel: { description: 'X axis label', type: 'string' },
+    yAxisLabel: { description: 'Y axis label', type: 'string' },
+    className: { description: 'Additional classes on the wrapper', type: 'string' },
+  }}
+/>
+
+---
+
+## Examples
+
+### Stacked Areas
+
+```tsx
+const data = [
+  { name: 'Jan', organic: 4000, paid: 2400, referral: 800 },
+  { name: 'Feb', organic: 3000, paid: 1398, referral: 900 },
+  { name: 'Mar', organic: 5000, paid: 3200, referral: 1100 },
+]
+
+<AreaChart
+  data={data}
+  dataKeys={['organic', 'paid', 'referral']}
+  stacked
+/>
+```
+
+Use `stacked` when the series sum to a meaningful total (traffic sources,
+revenue streams); leave it off to compare independent trends.
+
+### Overlapping Comparison
+
+```tsx
+<AreaChart
+  data={data}
+  dataKeys={['thisYear', 'lastYear']}
+  colors={['#3b82f6', '#94a3b8']}
+/>
+```
+
+### With React Query
+
+```tsx
+'use client'
+
+import { AreaChart } from '@telamonjs/ui'
+import { useQuery } from '@tanstack/react-query'
+import { metricsApi } from '@/lib/api/metrics-client'
+
+export function TrafficBySource() {
+  const { data = [] } = useQuery({
+    queryKey: ['traffic-by-source'],
+    queryFn: metricsApi.trafficBySource,
+  })
+
+  return <AreaChart data={data} dataKeys={['organic', 'paid']} stacked />
+}
+```
+
+---
+
+## Lazy Variant
+
+`AreaChartLazy` has the same props but code-splits the Recharts bundle:
+
+```tsx
+import { AreaChartLazy } from '@telamonjs/ui'
+
+<AreaChartLazy data={data} dataKeys={['visits']} />
+```
+
+---
+
+## Best Practices
+
+1. **Stack only real compositions** - Stacked areas imply the total matters
+2. **Order stacked series** - Largest/most stable series at the bottom
+3. **Name the X axis field `name`** - Map API data if needed
+4. **Prefer LineChart for many series** - Overlapping areas get muddy past 2-3 series
+
+---
+
+## Related Components
+
+- [LineChart](/docs/components/line-chart) - Trends without fill
+- [BarChart](/docs/components/bar-chart) - Category comparison
+- [Donut](/docs/components/pie-chart#donut) - Composition at one point in time
+- [ChartWidget](/docs/components/chart-widget) - Chart inside a dashboard card
+
+---
+
+**Status:** ✅ Stable

@@ -1,0 +1,110 @@
+---
+title: Hooks
+description: React hooks exported by the UI package, grouped by what they do
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Every hook below is exported by the root barrel (`@telamonjs/ui`) unless a
+different entry point is named. All of them are client-side: call them from a component or
+file marked `'use client'`.
+
+<Callout type='warn' title='Data fetching comes from React Query, not from this package'>
+  `useQuery`, `useMutation` and `useQueryClient` are **not** re-exported. Import them from
+  `@tanstack/react-query` directly — a second copy of React Query breaks the app's
+  `QueryClient` ("No QueryClient set"). The same applies to `next-intl`.
+</Callout>
+
+---
+
+## Table state
+
+| Hook | Signature | Use it for |
+| --- | --- | --- |
+| [`useTableState`](/docs/hooks/use-table-state) | `(tableId: string) => TableState` | Read the whole persisted state of one `DataTable`/`ListPage` |
+| `useTableSorting` | `(tableId: string) => SortingState` | Subscribe to the sorting slice only |
+
+## URL state
+
+| Hook | Use it for |
+| --- | --- |
+| [`useUrlSync`](/docs/hooks/use-url-sync) | Read/write query params (`getParam`, `setParam`, `setParams`) |
+| [`useTabUrlSync`](/docs/hooks/use-tab-url-sync) | Active tab kept in the URL, with validation |
+
+## CRUD data
+
+These wrap React Query around a `CrudConfig`. `ListPage` already uses them — reach for them
+only when you build a custom screen on top of the same config.
+
+| Hook | Use it for |
+| --- | --- |
+| `useInfiniteListQuery` | Infinite-scroll pages from `config.query.queryFn` |
+| `useCrudMutations` | Create / update / delete mutations from `config.mutations`, with cache invalidation |
+| `useRecordRefresh` | Reload the record behind the nearest dialog that provides one; `null` outside it |
+
+## Forms
+
+| Hook | Use it for |
+| --- | --- |
+| `useForm`, `useForms`, `useFormStore` | Zustand form store used by `ZustandForm` |
+| `useFormDraft` | Persist an unsaved draft and restore it |
+| `useUnsavedChangesGuard` | Confirm before discarding a dirty form (`setDirty`, `guard`, `reset`, `dialog`) |
+| `useWatch`, `useFormContext` | Re-exported from the same `react-hook-form` copy the forms use |
+
+## Layout and app state
+
+| Hook | Use it for |
+| --- | --- |
+| [`useShellPage`](/docs/hooks/use-shell-page) | Page title/actions inside `AdminShell` |
+| `useIsMobile` | Responsive breakpoint |
+
+## Utilities
+
+| Hook | Use it for |
+| --- | --- |
+| `toast` | Show a toast: `toast({ title, description, variant })` |
+| `useDebounce` | `useDebounce(value, delay = 300)` → debounced value |
+| [`useAnimatedCounter`](/docs/hooks/use-animated-counter) | Animate a number in dashboards |
+| `useText`, `useFormat` | Resolve an `I18nText` slot and format dates/numbers in the active locale |
+
+---
+
+## Example: a selector-based store read
+
+In a component, subscribe to the smallest slice you need; selecting the whole store re-renders on every
+change. Inside a custom hook that takes the key as a parameter, do the opposite: see
+[Zustand Selector Pattern](/docs/patterns/zustand-selector).
+
+```tsx
+'use client'
+
+import { useFormStore } from '@telamonjs/ui'
+
+// Re-renders only when this form's `name` changes
+const name = useFormStore(state => state.forms['user-form']?.name)
+```
+
+## Example: toast after a mutation
+
+```tsx
+'use client'
+
+import { useMutation } from '@tanstack/react-query'
+import { toast } from '@telamonjs/ui'
+
+export function useDeleteUser() {
+  return useMutation({
+    mutationFn: (id: string) => usersApi.delete(id),
+    onSuccess: () => toast({ title: 'User deleted' }),
+    onError: () => toast({ title: 'Delete failed', variant: 'destructive' }),
+  })
+}
+```
+
+---
+
+## Related
+
+- [Patterns](/docs/patterns) - Architectural patterns
+- [Components](/docs/components) - UI components
+- [Reference](/docs/reference) - Decision trees and reference tables

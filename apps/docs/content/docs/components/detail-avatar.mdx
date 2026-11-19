@@ -1,0 +1,270 @@
+---
+title: DetailAvatar
+description: Avatar component with fallback initials and zoomable preview
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Avatar component for displaying user profile pictures with automatic fallback to initials and optional zoom preview.
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailAvatar` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailCard, DetailAvatar } from '@telamonjs/ui'
+
+export default function UserDetail({ user }) {
+  return (
+    <DetailCard title='Profile'>
+      <DetailAvatar name={user.name} imageUrl={user.avatar} />
+    </DetailCard>
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface DetailAvatarProps {
+  name: string // Person's name (shown beside the avatar; first letter is the fallback)
+  subtitle?: string // Secondary text below the name (e.g. email, enrollment)
+  imageUrl?: string // Avatar image URL
+  size?: 'sm' | 'md' | 'lg' | 'xl' // Avatar size (default: 'lg')
+  fallbackColor?: string // Tailwind gradient classes for the fallback (default: 'from-blue-500 to-indigo-600')
+  zoomable?: boolean // Click-to-zoom preview (default: true)
+  className?: string // Additional classes
+}
+```
+
+**Sizes:**
+
+- `sm` - 64×64px
+- `md` - 80×80px
+- `lg` - 96×96px (default)
+- `xl` - 128×128px
+
+---
+
+## Examples
+
+### Basic Avatar
+
+```tsx
+<DetailAvatar name='John Doe' imageUrl='https://example.com/avatar.jpg' />
+```
+
+Displays avatar image with rounded circle.
+
+### Without Image (Initials Fallback)
+
+```tsx
+<DetailAvatar name='John Doe' />
+```
+
+When no `imageUrl` is provided (or the image fails to load), displays the first letter "J" on a gradient background.
+
+### Different Sizes
+
+```tsx
+<div className='flex items-center gap-4'>
+  <DetailAvatar name='John Doe' imageUrl={url} size='sm' />
+  <DetailAvatar name='John Doe' imageUrl={url} size='md' />
+  <DetailAvatar name='John Doe' imageUrl={url} size='lg' />
+  <DetailAvatar name='John Doe' imageUrl={url} size='xl' />
+</div>
+```
+
+### Zoomable Preview
+
+```tsx
+<DetailAvatar name='John Doe' imageUrl={user.avatar} size='lg' zoomable />
+```
+
+Clicking avatar opens full-size preview modal. Zoom is on by default; pass `zoomable={false}` to disable it.
+
+### With Subtitle
+
+```tsx
+<DetailAvatar
+  name='John Doe'
+  subtitle='john@example.com'
+  imageUrl={user.avatar}
+/>
+```
+
+The name and subtitle render beside the avatar.
+
+### Custom Fallback Color
+
+```tsx
+<DetailAvatar name='Acme Corp' fallbackColor='from-emerald-500 to-teal-600' />
+```
+
+`fallbackColor` takes the Tailwind gradient classes used when there is no image.
+
+### In Two-Column Layout
+
+```tsx
+<DetailLayout
+  title={user.name}
+  leftColumn={<UserInfoCard user={user} />}
+  rightColumn={
+    <DetailCard title='Profile Picture'>
+      <DetailAvatar
+        name={user.name}
+        imageUrl={user.avatar}
+        size='xl'
+        zoomable
+      />
+    </DetailCard>
+  }
+/>
+```
+
+Common pattern: Avatar in right sidebar.
+
+---
+
+## Complete Example
+
+```tsx
+import {
+  DetailLayout,
+  DetailCard,
+  DetailAvatar,
+  DetailField,
+  DetailStatus,
+} from '@telamonjs/ui'
+import { User, Mail, Calendar } from 'lucide-react'
+
+export default function UserDetailPage({ user }) {
+  return (
+    <DetailLayout
+      title={user.name}
+      description={user.email}
+      leftColumn={
+        <DetailCard title='User Information' icon={User}>
+          <DetailField label='Name' value={user.name} />
+          <DetailField label='Email' value={user.email} icon={Mail} />
+          <DetailField label='Role' value={user.role} />
+          <DetailField
+            label='Status'
+            value={
+              <DetailStatus
+                status={user.active ? 'ACTIVE' : 'INACTIVE'}
+                statusConfig={{
+                  ACTIVE: { label: 'Active', variant: 'default' },
+                  INACTIVE: { label: 'Inactive', variant: 'secondary' },
+                }}
+              />
+            }
+          />
+          <DetailField
+            label='Member Since'
+            value={new Date(user.createdAt).toLocaleDateString()}
+            icon={Calendar}
+          />
+        </DetailCard>
+      }
+      rightColumn={
+        <DetailCard title='Profile Picture'>
+          <div className='flex flex-col items-center gap-4'>
+            <DetailAvatar
+              name={user.name}
+              imageUrl={user.avatar}
+              size='xl'
+              zoomable
+            />
+            <Button variant='outline' size='sm'>
+              Upload New Photo
+            </Button>
+          </div>
+        </DetailCard>
+      }
+    />
+  )
+}
+```
+
+---
+
+## Fallback Behavior
+
+### Image States:
+
+1. **Success:** Displays image
+2. **Error:** Falls back to the initial
+3. **No URL:** Shows the initial immediately
+
+### Initial:
+
+```typescript
+// "John Doe" → "J"  (first character, uppercased)
+// "mary" → "M"
+```
+
+### Background Color:
+
+The fallback uses the `fallbackColor` gradient (default `from-blue-500 to-indigo-600`) for every name.
+
+---
+
+## Best Practices
+
+1. **Always provide name** - Required for accessibility and fallback
+2. **Use zoomable for profile pages** - Let users view full-size image
+3. **Optimize images** - Resize to 256×256px or smaller for performance
+4. **Handle missing images** - The initial fallback ensures graceful degradation
+5. **Choose appropriate size** - sm for lists, lg/xl for detail pages
+
+---
+
+## Performance
+
+**Image Optimization:**
+
+- Uses Next.js `<Image>` component internally
+- Automatic WebP/AVIF conversion and lazy loading (Next.js defaults)
+- Remote image hosts must be allowed in `next.config` `images.remotePatterns`
+
+**Recommendations:**
+
+- Serve images from CDN
+- Size images at 2x desired display size (for retina)
+
+---
+
+## Accessibility
+
+- Semantic `<img>` with proper alt text (user name)
+- The name is rendered as visible text next to the avatar
+- Zoom trigger is a `<button>` with a localized `aria-label`
+- Focus trap in zoom preview
+- Escape key closes modal
+
+---
+
+## Related Components
+
+- [DetailCard](/docs/components/detail-card) - Card wrapper
+- [DetailField](/docs/components/detail-field) - Label-value pairs
+- [DetailLayout](/docs/components/detail-layout) - Page layout
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- Image Optimization Guide - Best practices for images
+
+---
+
+**Status:** ✅ Stable

@@ -1,0 +1,271 @@
+---
+title: BaseFormPage
+description: DRY wrapper for form pages with conditional PageContent wrapping
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Base wrapper component for form pages that provides consistent layout with conditional PageContent wrapping.
+
+<Callout type='info' title='Dialogs are the default'>
+  Generated CRUD modules create, edit and view records in [dialogs](/docs/patterns/dialogs).
+  `BaseFormPage` is for the cases that need a [standalone form page](/docs/patterns/edit-page).
+</Callout>
+
+`BaseFormPage` is the layer under `CreatePage` and `EditPage`; most standalone pages should use those instead.
+
+---
+
+## Basic Usage
+
+```tsx
+import { BaseFormPage } from '@telamonjs/ui'
+import { UserForm } from './form'
+
+export default function CreateUserPage() {
+  return (
+    <BaseFormPage
+      formComponent={<UserForm />}
+      title='Create User'
+      variant='card'
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface BaseFormPageProps {
+  formComponent: React.ReactNode // Form component (required)
+  title?: I18nText // Page title — without it, formComponent renders bare
+  description?: I18nText // Shown under the title
+  variant?: 'card' | 'plain' // PageContent variant (default: 'card')
+}
+
+// With a title:
+// 'card': PageContent with a card (title in the card header)
+// 'plain': PageContent without a card (title above the form)
+// Without a title, `variant` is ignored and formComponent renders as is.
+```
+
+---
+
+## Variants
+
+### Card Variant (Default)
+
+```tsx
+<BaseFormPage formComponent={<MyForm />} title='Create Item' variant='card' />
+```
+
+**Result:**
+
+- Form wrapped in PageContent
+- Card-style container with padding
+- Consistent spacing and borders
+- Best for standard forms
+
+### Plain Variant
+
+```tsx
+<BaseFormPage formComponent={<MyForm />} title='Edit Item' variant='plain' />
+```
+
+**Result:**
+
+- Form wrapped in PageContent, without a card
+- Title and description above the form
+- Used by `EditPage`
+
+### No Title
+
+```tsx
+<BaseFormPage formComponent={<MyForm />} />
+```
+
+**Result:**
+
+- Form rendered directly, no PageContent wrapper
+- Full layout control to the form component
+- Best for custom layouts or multi-step wizards
+
+---
+
+## Examples
+
+### With Title and Description
+
+```tsx
+<BaseFormPage
+  formComponent={<UserForm />}
+  title='Create New User'
+  description='Add a new user to the system with role and permissions'
+  variant='card'
+/>
+```
+
+### Custom Layout (No Title)
+
+```tsx
+<BaseFormPage
+  formComponent={
+    <div className='max-w-4xl mx-auto p-6'>
+      <h1>Custom Form Layout</h1>
+      <MultiStepForm />
+    </div>
+  }
+/>
+```
+
+---
+
+## Use Cases
+
+**✅ When to use BaseFormPage:**
+
+- Building custom page wrappers (like CreatePage, EditPage)
+- Need conditional PageContent wrapping
+- Creating domain-specific form page components
+
+**❌ When NOT to use BaseFormPage:**
+
+- Regular form pages → Use `CreatePage` or `EditPage`
+- Custom layouts → Use form components directly
+- Multi-step wizards → Use `ZustandForm` with custom layout
+
+---
+
+## Used By
+
+BaseFormPage is the foundation for these components:
+
+### CreatePage
+
+```tsx
+// CreatePage, simplified
+export function CreatePage({ title, description, ...formProps }: CreatePageProps) {
+  return (
+    <BaseFormPage
+      formComponent={<CreateForm {...formProps} />}
+      title={title}
+      description={description}
+      variant='card'
+    />
+  )
+}
+```
+
+### EditPage
+
+```tsx
+// EditPage, simplified
+export function EditPage({ title, description, ...formProps }: EditPageProps) {
+  return (
+    <BaseFormPage
+      formComponent={<EditForm {...formProps} />}
+      title={title}
+      description={description}
+      variant='plain'
+    />
+  )
+}
+```
+
+---
+
+## Complete Example
+
+```tsx title="components/custom-wizard-page.tsx"
+import { BaseFormPage } from '@telamonjs/ui'
+import { MultiStepWizard, type WizardStep } from './wizard'
+
+interface CustomWizardPageProps {
+  title: string
+  steps: WizardStep[]
+}
+
+export function CustomWizardPage({ title, steps }: CustomWizardPageProps) {
+  return (
+    <BaseFormPage
+      formComponent={
+        <div className='container max-w-4xl mx-auto py-8'>
+          <div className='mb-8'>
+            <h1 className='text-3xl font-bold'>{title}</h1>
+            <p className='text-muted-foreground'>
+              Complete all steps to finish the process
+            </p>
+          </div>
+          <MultiStepWizard steps={steps} />
+        </div>
+      }
+    />
+  )
+}
+
+// Usage
+export default function OnboardingPage() {
+  return <CustomWizardPage title='User Onboarding' steps={onboardingSteps} />
+}
+```
+
+---
+
+## Best Practices
+
+1. **Prefer high-level wrappers** - Use CreatePage/EditPage when possible
+2. **Card for standard forms** - Use `variant="card"` for typical CRUD forms
+3. **No title for custom layouts** - Omit `title` when the form handles its own layout
+4. **Title and description** - Add context for users
+5. **Reusable wrappers** - Create domain-specific wrappers on top of BaseFormPage
+
+---
+
+## Comparison: BaseFormPage vs Higher-Level Wrappers
+
+| Feature         | BaseFormPage          | CreatePage           | EditPage          |
+| --------------- | --------------------- | -------------------- | ----------------- |
+| **Purpose**     | Base wrapper          | Create forms         | Edit forms        |
+| **Variant**     | Flexible              | Always `card`        | Always `plain`    |
+| **Form filter** | None                  | Filters `editOnly` and `crud` | None     |
+| **Props**       | Minimal               | CreateForm-specific  | EditForm-specific |
+| **Use when**    | Building custom pages | Creating new records | Editing existing  |
+
+---
+
+## Architecture Benefits
+
+**DRY principle:**
+
+- Eliminates duplicated PageContent logic
+- Centralized layout handling
+- Consistent page structure
+
+**Flexibility:**
+
+- `variant` prop allows card or plain layouts
+- Works with any form component
+- Extensible for custom wrappers
+- Single source of truth for form page layout
+
+---
+
+## Related Components
+
+- [CreatePage](/docs/components/create-page) - High-level create page wrapper
+- [EditPage](/docs/components/edit-page) - High-level edit page wrapper
+- [CreateForm](/docs/components/create-form) - Form for creation
+- [EditForm](/docs/components/edit-form) - Form for editing
+
+---
+
+## See Also
+
+- [Form Pattern](/docs/patterns/form-pattern) - Complete form pattern guide
+- [Module Structure](/docs/patterns/admin-module-structure) - CRUD module structure
+
+---
+
+**Status:** ✅ Stable

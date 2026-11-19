@@ -1,0 +1,397 @@
+---
+title: DetailActions
+description: Action buttons card for detail pages with common operations
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Card component for displaying action buttons in detail pages with consistent styling and layout.
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailActions` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailActions } from '@telamonjs/ui'
+
+export default function UserDetail({ user }) {
+  return (
+    <DetailActions
+      actions={[
+        {
+          label: 'Edit',
+          href: `/admin/users/${user.id}/edit`,
+          variant: 'default',
+        },
+        {
+          label: 'Delete',
+          onClick: () => handleDelete(user.id),
+          variant: 'destructive',
+        },
+      ]}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface DetailActionsProps {
+  actions: ActionButton[] // Array of actions
+  title?: I18nText // Card title (default: "Quick Actions")
+  layout?: 'vertical' | 'horizontal' // Layout direction (default: 'vertical')
+  className?: string // Additional classes
+}
+
+interface ActionButton {
+  label: I18nText // Button text
+  href?: string // Link destination (renders a Next.js Link)
+  onClick?: () => void // Click handler (for operations)
+  variant?: ButtonVariant // Button visual style (default: 'outline')
+  size?: 'default' | 'sm' | 'lg' | 'icon' // Button size (default: 'sm')
+  icon?: LucideIcon // Optional icon (Lucide)
+  disabled?: boolean // Disable action
+  loading?: boolean // Show loading state
+  showExternalIcon?: boolean // Arrow icon after the label (href actions only)
+  id?: string // Identifier used for the test ID
+}
+
+type ButtonVariant =
+  | 'default'
+  | 'destructive'
+  | 'outline'
+  | 'secondary'
+  | 'ghost'
+  | 'link'
+```
+
+`DetailActionsProps` and `ActionButton` are exported from `@telamonjs/ui` and `@telamonjs/ui/detail`.
+
+---
+
+## Examples
+
+### Basic Actions
+
+```tsx
+<DetailActions
+  actions={[
+    { label: 'Edit', href: '/edit' },
+    { label: 'Delete', onClick: handleDelete, variant: 'destructive' },
+  ]}
+/>
+```
+
+Simple edit + delete actions.
+
+### With Icons
+
+```tsx
+import { Edit, Trash2, Mail, Download } from 'lucide-react'
+;<DetailActions
+  actions={[
+    { label: 'Edit', href: `/users/${id}/edit`, icon: Edit },
+    {
+      label: 'Delete',
+      onClick: handleDelete,
+      icon: Trash2,
+      variant: 'destructive',
+    },
+    {
+      label: 'Send Email',
+      onClick: handleEmail,
+      icon: Mail,
+      variant: 'outline',
+    },
+    {
+      label: 'Download',
+      onClick: handleDownload,
+      icon: Download,
+      variant: 'secondary',
+    },
+  ]}
+/>
+```
+
+Icons improve recognition and visual hierarchy.
+
+### With Confirmation
+
+```tsx
+<DetailActions
+  actions={[
+    {
+      label: 'Delete User',
+      variant: 'destructive',
+      onClick: () => {
+        if (window.confirm('Delete this user? This action cannot be undone.')) {
+          handleDelete()
+        }
+      },
+    },
+  ]}
+/>
+```
+
+`DetailActions` has no built-in confirmation: confirm inside `onClick` (with `window.confirm` or your own `AlertDialog`) before running the action.
+
+### With Loading State
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+export default function UserActions({ userId }) {
+  const [loading, setLoading] = useState(false)
+
+  async function handleExport() {
+    setLoading(true)
+    await exportUserData(userId)
+    setLoading(false)
+  }
+
+  return (
+    <DetailActions
+      actions={[
+        {
+          label: 'Export Data',
+          onClick: handleExport,
+          loading,
+          disabled: loading,
+        },
+      ]}
+    />
+  )
+}
+```
+
+Disables button and shows spinner during async operations.
+
+### Horizontal Layout
+
+```tsx
+<DetailActions
+  layout='horizontal'
+  actions={[
+    { label: 'Edit', href: '/edit' },
+    { label: 'Delete', onClick: handleDelete, variant: 'destructive' },
+  ]}
+/>
+```
+
+Actions displayed side-by-side (useful for header).
+
+### In Two-Column Layout
+
+```tsx
+<DetailLayout
+  title={user.name}
+  leftColumn={<UserInfoCard user={user} />}
+  rightColumn={
+    <>
+      <DetailCard title='Avatar'>
+        <DetailAvatar name={user.name} imageUrl={user.avatar} />
+      </DetailCard>
+
+      <DetailActions
+        actions={[
+          { label: 'Edit', href: `/users/${user.id}/edit`, icon: Edit },
+          { label: 'Send Email', onClick: handleEmail, icon: Mail },
+          {
+            label: 'Delete',
+            onClick: handleDelete,
+            icon: Trash2,
+            variant: 'destructive',
+          },
+        ]}
+      />
+    </>
+  }
+/>
+```
+
+Common pattern: Actions in right sidebar below avatar.
+
+---
+
+## Complete Example
+
+```tsx
+'use client'
+
+import {
+  DetailLayout,
+  DetailActions,
+  DetailCard,
+  DetailField,
+} from '@telamonjs/ui'
+import { Edit, Trash2, Mail, Lock, Download } from 'lucide-react'
+import { useState } from 'react'
+import { useRouter } from 'next/navigation'
+
+export default function UserDetailPage({ user }) {
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+
+  async function handleDelete() {
+    setLoading(true)
+    await deleteUser(user.id)
+    router.push('/admin/users')
+  }
+
+  async function handleSendEmail() {
+    setLoading(true)
+    await sendWelcomeEmail(user.email)
+    setLoading(false)
+  }
+
+  async function handleResetPassword() {
+    setLoading(true)
+    await sendPasswordReset(user.email)
+    setLoading(false)
+  }
+
+  async function handleExport() {
+    setLoading(true)
+    await exportUserData(user.id)
+    setLoading(false)
+  }
+
+  return (
+    <DetailLayout
+      title={user.name}
+      description={user.email}
+      leftColumn={
+        <DetailCard title='User Information'>
+          <DetailField label='Name' value={user.name} />
+          <DetailField label='Email' value={user.email} />
+          <DetailField label='Role' value={user.role} />
+        </DetailCard>
+      }
+      rightColumn={
+        <DetailActions
+          actions={[
+            {
+              label: 'Edit User',
+              href: `/admin/users/${user.id}/edit`,
+              icon: Edit,
+              variant: 'default',
+            },
+            {
+              label: 'Send Email',
+              onClick: handleSendEmail,
+              icon: Mail,
+              variant: 'outline',
+              disabled: loading,
+            },
+            {
+              label: 'Reset Password',
+              onClick: handleResetPassword,
+              icon: Lock,
+              variant: 'outline',
+              disabled: loading,
+            },
+            {
+              label: 'Export Data',
+              onClick: handleExport,
+              icon: Download,
+              variant: 'secondary',
+              disabled: loading,
+            },
+            {
+              label: 'Delete User',
+              onClick: () => {
+                if (window.confirm('Delete this user? This cannot be undone.')) {
+                  handleDelete()
+                }
+              },
+              icon: Trash2,
+              variant: 'destructive',
+              disabled: loading,
+            },
+          ]}
+        />
+      }
+    />
+  )
+}
+
+// Server Actions
+async function deleteUser(id: string) {
+  /* ... */
+}
+async function sendWelcomeEmail(email: string) {
+  /* ... */
+}
+async function sendPasswordReset(email: string) {
+  /* ... */
+}
+async function exportUserData(id: string) {
+  /* ... */
+}
+```
+
+---
+
+## Best Practices
+
+1. **Order by importance** - Most common actions first (Edit, View, etc.)
+2. **Use appropriate variants** - Destructive for delete, outline for secondary
+3. **Add confirmations** - Always confirm destructive actions
+4. **Show loading states** - Disable during async operations
+5. **Limit actions** - 3-6 actions max for clarity
+6. **Use icons** - Improve recognition for common operations
+7. **Place in sidebar** - Use right column in two-column layouts
+
+---
+
+## Button Variant Guidelines
+
+| Variant         | Use For           | Examples                  |
+| --------------- | ----------------- | ------------------------- |
+| **default**     | Primary actions   | Edit, Update, Save        |
+| **destructive** | Dangerous actions | Delete, Remove, Revoke    |
+| **outline**     | Secondary actions | Send Email, Export, Print |
+| **secondary**   | Tertiary actions  | Download, Copy, Share     |
+| **ghost**       | Subtle actions    | View Details, More Info   |
+| **link**        | Navigation        | View Related, Go to...    |
+
+---
+
+## Accessibility
+
+- Semantic `<button>` and `<a>` elements
+- Keyboard navigable (Tab, Enter, Space)
+- Focus visible states
+- ARIA labels for icon-only buttons
+- Disabled state prevents interaction
+- Loading state exposed via `aria-busy`
+
+---
+
+## Related Components
+
+- [DetailLayout](/docs/components/detail-layout) - Page layout with sidebar support
+- [DetailCard](/docs/components/detail-card) - Card wrapper
+- Button - Underlying button component
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- [Quick Start](/docs/getting-started/quick-start) - CRUD example
+- Server Actions Best Practices - Async operations
+
+---
+
+**Status:** ✅ Stable

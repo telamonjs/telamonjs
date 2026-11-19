@@ -1,0 +1,38 @@
+{
+  "name": "{{scope}}/shared",
+  "version": "1.0.0",
+  "private": true,
+  "exports": {
+    "./prisma": "./dist/lib/prisma.js"
+  },
+  "scripts": {
+    "postinstall": "prisma generate",
+    "prisma:generate": "prisma generate",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:deploy": "prisma migrate deploy",
+    "prisma:push": "prisma db push",
+    "prisma:studio": "prisma studio",
+    "prisma:seed": "tsx --env-file=../../.env prisma/seed.ts",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@prisma/client": "6.2.0",
+    "bcryptjs": "2.4.3"
+  },
+  "devDependencies": {
+    "@types/bcryptjs": "2.4.2",
+    "@types/node": "22.18.10",
+    "prisma": "6.2.0",
+    "tsx": "4.8.1",
+    "typescript": "5.9.3",
+    "vitest": "^3.2.4"
+  },
+  "prisma": {
+    "schema": "prisma/schema.prisma",
+    "seed": "tsx prisma/seed.ts"
+  }
+}

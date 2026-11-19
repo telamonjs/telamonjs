@@ -1,0 +1,247 @@
+---
+title: ProgressTracker
+description: Visual progress indicator with multiple steps and status
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Visual progress tracking component for multi-step processes, workflows, and completion status.
+
+<ProgressTrackerPreview />
+
+<Callout type='info' title='Workflow Visualization'>
+  `ProgressTracker` provides clear visual feedback for sequential processes with
+  step-by-step progress indication. It is display-only: you compute each step's status.
+  Import it from `@telamonjs/ui` or `@telamonjs/ui/charts`.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { ProgressTracker, type ProgressStep } from '@telamonjs/ui'
+
+const steps: ProgressStep[] = [
+  { label: 'Account Info', status: 'completed' },
+  { label: 'Personal Details', status: 'current' },
+  { label: 'Preferences', status: 'pending' },
+  { label: 'Review', status: 'pending' },
+]
+
+export default function OnboardingProgress() {
+  return <ProgressTracker steps={steps} />
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface ProgressTrackerProps {
+  steps: ProgressStep[] // Steps array (required)
+  variant?: 'horizontal' | 'vertical' // Layout (default: 'horizontal')
+  className?: string // Additional classes
+}
+
+interface ProgressStep {
+  label: string // Step label (required, also used as the React key — keep it unique)
+  status: 'completed' | 'current' | 'pending' // Step status (required)
+  description?: string // Text under the label
+}
+```
+
+There is no click handler, custom icon, optional flag or error status — for an interactive
+wizard use `Stepper` (also exported from `@telamonjs/ui`).
+
+---
+
+## Step Status
+
+### Completed
+
+```tsx
+{ label: 'Account Created', status: 'completed' }
+```
+
+Shows a checkmark on a filled primary circle.
+
+### Current
+
+```tsx
+{ label: 'Email Verification', status: 'current' }
+```
+
+Shows the step number in an outlined primary circle; the label is highlighted.
+
+### Pending
+
+```tsx
+{ label: 'Profile Setup', status: 'pending' }
+```
+
+Shows the step number in a muted circle with a muted label.
+
+The connector leading into a step is filled once that step is `current` or `completed`.
+
+---
+
+## Examples
+
+### Basic Progress
+
+```tsx
+const steps: ProgressStep[] = [
+  { label: 'Step 1', status: 'completed' },
+  { label: 'Step 2', status: 'current' },
+  { label: 'Step 3', status: 'pending' },
+]
+
+<ProgressTracker steps={steps} />
+```
+
+### With Descriptions
+
+```tsx
+const steps: ProgressStep[] = [
+  {
+    label: 'Personal Info',
+    description: 'Basic information about yourself',
+    status: 'completed',
+  },
+  {
+    label: 'Address',
+    description: 'Where you live',
+    status: 'current',
+  },
+  {
+    label: 'Payment',
+    description: 'Payment method',
+    status: 'pending',
+  },
+]
+
+<ProgressTracker steps={steps} />
+```
+
+### Vertical Layout
+
+```tsx
+<ProgressTracker steps={steps} variant='vertical' />
+```
+
+Better for sidebars or narrow spaces.
+
+---
+
+## Complete Example
+
+```tsx title="components/onboarding-wizard.tsx"
+'use client'
+
+import { ProgressTracker, type ProgressStep } from '@telamonjs/ui'
+import { useState } from 'react'
+
+const STEPS = [
+  { label: 'Personal Information', description: 'Tell us about yourself' },
+  { label: 'Company Details', description: 'Information about your company' },
+  { label: 'Payment Method', description: 'How you want to pay' },
+  { label: 'Review & Complete', description: 'Confirm your information' },
+]
+
+export default function OnboardingWizard() {
+  const [currentStep, setCurrentStep] = useState(0)
+
+  const steps: ProgressStep[] = STEPS.map((step, index) => ({
+    ...step,
+    status:
+      index < currentStep ? 'completed' : index === currentStep ? 'current' : 'pending',
+  }))
+
+  return (
+    <div className='space-y-8'>
+      <ProgressTracker steps={steps} />
+
+      <div className='bg-card rounded-lg border p-6'>
+        {/* Step content */}
+        {currentStep === 0 && <PersonalInfoForm />}
+        {currentStep === 1 && <CompanyDetailsForm />}
+        {currentStep === 2 && <PaymentMethodForm />}
+        {currentStep === 3 && <ReviewStep />}
+
+        <div className='flex justify-between mt-6'>
+          <button
+            onClick={() => setCurrentStep(Math.max(0, currentStep - 1))}
+            disabled={currentStep === 0}
+          >
+            Previous
+          </button>
+          <button
+            onClick={() => setCurrentStep(Math.min(3, currentStep + 1))}
+            disabled={currentStep === 3}
+          >
+            Next
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Multi-step forms** - Wizards, onboarding
+- **Checkout processes** - E-commerce cart → payment → confirmation
+- **Workflow tracking** - Order fulfillment, approval processes
+- **Onboarding** - User/employee onboarding
+- **Project milestones** - Project progress visualization
+
+---
+
+## Best Practices
+
+1. **Clear labels** - Concise step names (1-3 words)
+2. **Linear progression** - Don't skip steps in status
+3. **One current step** - Exactly one step should be `current`
+4. **Allow backtracking** - Let users go back to previous steps
+5. **Mobile responsive** - Prefer `variant='vertical'` on narrow screens
+
+---
+
+## Accessibility
+
+- Step labels and descriptions are plain text; completed steps also show a check icon,
+  so status is not conveyed by color alone
+- The tracker has no ARIA step semantics — announce the current step in your own text
+  (e.g. "Step 2 of 4") when it matters
+
+---
+
+## Responsive Behavior
+
+**Horizontal (default):** steps share the full width; with many steps or long labels, switch
+to vertical on small screens.
+
+**Vertical:** works well on all screen sizes and in sidebars.
+
+---
+
+## Related Components
+
+- [Timeline](/docs/components/timeline) - Event timeline
+- `Stepper` - Interactive multi-step wizard
+
+---
+
+## See Also
+
+- Multi-Step Forms - Wizard pattern
+- Progress Indicators - UX best practices
+
+---
+
+**Status:** ✅ Stable

@@ -1,0 +1,230 @@
+---
+title: DetailStatus
+description: Status badge component for displaying entity states
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Status badge component that maps a raw status value (e.g. `'PENDING'`) to a label, badge variant and optional icon through a config object.
+
+<DetailStatusPreview />
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailStatus` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailCard, DetailField, DetailStatus } from '@telamonjs/ui'
+
+export default function OrderDetail({ order }) {
+  return (
+    <DetailCard title='Order Info'>
+      <DetailField
+        label='Status'
+        value={
+          <DetailStatus
+            status={order.status}
+            statusConfig={{
+              PENDING: { label: 'Pending', variant: 'secondary' },
+              COMPLETED: { label: 'Completed', variant: 'default' },
+              CANCELLED: { label: 'Cancelled', variant: 'destructive' },
+            }}
+          />
+        }
+      />
+    </DetailCard>
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface DetailStatusProps {
+  status: string // Current status value (e.g. 'ACTIVE', 'PENDING')
+  statusConfig: Record<string, StatusConfig> // Status value → display config
+  fallback?: StatusConfig // Config for values missing from statusConfig
+}
+
+interface StatusConfig {
+  label: I18nText // Text shown in the badge
+  variant: 'default' | 'secondary' | 'destructive' | 'outline' // Badge variant
+  icon?: LucideIcon // Optional icon before the label
+  className?: string // Extra classes (e.g. custom colors)
+}
+```
+
+`DetailStatusProps` and `StatusConfig` are exported from `@telamonjs/ui` and `@telamonjs/ui/detail`. There is no `variant`, `icon` or `pulse` prop on `DetailStatus` itself: everything comes from the config entry.
+
+When `status` is not in `statusConfig` and no `fallback` is given, the raw status is shown as the label with the `outline` variant.
+
+---
+
+## Examples
+
+### Badge Variants
+
+```tsx
+const statusConfig: Record<string, StatusConfig> = {
+  ACTIVE: { label: 'Active', variant: 'default' },
+  INACTIVE: { label: 'Inactive', variant: 'secondary' },
+  BLOCKED: { label: 'Blocked', variant: 'destructive' },
+  DRAFT: { label: 'Draft', variant: 'outline' },
+}
+
+<DetailStatus status={user.status} statusConfig={statusConfig} />
+```
+
+**Visual mapping:**
+
+- **default** - Primary color (active, completed)
+- **secondary** - Muted (inactive, archived)
+- **destructive** - Red (failed, cancelled, blocked)
+- **outline** - Bordered, neutral (draft, unknown)
+
+### With Icons and Custom Colors
+
+```tsx
+import { CheckCircle, Clock, XCircle } from 'lucide-react'
+
+const orderStatusConfig: Record<string, StatusConfig> = {
+  APPROVED: {
+    label: 'Approved',
+    variant: 'outline',
+    icon: CheckCircle,
+    className: 'border-green-600 text-green-700',
+  },
+  PENDING: {
+    label: 'Pending Review',
+    variant: 'outline',
+    icon: Clock,
+    className: 'border-yellow-500 text-yellow-700',
+  },
+  REJECTED: { label: 'Rejected', variant: 'destructive', icon: XCircle },
+}
+
+<DetailStatus status={order.status} statusConfig={orderStatusConfig} />
+```
+
+Use `className` for colors the four badge variants don't cover.
+
+### Fallback for Unknown Values
+
+```tsx
+<DetailStatus
+  status={order.status}
+  statusConfig={orderStatusConfig}
+  fallback={{ label: 'Unknown', variant: 'outline' }}
+/>
+```
+
+### Shared Config
+
+```tsx title="lib/status-configs.ts"
+import type { StatusConfig } from '@telamonjs/ui'
+
+export const orderStatusConfig: Record<string, StatusConfig> = {
+  DRAFT: { label: 'Draft', variant: 'outline' },
+  PENDING: { label: 'Pending', variant: 'secondary' },
+  COMPLETED: { label: 'Completed', variant: 'default' },
+  CANCELLED: { label: 'Cancelled', variant: 'destructive' },
+}
+```
+
+Centralized mapping ensures consistent status colors across the app.
+
+---
+
+## Complete Example
+
+```tsx
+import { DetailCard, DetailStatus, DetailField } from '@telamonjs/ui'
+import type { StatusConfig } from '@telamonjs/ui'
+import { CheckCircle, Clock, XCircle } from 'lucide-react'
+
+const orderStatusConfig: Record<string, StatusConfig> = {
+  DRAFT: { label: 'Draft', variant: 'outline' },
+  PENDING: { label: 'Pending', variant: 'secondary', icon: Clock },
+  PROCESSING: { label: 'Processing', variant: 'secondary', icon: Clock },
+  COMPLETED: { label: 'Completed', variant: 'default', icon: CheckCircle },
+  CANCELLED: { label: 'Cancelled', variant: 'destructive', icon: XCircle },
+}
+
+export default function OrderDetail({ order }: { order: Order }) {
+  return (
+    <DetailCard title='Order Information'>
+      <DetailField label='Order ID' value={order.id} />
+      <DetailField
+        label='Status'
+        value={
+          <DetailStatus
+            status={order.status}
+            statusConfig={orderStatusConfig}
+          />
+        }
+      />
+      <DetailField label='Total' value={`$${order.total}`} />
+      <DetailField
+        label='Created'
+        value={new Date(order.createdAt).toLocaleDateString()}
+      />
+    </DetailCard>
+  )
+}
+```
+
+---
+
+## Best Practices
+
+1. **Consistent color mapping** - Use the same config for the same entity across the app
+2. **Add icons when needed** - Improve recognition for common statuses
+3. **Centralize configs** - Keep one `Record<string, StatusConfig>` per entity
+4. **Provide a fallback** - Handle values the backend may add later
+5. **Semantic variants** - Choose variant based on meaning, not aesthetics
+
+---
+
+## Variant Guidelines
+
+| Variant         | Use For                    | Examples                              |
+| --------------- | -------------------------- | ------------------------------------- |
+| **default**     | Positive, completed states | Active, Approved, Published, Verified |
+| **secondary**   | Intermediate, muted states | Pending, Inactive, Archived           |
+| **destructive** | Negative, failed states    | Rejected, Cancelled, Failed, Blocked  |
+| **outline**     | Neutral, unknown           | Draft, Unknown, N/A                   |
+
+---
+
+## Accessibility
+
+- Status is always shown as text (not color alone)
+- Sufficient color contrast ratios (WCAG AA) on the built-in variants
+- Icons are decorative; the label carries the meaning
+
+---
+
+## Related Components
+
+- [DetailField](/docs/components/detail-field) - Display label-value pairs
+- [DetailCard](/docs/components/detail-card) - Card wrapper
+- [StatusBadge](/docs/components/status-badge) - Standalone status badge
+- Badge - General purpose badge (lower-level)
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- [Quick Start](/docs/getting-started/quick-start) - CRUD example
+
+---
+
+**Status:** ✅ Stable

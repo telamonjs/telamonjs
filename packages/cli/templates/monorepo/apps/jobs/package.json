@@ -1,0 +1,21 @@
+{
+  "name": "{{scope}}/jobs",
+  "version": "1.0.0",
+  "description": "{{appName}} — worker and scheduler (BullMQ)",
+  "private": true,
+  "scripts": {
+    "worker": "tsx --env-file=../../.env src/worker.ts",
+    "scheduler": "tsx --env-file=../../.env src/scheduler.ts",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@telamonjs/queue": "^1.0.1",
+    "{{scope}}/shared": "workspace:*",
+    "@prisma/client": "6.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.18.10",
+    "tsx": "4.8.1",
+    "typescript": "5.9.3"
+  }
+}

@@ -1,0 +1,215 @@
+---
+title: Accessibility & Testing
+description: Semantic test IDs, aria labels, and loading states across the framework
+---
+
+Accessibility and testing patterns baked into `@telamonjs/ui`:
+
+- **Much faster E2E navigation** — semantic selectors instead of brittle CSS classes
+- **Reliable selectors** — predictable `data-testid` across the entire framework
+- **WCAG 2.1 AA compliance** for screen readers
+
+---
+
+## Core Principles
+
+### 1. Every interactive element has a test ID
+
+```tsx
+// ✅ Good - unique, semantic test ID
+<Button data-testid='user-edit-button' onClick={handleEdit}>Edit</Button>
+
+// ❌ Bad - no test ID
+<Button onClick={handleEdit}>Edit</Button>
+```
+
+### 2. Every button has an aria label
+
+```tsx
+// ✅ Good - descriptive aria-label with context
+<Button
+  data-testid='row-action-edit-123'
+  aria-label='Edit user John Doe'
+  onClick={handleEdit}
+>
+  <Pencil />
+</Button>
+
+// ❌ Bad - icon-only button without aria-label
+<Button onClick={handleEdit}>
+  <Pencil />
+</Button>
+```
+
+### 3. Every form field has accessibility attributes
+
+```tsx
+// ✅ Good - complete accessibility attributes
+<Input
+  data-testid='field-email'
+  aria-label='Email Address'
+  aria-required={true}
+  aria-invalid={hasError}
+  aria-describedby='field-email-error'
+/>
+```
+
+### 4. Loading states use semantic attributes
+
+```tsx
+// ✅ Good - Button loading prop (automatic aria-busy)
+<Button loading={isSubmitting} data-testid='form-submit-button'>
+  Save
+</Button>
+
+// ❌ Bad - manual spinner without aria-busy
+<Button disabled={isSubmitting}>
+  {isSubmitting && <Spinner />}
+  Save
+</Button>
+```
+
+The `loading` prop automatically renders a spinner, adds `data-loading="true"` and `aria-busy="true"`,
+and disables the button. When the button is idle both attributes are **absent** (not `"false"`).
+
+---
+
+## Test IDs and aria attributes the components emit
+
+The built-in components generate their `data-testid` and aria attributes internally — there is no
+helper to import. These are the values they render, so you can target them in tests and reuse the
+same shapes in your custom components. Generated IDs are lowercase, with spaces turned into `-`.
+
+| Area | `data-testid` |
+| --- | --- |
+| Form buttons | `form-submit-button`, `form-cancel-button`, `form-reset-button` |
+| Form fields | `field-{name}` (also the input `id`), `field-{name}-error`, `field-{name}-description` |
+| Table | `data-table`, `row-{id}`, `cell-{rowId}-{columnId}` |
+| Row actions | `row-action-{action}-{id}` — e.g. `row-action-view-123`, `row-action-edit-123`, `row-action-delete-123`, `row-action-approve-123` |
+| Toolbar | `toolbar-add`, `toolbar-refresh`, `toolbar-export`, `toolbar-filters`, `toolbar-columns`, `toolbar-search` |
+| Pagination | `pagination-first`, `pagination-previous`, `pagination-next`, `pagination-last`, `pagination-page-{n}`, `pagination-page-size` |
+| Detail pages | `detail-field-{name}`, `detail-action-{label}`, `detail-tab-{label}` |
+| Modals | `modal`, `modal-close`, `modal-confirm`, `modal-cancel` |
+
+**Pattern:** `{entity}-{action}-{target}-{suffix?}`
+
+### Form fields
+
+Every built-in field renderer emits:
+
+- `data-testid` and `id`: `field-{name}`
+- `aria-label`: the field `label`
+- `aria-required="true"` when required, `aria-invalid="true"` when the field has an error
+  (both absent otherwise)
+- `aria-describedby`: `field-{name}-error` and/or `field-{name}-description`, when present
+
+### Action buttons
+
+Row and detail actions emit:
+
+- `data-testid`: `row-action-{id}-{entityId}` when the action belongs to a record, otherwise
+  `{id}-button` (e.g. `edit-button`)
+- `aria-label`: `{Label} {entity} {identifier?}` — e.g. "Edit user John Doe" — or just the label
+  when there is no entity
+- `data-loading="true"` and `aria-busy="true"` while loading (absent when idle)
+
+---
+
+## Testing with These Patterns
+
+### Playwright E2E
+
+```typescript
+test('Edit user flow', async ({ page }) => {
+  await page.goto('/admin/users')
+
+  await page.click('[data-testid="row-action-edit-123"]')
+  await page.waitForSelector('[data-testid="field-name"]')
+
+  await page.fill('[data-testid="field-name"]', 'John Doe')
+  await page.click('[data-testid="form-submit-button"]')
+
+  // Wait for loading to finish — data-loading is removed when idle, never "false"
+  await expect(page.getByTestId('form-submit-button')).not.toHaveAttribute('data-loading')
+})
+```
+
+### Vitest + Testing Library
+
+```typescript
+const submitButton = screen.getByTestId('form-submit-button')
+await user.click(submitButton)
+
+await waitFor(() => {
+  expect(submitButton).toHaveAttribute('data-loading', 'true')
+  expect(submitButton).toHaveAttribute('aria-busy', 'true')
+  expect(submitButton).toBeDisabled()
+})
+```
+
+### Query priority
+
+```typescript
+// ✅ Preferred - test IDs (most reliable)
+screen.getByTestId('user-edit-button')
+
+// ✅ Good - aria-label for accessibility validation
+screen.getByLabelText('Edit user John Doe')
+
+// ⚠️ Avoid - CSS selectors (brittle) and text content (breaks with translations)
+```
+
+---
+
+## Naming Conventions
+
+### Test IDs — `{entity}-{action}-{target}-{suffix?}`
+
+- kebab-case, specific, descriptive, with context (entity name, ID)
+- ✅ `user-edit-button`, `field-email`, `row-action-delete-123`, `pagination-next`
+- ❌ `btn1`, `EditButton`, `user_edit`
+
+### Aria labels — `{Action} {entity} {identifier?}`
+
+- Natural language, with context, meaningful for screen readers
+- ✅ "Edit user John Doe", "Delete asset ABC-1234", "Next page"
+- ❌ "Edit", "Button", "Click here"
+
+---
+
+## Lint Rules
+
+The framework's own lint enforces two of these rules on its source. They are not part of the
+published package, so treat them as review rules for your custom components:
+
+- **Buttons** need a `data-testid` or an `aria-label` (an icon-only button always needs the label).
+- **Inputs** without an associated `<label htmlFor>` need an `aria-label`.
+
+---
+
+## Coverage Checklist
+
+**Forms:** submit/cancel buttons with test IDs and `loading`; all fields with `field-{name}` test IDs, `aria-label`, `aria-required`, `aria-invalid`, `aria-describedby` for errors.
+
+**DataTable:** row actions with `row-action-{action}-{id}` test IDs and contextual aria labels; toolbar buttons with `toolbar-*` test IDs.
+
+**Pagination:** semantic test IDs on all controls; active page with `aria-current="page"`.
+
+**Detail pages:** actions/fields/tabs with `detail-action-*`, `detail-field-*` and `detail-tab-*` test IDs.
+
+**Loading states:** `loading` prop everywhere (never manual spinners) → `data-loading` + `aria-busy` + disabled.
+
+Everything above is applied automatically by the built-in components — follow the same patterns in your **custom** actions, fields, and renderers.
+
+Finally, check the result with a real screen reader (VoiceOver on macOS, NVDA on Windows):
+navigate forms with the keyboard only, and confirm every button is announced with its context and
+every validation error is read out.
+
+---
+
+## Related
+
+- [ListPage Pattern](/docs/patterns/listpage-pattern) — row actions and toolbar
+- [Form Pattern](/docs/patterns/form-pattern) — field renderers
+- [WCAG 2.1 AA Guidelines](https://www.w3.org/WAI/WCAG21/quickref/)
+- [ARIA Authoring Practices Guide](https://www.w3.org/WAI/ARIA/apg/)

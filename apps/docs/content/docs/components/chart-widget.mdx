@@ -1,0 +1,318 @@
+---
+title: ChartWidget
+description: Dashboard widget that renders a line, bar, or pie chart in a card
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Dashboard widget that renders a Recharts chart (line, bar, or pie) inside a
+card with title, description, and an optional header action. You pass `data`
+and a `type` — the widget renders the chart itself; it does **not** take a
+chart as children.
+
+<ChartWidgetPreview />
+
+<Callout type='warn' title='Data-driven API'>
+  The API is data-driven: `data` + `type` + key configuration, listed below. Fetch, refresh and
+  period state live in your page.
+</Callout>
+
+---
+
+## Basic Usage
+
+Recharts is a dependency of `@telamonjs/ui`. The chart internals are
+lazy-loaded, so recharts stays out of your bundle until a widget renders.
+
+```tsx title="app/dashboard/page.tsx"
+'use client'
+
+import { ChartWidget } from '@telamonjs/ui'
+
+const data = [
+  { name: 'Jan', value: 4000 },
+  { name: 'Feb', value: 3000 },
+  { name: 'Mar', value: 5000 },
+]
+
+export default function DashboardPage() {
+  return (
+    <ChartWidget
+      title='Monthly Sales'
+      description='Revenue trend over time'
+      data={data}
+      type='line'
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    title: { description: 'Widget title', type: 'string', required: true },
+    description: { description: 'Subtitle under the title', type: 'string' },
+    data: { description: 'Chart data points (flat objects of strings/numbers)', type: 'ChartDataPoint[]', required: true },
+    type: { description: 'Chart type', type: "'line' | 'bar' | 'pie'", default: "'line'" },
+    xAxisKey: { description: 'Data key for the X axis (line/bar)', type: 'string', default: "'name'" },
+    dataKeys: { description: 'Data keys plotted as series (line/bar)', type: 'string[]', default: "['value']" },
+    valueKey: { description: 'Data key for slice values (pie)', type: 'string', default: "'value'" },
+    nameKey: { description: 'Data key for slice labels (pie)', type: 'string', default: "'name'" },
+    colors: { description: 'Series/slice colors (defaults to the built-in palette)', type: 'string[]' },
+    height: { description: 'Chart height in pixels', type: 'number', default: '300' },
+    headerAction: { description: 'Content on the right of the header (filters, refresh button, links)', type: 'ReactNode' },
+    showLegend: { description: 'Show the legend', type: 'boolean', default: 'true' },
+    showGrid: { description: 'Show the cartesian grid (line/bar)', type: 'boolean', default: 'true' },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+```typescript
+type ChartType = 'line' | 'bar' | 'pie'
+
+interface ChartDataPoint {
+  [key: string]: string | number
+}
+```
+
+---
+
+## Examples
+
+### Multiple Series
+
+```tsx
+const data = [
+  { name: 'Jan', revenue: 4000, target: 3500 },
+  { name: 'Feb', revenue: 3000, target: 3500 },
+  { name: 'Mar', revenue: 5000, target: 4000 },
+]
+
+<ChartWidget
+  title='Revenue vs Target'
+  data={data}
+  type='line'
+  dataKeys={['revenue', 'target']}
+  colors={['#3b82f6', '#94a3b8']}
+/>
+```
+
+### Bar and Pie
+
+```tsx
+<ChartWidget
+  title='Sales by Category'
+  data={salesByCategory}
+  type='bar'
+  xAxisKey='category'
+  dataKeys={['total']}
+/>
+
+<ChartWidget
+  title='Market Share'
+  data={marketShare}
+  type='pie'
+  nameKey='company'
+  valueKey='share'
+  showGrid={false}
+/>
+```
+
+### Header Action (refresh / period selector)
+
+The widget has no built-in period selector — put your control in
+`headerAction` and drive `data` from your own state:
+
+```tsx
+'use client'
+
+import { ChartWidget } from '@telamonjs/ui'
+import { useQuery } from '@tanstack/react-query'
+import { useState } from 'react'
+import { metricsApi } from '@/lib/api/metrics-client'
+
+export function SalesWidget() {
+  const [period, setPeriod] = useState('30d')
+
+  const { data = [] } = useQuery({
+    queryKey: ['sales', period],
+    queryFn: () => metricsApi.sales(period),
+  })
+
+  return (
+    <ChartWidget
+      title='Sales Revenue'
+      description='Total sales over selected period'
+      data={data}
+      type='line'
+      dataKeys={['revenue']}
+      headerAction={
+        <select
+          value={period}
+          onChange={e => setPeriod(e.target.value)}
+          className='rounded border px-2 py-1 text-sm'
+        >
+          <option value='7d'>Last 7 days</option>
+          <option value='30d'>Last 30 days</option>
+          <option value='90d'>Last 90 days</option>
+        </select>
+      }
+    />
+  )
+}
+```
+
+### Real-time Data
+
+Polling or SSE both reduce to "update the array you pass as `data`":
+
+```tsx
+const { data = [] } = useQuery({
+  queryKey: ['server-load'],
+  queryFn: metricsApi.serverLoad,
+  refetchInterval: 30_000,
+})
+
+<ChartWidget title='Server Load' data={data} type='line' dataKeys={['cpu', 'memory']} />
+```
+
+---
+
+## ChartWidget vs standalone charts
+
+| Situation | Use |
+| --- | --- |
+| Dashboard card with title/description chrome | `ChartWidget` |
+| Chart embedded in your own layout/card | [LineChart](/docs/components/line-chart) / [BarChart](/docs/components/bar-chart) / [PieChart](/docs/components/pie-chart) / [AreaChart](/docs/components/area-chart) |
+| Area chart in a widget | Standalone `AreaChart` inside your own card — `ChartWidget` only does line/bar/pie |
+
+---
+
+## Charts not wrapped by the package: use Recharts directly
+
+`@telamonjs/ui` wraps line, bar, area and pie charts (donut is a
+[PieChart option](/docs/components/pie-chart#donut)). For anything else,
+such as radar, combined bar + line, scatter or funnel, compose Recharts yourself.
+Add `recharts` to your app's own dependencies to import it, mark the file
+`'use client'`, and reuse the palette (`#3b82f6`, `#10b981`, `#f59e0b`, ...) so
+the result matches the built-in charts. Wrap the chart in a
+[BaseCard](/docs/components/base-card) to get the widget chrome.
+
+### Radar
+
+Compare a few entities across 3-8 metrics on the same scale.
+
+<RadarChartPreview />
+
+```tsx
+'use client'
+
+import {
+  Legend,
+  PolarAngleAxis,
+  PolarGrid,
+  PolarRadiusAxis,
+  Radar,
+  RadarChart,
+  ResponsiveContainer,
+} from 'recharts'
+
+const data = [
+  { metric: 'Speed', productA: 80, productB: 65 },
+  { metric: 'Reliability', productA: 95, productB: 80 },
+  { metric: 'Comfort', productA: 70, productB: 90 },
+  { metric: 'Safety', productA: 90, productB: 85 },
+]
+
+export function ProductScorecard() {
+  return (
+    <ResponsiveContainer width='100%' height={300}>
+      <RadarChart data={data}>
+        <PolarGrid />
+        <PolarAngleAxis dataKey='metric' />
+        <PolarRadiusAxis domain={[0, 100]} />
+        <Radar name='Product A' dataKey='productA' stroke='#3b82f6' fill='#3b82f6' fillOpacity={0.5} />
+        <Radar name='Product B' dataKey='productB' stroke='#10b981' fill='#10b981' fillOpacity={0.5} />
+        <Legend />
+      </RadarChart>
+    </ResponsiveContainer>
+  )
+}
+```
+
+### Bars + line (dual axis)
+
+An absolute measure as bars and a rate or count as a line, each on its own Y axis.
+
+<ComposedChartPreview />
+
+```tsx
+'use client'
+
+import {
+  Bar,
+  CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts'
+
+const data = [
+  { name: 'Jan', revenue: 4000, orders: 120 },
+  { name: 'Feb', revenue: 3000, orders: 98 },
+  { name: 'Mar', revenue: 5000, orders: 150 },
+]
+
+export function RevenueAndOrders() {
+  return (
+    <ResponsiveContainer width='100%' height={300}>
+      <ComposedChart data={data}>
+        <CartesianGrid strokeDasharray='3 3' />
+        <XAxis dataKey='name' />
+        <YAxis yAxisId='left' />
+        <YAxis yAxisId='right' orientation='right' />
+        <Tooltip />
+        <Legend />
+        <Bar yAxisId='left' dataKey='revenue' fill='#3b82f6' name='Revenue' />
+        <Line yAxisId='right' type='monotone' dataKey='orders' stroke='#f59e0b' name='Orders' />
+      </ComposedChart>
+    </ResponsiveContainer>
+  )
+}
+```
+
+When both series share a scale, drop the second `YAxis` and the `yAxisId` props.
+See the [Recharts API](https://recharts.org/en-US/api) for every chart type.
+
+---
+
+## Best Practices
+
+1. **Right chart for the data** - Line for trends, bar for category comparison, pie for composition (few slices)
+2. **Keep data flat** - `ChartDataPoint` is a flat record; pre-aggregate on the server
+3. **Loading/empty are yours** - Wrap in your own skeleton/empty check before rendering the widget
+4. **Limit series** - 2-3 `dataKeys` read best at widget size
+
+---
+
+## Related Components
+
+- [DashboardGrid](/docs/components/dashboard-grid) - Dashboard layout
+- [StatCard](/docs/components/stats-card) - Simple stat card
+- [LineChart](/docs/components/line-chart) - Standalone line chart
+- [BarChart](/docs/components/bar-chart) - Standalone bar chart
+
+---
+
+## Related Patterns
+
+- [Dashboards](/docs/patterns/dashboard) - Laying out widgets on a dashboard page
+- [Data layer](/docs/patterns/react-query) - Fetching chart data with React Query

@@ -1,0 +1,174 @@
+---
+title: LineChart
+description: Line chart component for visualizing trends over time
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Line chart component built on Recharts for visualizing trends, time series data, and continuous metrics.
+
+<LineChartPreview />
+
+<Callout type='info' title='Built on Recharts'>
+  All chart components are built on [Recharts](https://recharts.org/) with
+  pre-configured theming and responsive behavior. Recharts ships with
+  `@telamonjs/ui` — no separate install.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { LineChart } from '@telamonjs/ui'
+
+const data = [
+  { name: 'Jan', revenue: 4000 },
+  { name: 'Feb', revenue: 3000 },
+  { name: 'Mar', revenue: 5000 },
+  { name: 'Apr', revenue: 4500 },
+  { name: 'May', revenue: 6000 },
+  { name: 'Jun', revenue: 5500 },
+]
+
+export default function RevenueChart() {
+  return <LineChart data={data} dataKeys={['revenue']} />
+}
+```
+
+<Callout type='warn' title='The X axis reads the `name` field'>
+  `LineChart` takes flat `dataKeys: string[]`, one line per key. The X axis is fixed to the `name`
+  field of each data point (`ChartData` requires `name`). Colors come from the `colors` array,
+  positionally matched to `dataKeys`.
+</Callout>
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    data: { description: 'Chart data — each point needs a `name` field (X axis) plus numeric series fields', type: 'ChartData[]', required: true },
+    dataKeys: { description: 'Field names plotted as lines (one line per key)', type: 'string[]', required: true },
+    colors: { description: 'Line colors, matched by index to dataKeys (defaults to the built-in palette)', type: 'string[]' },
+    height: { description: 'Chart height in pixels', type: 'number', default: '300' },
+    showGrid: { description: 'Show the cartesian grid', type: 'boolean', default: 'true' },
+    showLegend: { description: 'Show the legend', type: 'boolean', default: 'true' },
+    xAxisLabel: { description: 'X axis label', type: 'string' },
+    yAxisLabel: { description: 'Y axis label', type: 'string' },
+    className: { description: 'Additional classes on the wrapper', type: 'string' },
+  }}
+/>
+
+```typescript
+// type exported from '@telamonjs/ui/charts'
+interface ChartData {
+  name: string
+  [key: string]: string | number
+}
+```
+
+There is no `loading`, `emptyMessage`, `showTooltip`, or per-line config —
+the tooltip is always on, and styling per line is positional via `colors`.
+
+---
+
+## Examples
+
+### Multiple Lines
+
+```tsx
+const data = [
+  { name: 'Jan', revenue: 4000, expenses: 2400 },
+  { name: 'Feb', revenue: 3000, expenses: 1398 },
+  { name: 'Mar', revenue: 5000, expenses: 3200 },
+]
+
+<LineChart
+  data={data}
+  dataKeys={['revenue', 'expenses']}
+  colors={['#3b82f6', '#ef4444']}
+/>
+```
+
+### Axis Labels and Size
+
+```tsx
+<LineChart
+  data={data}
+  dataKeys={['revenue']}
+  height={400}
+  xAxisLabel='Month'
+  yAxisLabel='Revenue (R$)'
+/>
+```
+
+### Minimal (sparkline-ish)
+
+```tsx
+<LineChart
+  data={data}
+  dataKeys={['value']}
+  height={120}
+  showGrid={false}
+  showLegend={false}
+/>
+```
+
+### With React Query
+
+```tsx
+'use client'
+
+import { LineChart } from '@telamonjs/ui'
+import { useQuery } from '@tanstack/react-query'
+import { metricsApi } from '@/lib/api/metrics-client'
+
+export function RevenueTrend() {
+  const { data = [] } = useQuery({
+    queryKey: ['revenue-trend'],
+    queryFn: metricsApi.revenueTrend, // [{ name: 'Jan', revenue: 4000 }, ...]
+  })
+
+  return <LineChart data={data} dataKeys={['revenue']} />
+}
+```
+
+---
+
+## Lazy Variant
+
+`LineChartLazy` has the same props but code-splits the Recharts bundle,
+loading it only when the chart mounts (a skeleton shows meanwhile):
+
+```tsx
+import { LineChartLazy } from '@telamonjs/ui'
+
+<LineChartLazy data={data} dataKeys={['revenue']} />
+```
+
+Prefer the lazy variant on pages where the chart is below the fold or
+conditional.
+
+---
+
+## Best Practices
+
+1. **Name the X axis field `name`** - The component reads it; map your API data if needed
+2. **Limit series** - 2-4 lines stay readable
+3. **Stable colors** - Pass explicit `colors` so series keep their color across dashboards
+4. **Time series order** - Sort `data` chronologically before passing
+
+---
+
+## Related Components
+
+- [AreaChart](/docs/components/area-chart) - Filled trend chart
+- [BarChart](/docs/components/bar-chart) - Category comparison
+- [PieChart](/docs/components/pie-chart) - Composition
+- [ChartWidget](/docs/components/chart-widget) - Chart inside a dashboard card
+
+---
+
+**Status:** ✅ Stable

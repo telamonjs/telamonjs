@@ -1,0 +1,212 @@
+---
+title: ComparisonTable
+description: Feature comparison table for plans or products, with check/cross cells and grouped rows
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Table component for comparing plans or products feature by feature: one column per option,
+one row per feature, optionally grouped by category.
+
+<ComparisonTablePreview />
+
+<Callout type='info' title='Data Comparison'>
+  `ComparisonTable` renders booleans as check/cross icons, numbers locale-formatted and strings
+  as is. Import it from `@telamonjs/ui` or `@telamonjs/ui/charts`.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { ComparisonTable } from '@telamonjs/ui'
+
+const columns = [
+  { label: 'Basic', key: 'basic' },
+  { label: 'Pro', key: 'pro', highlight: true, badge: 'Popular' },
+  { label: 'Enterprise', key: 'enterprise' },
+]
+
+const rows = [
+  { feature: 'Users', basic: 5, pro: 20, enterprise: 'Unlimited' },
+  { feature: 'Storage', basic: '10 GB', pro: '100 GB', enterprise: '1 TB' },
+  { feature: 'Priority support', basic: false, pro: true, enterprise: true },
+]
+
+export default function PlanComparison() {
+  return <ComparisonTable columns={columns} rows={rows} />
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface ComparisonTableProps {
+  columns: ComparisonColumn[] // One column per plan/product (required)
+  rows: ComparisonRow[] // One row per feature (required)
+  stickyHeader?: boolean // Keep the header visible while scrolling (default: true)
+  className?: string // Additional classes
+}
+
+interface ComparisonColumn {
+  label: string // Column header
+  key: string // Field read from each row
+  highlight?: boolean // Tint the whole column (e.g. the recommended plan)
+  badge?: string // Small badge under the header
+}
+
+interface ComparisonRow {
+  feature: string // Row label, first column (required)
+  category?: string // Group rows under a category heading
+  [key: string]: string | boolean | number | undefined // Value per column key
+}
+```
+
+The first column's header is the localized "Feature" label. There is no `title`, `data`,
+sorting or sparkline support — wrap the table in a card with your own heading if you need one.
+
+---
+
+## Examples
+
+### Cell Values
+
+```tsx
+const rows = [
+  { feature: 'API access', basic: false, pro: true }, // ✓ / ✗ icons
+  { feature: 'Projects', basic: 3, pro: 1000 }, // locale-formatted numbers
+  { feature: 'SLA', basic: undefined, pro: '99.9%' }, // missing/empty → "-"
+]
+
+<ComparisonTable
+  columns={[
+    { label: 'Basic', key: 'basic' },
+    { label: 'Pro', key: 'pro' },
+  ]}
+  rows={rows}
+/>
+```
+
+### Highlighted Column with Badge
+
+```tsx
+<ComparisonTable
+  columns={[
+    { label: 'Starter', key: 'starter' },
+    { label: 'Business', key: 'business', highlight: true, badge: 'Best value' },
+  ]}
+  rows={rows}
+/>
+```
+
+### Grouped by Category
+
+```tsx
+const rows = [
+  { feature: 'Users', category: 'Limits', basic: 5, pro: 20 },
+  { feature: 'Storage', category: 'Limits', basic: '10 GB', pro: '100 GB' },
+  { feature: 'SSO', category: 'Security', basic: false, pro: true },
+  { feature: 'Audit log', category: 'Security', basic: false, pro: true },
+]
+
+<ComparisonTable columns={columns} rows={rows} />
+```
+
+Rows are grouped by `category` in order of first appearance; rows without a category are listed
+without a heading.
+
+### Without Sticky Header
+
+```tsx
+<ComparisonTable columns={columns} rows={rows} stickyHeader={false} />
+```
+
+---
+
+## Complete Example
+
+```tsx title="components/pricing-comparison.tsx"
+'use client'
+
+import {
+  ComparisonTable,
+  type ComparisonColumn,
+  type ComparisonRow,
+} from '@telamonjs/ui'
+import { use } from 'react'
+import { getPlans } from './service'
+
+export default function PricingComparison() {
+  const plans = use(getPlans())
+
+  const columns: ComparisonColumn[] = plans.map(plan => ({
+    label: plan.name,
+    key: plan.id,
+    highlight: plan.recommended,
+    badge: plan.recommended ? 'Recommended' : undefined,
+  }))
+
+  const rows: ComparisonRow[] = plans[0].features.map(({ name, group }) => ({
+    feature: name,
+    category: group,
+    ...Object.fromEntries(
+      plans.map(plan => [plan.id, plan.features.find(f => f.name === name)?.value])
+    ),
+  }))
+
+  return (
+    <div className='space-y-4'>
+      <h2 className='text-xl font-semibold'>Compare plans</h2>
+      <ComparisonTable columns={columns} rows={rows} />
+    </div>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Pricing pages** - Compare subscription plans
+- **Product comparisons** - Compare product features side by side
+- **Vendor evaluation** - Compare suppliers or tools
+- **Release notes** - What each edition includes
+
+---
+
+## Best Practices
+
+1. **Highlight one column** - Point the reader to the recommended option
+2. **Use booleans for yes/no features** - They render as icons
+3. **Group long lists** - Use `category` once there are more than a handful of rows
+4. **Keep column keys stable** - Every row must use the same keys as `columns`
+
+---
+
+## Accessibility
+
+- Semantic HTML `<table>` with a header row
+- Check/cross cells are icons only — when a yes/no answer matters, prefer a short string
+  (`'Included'`, `'—'`) so screen readers get text
+
+---
+
+## Responsive Behavior
+
+The table scrolls horizontally inside its card when the columns don't fit
+(each value column has a minimum width).
+
+---
+
+## Related Components
+
+- [DataTable](/docs/components/data-table) - Advanced data table
+- [KPICard](/docs/components/kpi-card) - Single KPI display
+- [LineChart](/docs/components/line-chart) - Full-size charts
+
+---
+
+**Status:** ✅ Stable

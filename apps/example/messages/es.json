@@ -1,0 +1,76 @@
+{
+  "common": {
+    "appName": "TelamonJS App",
+    "welcome": "Bienvenido"
+  },
+  "nav": {
+    "home": "Inicio",
+    "users": "Usuarios"
+  },
+  "auth": {
+    "signIn": "Iniciar sesión",
+    "signOut": "Cerrar sesión"
+  },
+  "usuarios": {
+    "title": "Usuarios",
+    "description": "Gestión de usuarios del sistema",
+    "searchPlaceholder": "Buscar por nombre o email...",
+    "noName": "Sin nombre",
+    "roleAdmin": "Administrador",
+    "roleUser": "Usuario",
+    "statusActive": "Activo",
+    "statusInactive": "Inactivo",
+    "sections": {
+      "personal": {
+        "label": "Datos Personales",
+        "description": "Información básica del usuario"
+      },
+      "access": {
+        "label": "Acceso",
+        "description": "Configuración de inicio de sesión y permisos"
+      }
+    },
+    "columns": {
+      "name": "Nombre",
+      "role": "Perfil",
+      "status": "Estado",
+      "createdAt": "Creado el"
+    },
+    "fields": {
+      "name": "Nombre Completo",
+      "namePlaceholder": "Ingrese el nombre del usuario",
+      "email": "Email",
+      "emailPlaceholder": "usuario@ejemplo.com",
+      "password": "Contraseña",
+      "passwordPlaceholder": "Mínimo 5 caracteres",
+      "passwordDescription": "Déjelo en blanco para mantener la contraseña actual (solo al editar)",
+      "role": "Perfil",
+      "ativo": "Usuario Activo",
+      "ativoDescription": "Los usuarios inactivos no pueden iniciar sesión"
+    },
+    "dialogs": {
+      "view": {
+        "title": "Detalles del Usuario"
+      },
+      "edit": {
+        "title": "Editar Usuario",
+        "description": "Actualice la información del usuario"
+      },
+      "create": {
+        "title": "Nuevo Usuario",
+        "description": "Registre un nuevo usuario en el sistema"
+      }
+    },
+    "actions": {
+      "view": "Ver detalles",
+      "edit": "Editar usuario",
+      "delete": "Desactivar usuario"
+    },
+    "confirmDelete": {
+      "title": "¿Desactivar {name}?",
+      "description": "Los usuarios desactivados no podrán iniciar sesión en el sistema.",
+      "confirmText": "Desactivar",
+      "cancelText": "Cancelar"
+    }
+  }
+}

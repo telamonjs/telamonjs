@@ -1,0 +1,30 @@
+---
+title: Overview
+description: Where to start, depending on whether you are creating an app or adding TelamonJS to one
+---
+
+import { Card, Cards } from 'fumadocs-ui/components/card'
+
+Pick the page that matches where you are:
+
+<Cards>
+  <Card
+    href='/docs/getting-started/installation'
+    title='Installation'
+    description='Create a new app with the CLI, or add the packages and providers to an existing Next.js app.'
+  />
+  <Card
+    href='/docs/getting-started/quick-start'
+    title='Quick Start'
+    description='Generate a CRUD module and walk through its config.tsx: list, dialogs and data layer.'
+  />
+  <Card
+    href='/docs/getting-started/crud-config'
+    title='CrudConfig'
+    description='Every key of the object a module is built from.'
+  />
+</Cards>
+
+Every CRUD module is one declarative `CrudConfig` rendered by
+`<ListPage config={config} />`. [Module structure](/docs/patterns/admin-module-structure)
+shows the files around it, and the [CLI](/docs/packages/cli) documents every command.

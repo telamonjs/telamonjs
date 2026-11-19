@@ -1,0 +1,384 @@
+---
+title: CrudConfig
+description: The central concept of TelamonJS — one object that drives an entire CRUD module
+---
+
+`CrudConfig<T, TFormData>` is the **central concept** of TelamonJS. One object
+holds everything a CRUD module needs — module metadata, list columns, form
+sections, data fetching, mutations, row actions and dialogs — and `ListPage`
+reads it all from a single prop.
+
+```tsx
+<ListPage config={config} />
+```
+
+<Callout type='warn' title="'use client' is required">
+  The `config.tsx` file MUST start with `'use client'`: `query` and
+  `mutations` are wired to React Query hooks, which only run client-side.
+</Callout>
+
+---
+
+## Anatomy
+
+| Key | Type | Required | Purpose |
+| --- | --- | --- | --- |
+| `module` | `ModuleMetadata` | Yes | Identification: `name`, `title`, `description`, `route` (all required) |
+| `list` | `ListConfig<T>` | Yes | `title`, `description` (required), columns, search placeholder, sorting, page size, toolbar |
+| `form` | `FormConfig` | Yes | Form `sections` + Zod `validation`, shared by the create and edit dialogs |
+| `query` | `QueryConfig<T>` | Yes | React Query: `queryKey`, `queryFn`, `staleTime?`, `refetchInterval?` |
+| `mutations` | `MutationsConfig<T, TFormData>` | Yes | `create`/`update`/`delete` (each a `MutationConfig`) with declarative `invalidates`, plus `getForEdit`/`getForView` |
+| `actionsConfig` | `DataTableActionsConfig<T> \| false` | No | Row action buttons: `standard: { view, edit, delete }` + custom actions |
+| `dialogs` | `DialogsConfig<T>` | No | View/edit/create dialogs: rich headers, the view body, deep links via `urlParam` |
+| `pages` | `PagesConfig<T>` | No | Dedicated pages instead of dialogs (see [Standalone form pages](/docs/patterns/edit-page)) |
+
+`create`, `update` and `delete` are each optional: an omitted one resolves
+`{ success: false }` instead of throwing, so a read-only module needs no stub
+mutations.
+
+---
+
+## Canonical example
+
+This is the reference module every generated app ships
+(`src/app/admin/usuarios/config.tsx`). It is compiled in CI, so it always matches
+the current API. Other pages show excerpts of it and link here.
+
+```tsx title="src/app/admin/usuarios/config.tsx"
+'use client'
+
+import { z } from 'zod'
+import {
+  Badge,
+  type CrudColumnDef,
+  type CrudConfig,
+  type DialogHeaderConfig,
+  type FormSection,
+} from '@telamonjs/ui'
+import { msg, Msg } from '@telamonjs/ui/i18n'
+import { getIcon } from '@/lib/icons'
+import { usuariosApi, type Usuario } from '@/lib/api/usuarios-client'
+import { formatDate } from '@/lib/utils'
+import UsuarioDetail from './_components/UsuarioDetail'
+
+// ============================================================================
+// 1. VALIDATION SCHEMA
+// ============================================================================
+export const validationSchema = z.object({
+  name: z.string().min(1, 'Nome é obrigatório'),
+  email: z.string().email('Email inválido'),
+  // Required on create, optional on edit (blank keeps the current password) --
+  // enforced server-side in the API route, not here.
+  password: z
+    .string()
+    .min(5, 'Senha deve ter no mínimo 5 caracteres')
+    .optional()
+    .or(z.literal('')),
+  role: z.enum(['ADMIN', 'USER']).default('USER'),
+  // AdminForm's FormData submit path serializes booleans as the literal
+  // strings 'true'/'false' -- z.coerce.boolean() would treat ANY non-empty
+  // string (including 'false') as true, so coerce explicitly instead.
+  ativo: z.preprocess((v) => (typeof v === 'string' ? v === 'true' : v), z.boolean()).default(true),
+})
+
+export type UsuarioFormData = z.infer<typeof validationSchema>
+
+// ============================================================================
+// 2. HEADER CONFIG (view/edit/create dialogs)
+// ============================================================================
+const headerConfig: DialogHeaderConfig<Usuario> = {
+  icon: 'User',
+  iconColor: 'blue',
+  title: (u) => u.name ?? u.email,
+  subtitle: (u) => u.email,
+  gradient: 'from-blue-50 to-indigo-50',
+  badge: {
+    field: 'ativo',
+    variants: { true: 'default', false: 'secondary' },
+    labels: { true: msg('usuarios.statusActive'), false: msg('usuarios.statusInactive') },
+  },
+}
+
+// ============================================================================
+// 3. COLUMNS
+// ============================================================================
+export const columns: CrudColumnDef<Usuario>[] = [
+  {
+    header: msg('usuarios.columns.name'),
+    accessorKey: 'name',
+    enableGlobalFilter: true,
+    cell: ({ row }) => (
+      <div>
+        <div className='font-medium'>{row.original.name || <Msg k='usuarios.noName' />}</div>
+        <div className='text-xs text-muted-foreground'>{row.original.email}</div>
+      </div>
+    ),
+  },
+  {
+    header: msg('usuarios.columns.role'),
+    accessorKey: 'role',
+    cell: ({ row }) => (
+      <Badge variant={row.original.role === 'ADMIN' ? 'default' : 'secondary'}>
+        <Msg k={row.original.role === 'ADMIN' ? 'usuarios.roleAdmin' : 'usuarios.roleUser'} />
+      </Badge>
+    ),
+  },
+  {
+    header: msg('usuarios.columns.status'),
+    accessorKey: 'ativo',
+    cell: ({ row }) =>
+      row.original.ativo ? (
+        <Badge variant='default' className='bg-green-600'>
+          <Msg k='usuarios.statusActive' />
+        </Badge>
+      ) : (
+        <Badge variant='secondary'>
+          <Msg k='usuarios.statusInactive' />
+        </Badge>
+      ),
+  },
+  {
+    header: msg('usuarios.columns.createdAt'),
+    accessorKey: 'createdAt',
+    cell: ({ row }) => (
+      <span className='text-sm text-muted-foreground'>{formatDate(row.original.createdAt)}</span>
+    ),
+  },
+]
+
+// ============================================================================
+// 4. FORM SECTIONS (rendered inside the create/edit dialogs)
+// ============================================================================
+export const formSections: FormSection[] = [
+  {
+    label: msg('usuarios.sections.personal.label'),
+    description: msg('usuarios.sections.personal.description'),
+    grid: '2',
+    fields: [
+      {
+        name: 'name',
+        label: msg('usuarios.fields.name'),
+        type: 'text',
+        placeholder: msg('usuarios.fields.namePlaceholder'),
+        required: true,
+        focus: true,
+      },
+      {
+        name: 'email',
+        label: msg('usuarios.fields.email'),
+        type: 'email',
+        placeholder: msg('usuarios.fields.emailPlaceholder'),
+        required: true,
+      },
+    ],
+  },
+  {
+    label: msg('usuarios.sections.access.label'),
+    description: msg('usuarios.sections.access.description'),
+    grid: '2',
+    fields: [
+      {
+        name: 'password',
+        label: msg('usuarios.fields.password'),
+        type: 'password',
+        placeholder: msg('usuarios.fields.passwordPlaceholder'),
+        description: msg('usuarios.fields.passwordDescription'),
+      },
+      {
+        name: 'role',
+        label: msg('usuarios.fields.role'),
+        type: 'relationship',
+        required: true,
+        // loadField options are domain values, not chrome text -- I18nText resolution
+        // doesn't reach `loadField` (it runs outside the config-resolution boundary).
+        loadField: async () => [
+          { value: 'USER', label: 'Usuário' },
+          { value: 'ADMIN', label: 'Administrador' },
+        ],
+      },
+      {
+        name: 'ativo',
+        label: msg('usuarios.fields.ativo'),
+        type: 'boolean',
+        description: msg('usuarios.fields.ativoDescription'),
+        // span = section grid -> full width (className 'w-full' is a no-op: CSS Grid)
+        span: '2',
+      },
+    ],
+  },
+]
+
+// ============================================================================
+// 5. CRUD CONFIG
+// ============================================================================
+export const usuariosConfig: CrudConfig<Usuario, UsuarioFormData> = {
+  module: {
+    name: 'usuarios',
+    title: msg('usuarios.title'),
+    description: msg('usuarios.description'),
+    route: '/admin/usuarios',
+  },
+
+  list: {
+    // Empty: the shell breadcrumb already names the page; the list is content, not a header.
+    title: '',
+    description: '',
+    searchPlaceholder: msg('usuarios.searchPlaceholder'),
+    columns,
+    defaultSortBy: 'name',
+    defaultSortOrder: 'asc',
+    serverSidePagination: true,
+    infiniteScroll: true,
+    defaultPageSize: 100,
+    toolbar: {
+      counterLabel: (count: number) => (count === 1 ? 'usuário' : 'usuários'),
+    },
+  },
+
+  form: { sections: formSections, validation: validationSchema },
+
+  query: { queryKey: ['usuarios'], queryFn: usuariosApi.list, staleTime: 30_000 },
+
+  mutations: {
+    // mutationFn must resolve to { success, data? } -- usuariosApi.* returns
+    // the raw entity, so we shape the result here rather than in the client.
+    create: {
+      mutationFn: async (data) => ({ success: true, data: await usuariosApi.create(data) }),
+      invalidates: [['usuarios']],
+    },
+    update: {
+      mutationFn: async ({ id, data }) => {
+        // Blank password means "keep the current one" -- don't send it.
+        const { password, ...rest } = data
+        return { success: true, data: await usuariosApi.update(id, password ? data : rest) }
+      },
+      invalidates: [['usuarios']],
+    },
+    delete: {
+      mutationFn: async ({ id }) => {
+        await usuariosApi.delete(id)
+        return { success: true }
+      },
+      invalidates: [['usuarios']],
+    },
+    getForEdit: async (id) => {
+      const u = await usuariosApi.getById(id)
+      return { name: u.name ?? '', email: u.email, password: '', role: u.role, ativo: u.ativo }
+    },
+    getForView: usuariosApi.getById,
+  },
+
+  actionsConfig: {
+    standard: {
+      view: { icon: getIcon('Eye'), tooltip: msg('usuarios.actions.view') },
+      edit: { icon: getIcon('Pencil'), tooltip: msg('usuarios.actions.edit') },
+      delete: {
+        icon: getIcon('Trash2'),
+        tooltip: msg('usuarios.actions.delete'),
+        confirmDialog: {
+          // Per-row title: the function form returns I18nText, so msg() takes the row values
+          title: (row) => msg('usuarios.confirmDelete.title', { name: row.name ?? row.email }),
+          description: msg('usuarios.confirmDelete.description'),
+          confirmText: msg('usuarios.confirmDelete.confirmText'),
+          cancelText: msg('usuarios.confirmDelete.cancelText'),
+          variant: 'destructive',
+        },
+      },
+    },
+  },
+
+  dialogs: {
+    view: {
+      urlParam: 'view',
+      title: msg('usuarios.dialogs.view.title'),
+      headerConfig,
+      renderContent: (item) => <UsuarioDetail usuario={item} />,
+    },
+    edit: {
+      urlParam: 'edit',
+      title: msg('usuarios.dialogs.edit.title'),
+      description: msg('usuarios.dialogs.edit.description'),
+      headerConfig,
+    },
+    create: {
+      urlParam: 'create',
+      title: msg('usuarios.dialogs.create.title'),
+      description: msg('usuarios.dialogs.create.description'),
+      headerConfig: {
+        ...headerConfig,
+        title: msg('usuarios.dialogs.create.title'),
+        subtitle: undefined,
+        badge: undefined,
+      },
+      defaultValues: { ativo: true, role: 'USER' },
+    },
+  },
+}
+```
+
+The page stays a one-liner:
+
+```tsx title="src/app/admin/usuarios/page.tsx"
+'use client'
+
+import { ListPage } from '@telamonjs/ui'
+import { usuariosConfig } from './config'
+
+// All CRUD (view/create/edit/delete) happens in dialogs on this list —
+// there are no adicionar/ or [id]/ routes.
+export default function UsuariosPage() {
+  return <ListPage config={usuariosConfig} />
+}
+```
+
+What to notice:
+
+- **`query.queryFn`** resolves `PaginatedResponse<T>` (`data`, `page`, `total`,
+  `totalPages`). The list is an infinite, virtualized scroll by default and needs
+  that metadata to page.
+- **Every `mutationFn`** resolves `{ success, data? }`. The API client returns
+  the raw entity; the config shapes it, not the client.
+- **`getForEdit`** maps the record to the form's shape (here it blanks the
+  password); **`getForView`** passes the record to the view dialog as is.
+- **`dialogs`** replace create, edit and detail routes. `urlParam` makes each one
+  linkable (`?view=<id>`, `?edit=<id>`, `?create=1`), and Back closes it.
+- **Text slots** take `msg('<key>')` (from `@telamonjs/ui/i18n`) so they follow
+  the active locale. Text rendered inside a `cell` uses `<Msg k='<key>' />`.
+- **Icons** are strings resolved through the app's registry (`getIcon('Eye')`),
+  never Lucide components imported into the config.
+- **`relationship`** loads its options with `loadField`. There is no `'select'`
+  field type and no `options` prop.
+
+---
+
+## Data flow
+
+The generated app has one direction: Route Handler (Prisma) →
+`<module>-client.ts` (`fetch`) → `config.tsx`. In the monorepo layout the
+client calls the NestJS API instead. Either way, React Query manages it:
+
+- `query.queryFn` loads the list, cached under `query.queryKey`.
+- `mutations.*.mutationFn` calls the API client.
+- `invalidates` declares which query keys to refresh on success — it must match
+  `query.queryKey` for the list to update.
+
+---
+
+## Related types
+
+All exported from `@telamonjs/ui`:
+
+- `CrudConfig<T, TFormData>` — the main interface
+- `ModuleMetadata`, `ListConfig<T>`, `FormConfig`
+- `QueryConfig<T>`, `MutationConfig<TInput, TOutput>`, `MutationsConfig<T, TFormData>`
+- `DialogConfig<T>`, `DialogsConfig<T>`, `PagesConfig<T>`
+- `CrudConfigWithAnyForm<T>` — alias for `CrudConfig<T, any>` when a context must accept any config (`TFormData` is invariant)
+
+---
+
+## Next steps
+
+- [Quick Start](/docs/getting-started/quick-start) — generate a module like this one from a Prisma model
+- [ListPage Pattern](/docs/patterns/listpage-pattern) — everything `ListPage` does with your config
+- [Dialogs](/docs/patterns/dialogs) — headers, detail tabs, the portal view
+- [Form Pattern](/docs/patterns/form-pattern) — sections, validation and field types

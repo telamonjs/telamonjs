@@ -1,0 +1,19 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noEmit": true,
+    "declaration": false,
+    "declarationMap": false,
+    "baseUrl": ".",
+    "types": ["node"],
+    "paths": {
+      "{{scope}}/shared": ["../../packages/shared/src"],
+      "{{scope}}/shared/prisma": ["../../packages/shared/src/lib/prisma"],
+      "{{scope}}/shared/*": ["../../packages/shared/src/*"]
+    }
+  },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}

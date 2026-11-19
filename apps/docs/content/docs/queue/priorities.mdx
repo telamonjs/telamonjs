@@ -1,0 +1,154 @@
+---
+title: Priorities
+description: Semantic job priority levels and utilities for ordering queue processing
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+BullMQ uses numeric priorities from 1 to 10 where **lower number = higher priority**.
+`@telamonjs/queue` wraps them in a semantic `JobPriority` enum so intent
+is clear and consistent across the application:
+
+```typescript
+export enum JobPriority {
+  CRITICAL = 1, // processed immediately
+  HIGH = 3, // processed before normal jobs
+  NORMAL = 5, // default
+  LOW = 8, // processed when system has capacity
+  DEFERRED = 10, // lowest priority
+}
+```
+
+| Level      | Use for                                                                  |
+| ---------- | ------------------------------------------------------------------------ |
+| `CRITICAL` | Security alerts, password resets, expiring tokens — true emergencies     |
+| `HIGH`     | User-facing operations the user is actively waiting for (uploads, forms) |
+| `NORMAL`   | Regular background jobs (default behavior when omitted)                  |
+| `LOW`      | Cleanup, analytics, non-urgent reports                                   |
+| `DEFERRED` | Batch processing, large reports, migrations                              |
+
+## Usage
+
+```typescript
+import { QueueManager, JobPriority } from '@telamonjs/queue'
+
+await queueManager.add(SendSecurityAlertJob, alertData, {
+  priority: JobPriority.CRITICAL,
+})
+
+await queueManager.add(ProcessUploadJob, uploadData, {
+  priority: JobPriority.HIGH,
+})
+
+// Omitting priority = NORMAL behavior
+await queueManager.add(ProcessDataJob, data)
+```
+
+<Callout type='warn' title='Reserve CRITICAL for true emergencies'>
+  If everything is CRITICAL, nothing is. Newsletters and marketing belong in
+  `LOW`/`DEFERRED`; security alerts belong in `CRITICAL`.
+</Callout>
+
+## Utilities
+
+```typescript
+import {
+  getPriorityName,
+  getPriorityDescription,
+  isHigherPriority,
+  getHighestPriority,
+  getLowestPriority,
+  isValidPriority,
+  clampPriority,
+  sortByPriority,
+  groupByPriority,
+  getPriorityDistribution,
+  suggestPriority,
+} from '@telamonjs/queue'
+
+getPriorityName(JobPriority.CRITICAL) // 'Critical'
+getPriorityDescription(JobPriority.HIGH) // human-readable description
+
+isHigherPriority(JobPriority.CRITICAL, JobPriority.NORMAL) // true
+getHighestPriority([5, 1, 8, 3]) // 1
+getLowestPriority([5, 1, 8, 3]) // 8
+
+isValidPriority(11) // false
+clampPriority(15) // 10 (clamped to 1–10)
+
+sortByPriority(jobs) // highest priority first
+groupByPriority(jobs) // Record<number, T[]>
+```
+
+### suggestPriority — dynamic decisions
+
+```typescript
+// User-facing operation with a tight timeout
+suggestPriority({ userFacing: true, timeoutMs: 3000 }) // JobPriority.CRITICAL
+
+// Batch operation
+suggestPriority({ batch: true }) // JobPriority.LOW
+
+// Full characteristics
+suggestPriority({
+  userFacing: job.requiresUserInteraction,
+  critical: job.affectsSystemHealth,
+  timeoutMs: job.maxWaitTime,
+  batch: job.isBatchOperation,
+  cleanup: job.isCleanup,
+})
+```
+
+### Distribution analysis
+
+```typescript
+const jobs = (await queueManager.getQueue('my-queue')?.getJobs(['waiting', 'active'])) ?? []
+const distribution = getPriorityDistribution(jobs)
+// { total, byLevel: { 1: { count, percentage }, ... }, averagePriority }
+
+if (distribution.byLevel[JobPriority.CRITICAL]?.percentage > 10) {
+  logger.warn('Too many CRITICAL jobs — review priority assignments')
+}
+```
+
+## Example: e-commerce order processing
+
+```typescript
+// Customer just placed an order — user-facing
+await queueManager.add(ProcessOrderJob, orderData, { priority: JobPriority.HIGH })
+
+// Payment failed — notify immediately
+await queueManager.add(SendPaymentFailedEmailJob, emailData, {
+  priority: JobPriority.CRITICAL,
+})
+
+// Inventory update — regular background work
+await queueManager.add(UpdateInventoryJob, inventoryData, {
+  priority: JobPriority.NORMAL,
+})
+
+// Analytics — when there is capacity
+await queueManager.add(UpdateAnalyticsJob, analyticsData, {
+  priority: JobPriority.LOW,
+})
+
+// Daily sales report — can wait
+await queueManager.add(GenerateDailySalesReportJob, reportData, {
+  priority: JobPriority.DEFERRED,
+})
+```
+
+## Troubleshooting
+
+**High-priority jobs are not processed first?**
+
+1. With high worker concurrency, everything runs simultaneously — lower
+   `concurrency` to observe priority ordering.
+2. Verify the `priority` option is actually being set on `add()`.
+3. Inspect the waiting jobs: `sortByPriority(await queue.getJobs(['waiting']))`, with
+   `queue = queueManager.getQueue('my-queue')`.
+
+## Related
+
+- [Bulk Operations](/docs/queue/bulk-operations) — per-job priority overrides in `addBulk`
+- [Scheduling](/docs/queue/scheduling)

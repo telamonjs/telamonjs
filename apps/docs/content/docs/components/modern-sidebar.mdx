@@ -1,0 +1,76 @@
+---
+title: ModernSidebar
+description: Modern hierarchical sidebar — compact/expanded, mobile drawer, string-based icons
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+`ModernSidebar` is the sidebar composed internally by [`AdminShell`](/docs/components/admin-shell).
+Use it standalone only when you need a custom shell composition — for the canonical app shell,
+use `AdminShell` instead.
+
+---
+
+## Basic Usage
+
+```tsx
+import { ModernSidebar } from '@telamonjs/ui'
+import { menuConfig } from '@/config/menu'
+
+;<ModernSidebar
+  menuConfig={menuConfig}
+  session={session}
+  systemName='My App'
+  onSignOut={() => router.push('/sign-out')}
+/>
+```
+
+---
+
+## Props
+
+```typescript
+interface ModernSidebarProps {
+  menuConfig?: MenuItem[] // default: []
+  session?: {
+    user?: { name?: string; email?: string; role?: { name?: string } }
+    isImpersonating?: boolean
+    originalUser?: { name?: string }
+  }
+  systemName?: string
+  logoUrl?: string // default: '/logo.png'
+  compactLogoUrl?: string
+  logoClassName?: string
+  logoStyle?: React.CSSProperties
+  logoHeight?: number | string
+  logoMaxWidth?: number | string
+  compactLogoHeight?: number | string // falls back to logoHeight
+  compactLogoMaxWidth?: number | string // falls back to logoMaxWidth
+  onSignOut?: () => void
+  onStopImpersonation?: () => Promise<void>
+  mobileTriggerPosition?: 'top-left' | 'bottom-right' // default: 'top-left'
+  showUserAvatar?: boolean // default: true
+  showUserRole?: boolean // default: true
+  footerContent?: React.ReactNode // rendered below the user info
+  localeSwitcher?: boolean // default: true
+  profileHref?: string // enables the user menu "Profile" item
+  className?: string
+}
+```
+
+---
+
+## Features
+
+- Compact (icon-only) / expanded modes with a mobile drawer fallback
+- Hierarchical menu (`type: 'single' | 'group' | 'separator'`)
+- Icons resolved by **string** via `getIcon`/`setIconResolver` — no `LucideIcon` cast needed
+- Avatar, role display, and a "back to original user" item while impersonating
+
+---
+
+## See Also
+
+- [AdminShell](/docs/components/admin-shell) - Canonical shell composing this sidebar
+- [Provider Setup Pattern](/docs/patterns/provider-setup) - Icon resolver setup
+- [CommandPalette](/docs/components/command-palette) - Cmd+K, composed inside `AdminShell`

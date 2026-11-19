@@ -1,0 +1,538 @@
+---
+title: Form Pattern
+description: The form components and when to use each - from simple CRUD to multi-step flows
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Choose the right form component for your use case, and lay out its sections and fields.
+
+<Callout type='info' title='Inside a CrudConfig module, you rarely need these'>
+  `ListPage` already renders the create/edit dialogs from `config.form` and submits them
+  through `config.mutations`. Reach for the components below for standalone pages and
+  custom flows. The sections and field rules on this page apply to `config.form` too.
+</Callout>
+
+<Callout type='warn' title='Critical: Nested Data'>
+  If your forms use nested data (e.g., `person.name`, `address.street`), read
+  [Nested Data Pattern](/docs/patterns/nested-data) first!
+</Callout>
+
+---
+
+## Available Form Components
+
+`@telamonjs/ui` offers these form components:
+
+1. **Form** (alias of **AdminForm**) - Base form component (generic)
+2. **CreateForm** ⭐ - Semantic wrapper for creation (recommended for `/new`)
+3. **EditForm** ⭐ - Semantic wrapper for editing (recommended for `/[id]/edit`)
+4. **ZustandForm** - Form whose state lives in a store, readable by components outside the form
+5. **ZustandFormServer** - Server Component wrapper that loads `ZustandForm` client-side
+
+For a whole create or edit page (title, layout and form), `CreatePage` and `EditPage` wrap
+`CreateForm`/`EditForm`: see [Standalone form pages](/docs/patterns/edit-page).
+
+---
+
+## Decision Tree: Which Form to Use?
+
+```
+Need a form?
+│
+├─ Is it a create page (/new)?
+│  └─ Yes → CreateForm ⭐ (recommended)
+│     • Filters sections/fields with editOnly: true, and CRUD fields
+│     • Submit text: localized "Create" (default)
+│     • Props: defaultValues (instead of data)
+│
+├─ Is it an edit page (/[id]/edit)?
+│  └─ Yes → EditForm ⭐ (recommended)
+│     • Requires id + data (TypeScript)
+│     • Nested records work with dot-notation field names
+│     • Submit text: localized "Save" (default)
+│
+├─ Is it a multi-step flow, or does a component outside the form need its values live?
+│  └─ Yes → ZustandForm (ZustandFormServer from a Server Component)
+│
+└─ Anything else → Form / AdminForm
+```
+
+---
+
+## Submitting: `onSubmitValues`
+
+`Form`, `CreateForm` and `EditForm` share one submit contract. The default path is
+`onSubmitValues`: it receives the validated values as a plain object (booleans and numbers
+keep their types — no `FormData` parsing) and resolves a `FormActionResult`
+(`{ success, data?, message?, errors? }`). Call your REST client or a React Query mutation there.
+
+- `{ success: true }` → `onSuccess(result)` runs; without it, `cancelAction`; without either, the browser goes back.
+- `{ success: false, message }` → the message is shown as a toast and as an inline error.
+- A thrown error is caught and shown the same way.
+
+`action` is the alternative for a Next.js Server Action: it receives `FormData`
+(booleans become `'true'`/`'false'`, nested objects use dot-notation keys). Pass one or the
+other, never both.
+
+---
+
+## Sections and Fields
+
+### Grid and `span`
+
+A section is a CSS grid with `grid` columns (default `'2'`). Each field takes one column unless
+it sets `span`. **Width classes do nothing** — `className: 'w-full'` is ignored by the grid.
+
+```tsx
+const sections: FormSection[] = [
+  {
+    label: 'Product',
+    // grid defaults to '2'
+    fields: [
+      { name: 'name', label: 'Name', type: 'text', required: true },        // 1 of 2 columns
+      { name: 'price', label: 'Price', type: 'float', required: true },     // 1 of 2 columns
+      { name: 'description', label: 'Description', type: 'textarea', span: '2' }, // full width
+    ],
+  },
+  {
+    label: 'Address',
+    grid: '3',
+    fields: [
+      { name: 'street', label: 'Street', type: 'text', span: '2' },  // 2 of 3 columns
+      { name: 'number', label: 'Number', type: 'text' },
+      { name: 'notes', label: 'Notes', type: 'textarea', span: '3' }, // full width
+    ],
+  },
+]
+```
+
+Rule of thumb: a full-width field sets `span` to the section's `grid` value. `fields` also
+accepts rows (`FormField[][]`) when you need explicit line breaks.
+
+### Labels and help text
+
+Fields use `label` and `description` (not `title` or `helperText`). `description` renders as help
+text under the field and is wired to the field's `aria-describedby`; `boolean` and `checkbox`
+fields show it inline next to the control instead.
+
+### Choosing records
+
+Use `type: 'relationship'` with an async `loadField` for a select — there is no `'select'` type
+and no static `options` prop. `dependsOn` reloads a `loadField` when another field changes (a
+cascade such as state → city). When each option needs detail, server-side search or depends on
+another field, use `RichSelectorField` in a `type: 'component'` field: see
+[RichSelector](/docs/components/rich-selector).
+
+### Conditional visibility (`visibleWhen`)
+
+To show or hide a field from the form's current values, use `visibleWhen`. On a section it hides
+the whole group (only in the default layout; with `useTabs`, use it per field).
+
+```tsx
+const sections: FormSection[] = [
+  {
+    label: 'Discounts',
+    fields: [
+      { name: 'hasDiscount', label: 'Apply a discount?', type: 'boolean' },
+      {
+        name: 'discountPercent',
+        label: 'Discount (%)',
+        type: 'number',
+        visibleWhen: values => values.hasDiscount === true,
+      },
+    ],
+  },
+  {
+    label: 'Shipping',
+    visibleWhen: values => values.requiresShipping === true,
+    fields: [
+      { name: 'carrier', label: 'Carrier', type: 'text' },
+      { name: 'deadline', label: 'Deadline (days)', type: 'number' },
+    ],
+  },
+]
+```
+
+- **Rendering:** only fields with `visibleWhen` subscribe to form changes; typing in one field
+  never re-renders the others.
+- **Validation:** a hidden field never blocks the submit, even when the Zod schema requires it.
+  There is no need to mark it `.optional()`.
+- **Submit:** a hidden field's value (typed before it was hidden, or a default) is left out of what
+  `onSubmitValues`/`action` receive.
+
+### Data that arrives after mount
+
+When `data` reaches an already-mounted form (the fetch resolved after the first render), the
+form applies it while it is still pristine. Once the user edits a field, late `data` no longer
+overwrites it. There is no need to remount the form with a `key` to wait for data.
+
+### Date fields
+
+`date`, `masked-date`, `datetime` and `masked-datetime` take typing with a mask in the locale's
+date order, or picking from a calendar opened by the icon inside the input. The form value is an
+ISO string.
+
+`date` fields take `minDate` and `maxDate`: a `Date`, an ISO string, `'today'` or a function of the
+form values. The calendar disables the days outside, and the form rejects a typed value outside
+with or without a schema rule. An empty field opens the calendar on an allowed month.
+
+```tsx
+{ name: 'dueDate', label: 'Due date', type: 'date', minDate: values => values.issueDate as string, maxDate: 'today' }
+```
+
+### Reading other fields in a custom field
+
+In a `type: 'component'` field, import `useWatch` and `useFormContext` from
+`@telamonjs/ui`, not from `react-hook-form`. They come from the same copy the forms use;
+with two copies installed, the app's copy cannot see the library's `FormProvider`.
+
+```tsx
+import { useWatch } from '@telamonjs/ui'
+
+function Total() {
+  const quantity = useWatch({ name: 'quantity' })
+  return <span>{quantity}</span>
+}
+```
+
+---
+
+## 1. AdminForm (Generic)
+
+### When to Use
+
+✅ **USE when:**
+
+- A form that is neither a plain create nor a plain edit page
+- Zod schema validation
+- You want full control over the props
+
+❌ **DON'T USE when:**
+
+- It is a multi-step flow, or a component outside the form needs its values live (use `ZustandForm`)
+
+### Example
+
+```tsx title="app/admin/jobs/new/page.tsx"
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { Card, AdminForm, type FormActionResult } from '@telamonjs/ui'
+import { formSections, validationSchema, type JobFormData } from '../config'
+import { jobsApi } from '@/lib/api/jobs-client'
+
+export default function AddJobPage() {
+  const router = useRouter()
+  const queryClient = useQueryClient()
+  const create = useMutation({
+    mutationFn: jobsApi.create,
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs'] }),
+  })
+
+  async function handleSubmit(values: Record<string, unknown>): Promise<FormActionResult<JobFormData>> {
+    await create.mutateAsync(values as JobFormData)
+    return { success: true }
+  }
+
+  return (
+    <Card className='p-6'>
+      <AdminForm<JobFormData>
+        sections={formSections}
+        validation={validationSchema}
+        onSubmitValues={handleSubmit}
+        data={{ active: true }} // Defaults
+        submitText='Create Job'
+        onSuccess={() => router.push('/admin/jobs')}
+        cancelAction={() => router.push('/admin/jobs')}
+      />
+    </Card>
+  )
+}
+```
+
+### Props
+
+```tsx
+interface AdminFormProps<T> {
+  // Fields (use sections OR fields, not both)
+  sections?: FormSection[] // ⭐ Recommended
+  fields?: FormField[] // Alternative
+
+  // Submit (pass one)
+  onSubmitValues?: (values: Record<string, unknown>) => Promise<FormActionResult<T> | void>
+  action?: (formData: FormData) => Promise<FormActionResult<T> | void>
+
+  // Initial data
+  data?: Partial<T>
+
+  // Validation
+  validation?: z.ZodType
+
+  // UI
+  submitText?: I18nText // Default: localized "Save"
+  cancelAction?: () => void
+  grid?: string // '1', '2', '3', '4'
+  hideButtons?: boolean
+  useTabs?: boolean // Use tabs for sections
+  flush?: boolean // No border/shadow — inside a dialog
+
+  // Mode
+  id?: string // Entity ID (edit mode), added to the submitted values
+
+  // Callbacks
+  onSuccess?: (result: FormActionResult<T>) => void | Promise<void>
+  onFieldChange?: (params: { field; value; values; setValue }) => void | Promise<void>
+  onDirtyChange?: (isDirty: boolean) => void
+}
+```
+
+---
+
+## 2. CreateForm (Creation) ⭐ RECOMMENDED
+
+### When to Use
+
+✅ **USE when:**
+
+- Creation page (`/new`, `/add`)
+- Want semantic clarity in code
+- Need to filter sections with `editOnly: true` automatically
+- Default submit text "Create" is adequate
+
+### Example
+
+```tsx title="app/admin/users/new/page.tsx"
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { CreateForm } from '@telamonjs/ui'
+import { formSections, validationSchema, type UserFormData } from '../config'
+import { usersApi } from '@/lib/api/users-client'
+
+export default function NewUserPage() {
+  const router = useRouter()
+
+  return (
+    <CreateForm
+      sections={formSections}
+      validation={validationSchema}
+      onSubmitValues={async values => ({
+        success: true,
+        data: await usersApi.create(values as UserFormData),
+      })}
+      onSuccess={() => router.push('/admin/users')}
+      defaultValues={{ active: true, role: 'USER' }}
+      useTabs={true}
+    />
+  )
+}
+```
+
+### CreateForm vs AdminForm
+
+| Aspect                | CreateForm ⭐              | AdminForm        |
+| --------------------- | -------------------------- | ---------------- |
+| **Purpose**           | Create-specific            | Generic          |
+| **Prop data**         | `defaultValues` (semantic) | `data`           |
+| **Prop id**           | ❌ Not exposed             | Optional         |
+| **Submit text**       | "Create" (default)         | "Save" (default) |
+| **editOnly sections** | Filtered auto              | Included         |
+| **CRUD fields**       | Filtered auto              | Included         |
+
+---
+
+## 3. EditForm (Editing) ⭐ RECOMMENDED
+
+### When to Use
+
+✅ **USE when:**
+
+- Edit page (`/[id]/edit`)
+- Want TypeScript forcing `id` + `data` required
+- Default submit text "Save" is adequate
+
+### Example
+
+```tsx title="app/admin/users/[id]/edit/edit-user-form.tsx"
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { EditForm } from '@telamonjs/ui'
+import { formSections, validationSchema, type UserFormData } from '../../config'
+import { usersApi } from '@/lib/api/users-client'
+
+export function EditUserForm({ user }: { user: User }) {
+  const router = useRouter()
+
+  return (
+    <EditForm
+      id={user.id} // ← Required
+      data={user} // ← Required
+      sections={formSections}
+      validation={validationSchema}
+      onSubmitValues={async values => ({
+        success: true,
+        data: await usersApi.update(user.id, values as Partial<UserFormData>),
+      })}
+      onSuccess={() => router.push(`/admin/users/${user.id}`)}
+      useTabs={true}
+    />
+  )
+}
+```
+
+### Nested Data
+
+Pass the record as the API returns it — do not flatten it. Field names in dot notation are
+resolved against the nested object by React Hook Form:
+
+```tsx
+// user = {
+//   id: "1",
+//   person: { name: "John", taxId: "123" },
+//   views: [{ id: "v1", name: "View 1" }]
+// }
+
+{ name: 'person.name', label: 'Name', type: 'text' } // reads user.person.name
+```
+
+### EditForm vs AdminForm
+
+| Aspect                | EditForm ⭐      | AdminForm        |
+| --------------------- | ---------------- | ---------------- |
+| **Purpose**           | Edit-specific    | Generic          |
+| **Prop id**           | ✅ Required      | Optional         |
+| **Prop data**         | ✅ Required      | Optional         |
+| **Submit text**       | "Save" (default) | "Save" (default) |
+| **TypeScript safety** | ✅ High          | ⚠️ Medium        |
+
+---
+
+## 4. ZustandForm (Centralized State)
+
+### When to Use
+
+✅ **USE when:**
+
+- Real-time preview in another component, outside the form's tree
+- Multiple components need to read the form's values at the same time
+- A multi-step flow (you build the steps; every step reads and writes the same store)
+
+❌ **DON'T USE when:**
+
+- Simple form (unnecessary overhead)
+
+`ZustandForm` submits through `onSubmit(data)` (typed values, the client-side path) or
+`action(formData)` — see [ZustandForm](/docs/components/zustand-form). Each form needs a unique
+`formId`; values of different forms live side by side in the store under their ids.
+
+### Example: Real-Time Preview
+
+The store keeps each form's values under its `formId`: read them with
+`useFormStore(state => state.forms[formId])`, or imperatively with
+`useFormStore.getState().forms[formId]`.
+
+```tsx title="app/admin/processes/new/with-preview.tsx"
+'use client'
+
+import { Card, ZustandForm, useFormStore } from '@telamonjs/ui'
+
+const FORM_ID = 'process-form'
+
+function ProcessForm() {
+  return (
+    <div className='grid grid-cols-2 gap-6'>
+      <ZustandForm formId={FORM_ID} sections={formSections} onSubmit={processesApi.create} />
+      <ProcessPreview />
+    </div>
+  )
+}
+
+function ProcessPreview() {
+  // Re-renders only when this form's values change
+  const values = useFormStore(state => state.forms[FORM_ID])
+
+  return (
+    <Card className='p-6'>
+      <h2 className='text-lg font-bold mb-4'>Preview</h2>
+      <p>Title: {String(values?.title ?? '—')}</p>
+      <p>Notice Number: {String(values?.noticeNumber ?? '—')}</p>
+    </Card>
+  )
+}
+```
+
+<Callout type='warn' title='Selectors inside custom hooks'>
+  A dynamic selector such as `useFormStore(state => state.forms[formId])` is fine in a component,
+  but inside a custom hook it causes an infinite loop (`getSnapshot should be cached`). See
+  [Zustand Selector Pattern](/docs/patterns/zustand-selector).
+</Callout>
+
+---
+
+## 5. ZustandFormServer (Server Component Wrapper)
+
+### When to Use
+
+✅ **USE when:**
+
+- The page is a Server Component and you want `ZustandForm` without a client wrapper file
+- It takes the same props as `ZustandForm` and loads it client-side (`next/dynamic`) with a skeleton
+
+Functions passed from a Server Component must be Server Actions, so here the submit
+handler is `action` (receives `FormData`):
+
+### Example
+
+```tsx title="app/admin/processes/new/page.tsx"
+import { ZustandFormServer } from '@telamonjs/ui'
+import { formSections } from './config'
+import { createProcess } from './actions' // a 'use server' function
+
+export default function NewProcessPage() {
+  return <ZustandFormServer formId='process-complex' sections={formSections} action={createProcess} />
+}
+```
+
+---
+
+## Side-by-Side Comparison
+
+| Aspect                | AdminForm ⭐            | ZustandForm                   | ZustandFormServer          |
+| --------------------- | ----------------------- | ----------------------------- | -------------------------- |
+| **Use cases**         | Most forms              | Outside preview, shared state | ZustandForm from an RSC    |
+| **State**             | Local (React Hook Form) | Global (Zustand)              | Global (Zustand)           |
+| **Typed submit**      | `onSubmitValues`        | `onSubmit`                    | — (`action` from an RSC)   |
+| **FormData submit**   | `action`                | `action`                      | `action`                   |
+| **Multi-step**        | ❌ No                   | ✅ You build the steps        | ✅ You build the steps     |
+| **Real-time preview** | ❌ No                   | ✅ Yes                        | ✅ Yes                     |
+
+---
+
+## Best Practices
+
+1. **Prefer semantic wrappers:** Use `CreateForm`/`EditForm` instead of generic `AdminForm`
+2. **Submit with `onSubmitValues`:** typed values straight into your API client or mutation
+3. **Lay out with `grid` and `span`**, never width classes
+4. **Multi-step flows are `ZustandForm`**: every step shares the same store
+5. **Validate with Zod:** one schema per form, inferred as the form-data type
+
+---
+
+## Related Patterns
+
+- [Admin Module Structure](/docs/patterns/admin-module-structure) - Where `config.tsx` and its form live
+- [Nested Data Pattern](/docs/patterns/nested-data) - Handle nested data
+- [CRUD Field Pattern](/docs/patterns/crud-field) - 1:N and N:M lists inside a form
+- [Standalone form pages](/docs/patterns/edit-page) - `CreatePage` and `EditPage`
+- [Field Types](/docs/reference/field-types) - Every field type
+
+---
+
+<Callout type='success' title='Final Recommendation'>
+  **Default to CreateForm/EditForm** for semantic clarity, fall back to AdminForm for generic
+  cases, and use ZustandForm for multi-step flows or when something outside the form needs
+  its values.
+</Callout>

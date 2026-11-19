@@ -1,0 +1,231 @@
+---
+title: ExportButtons
+description: Export dropdown and buttons for CSV, Excel, and PDF downloads
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Export UI for tabular data. Two complementary surfaces exist in the library:
+
+- **`ExportButtons`** (+ `ExportPDFButton`, `ExportExcelButton`) — a dropdown
+  button where **you provide the export handlers**; only the formats you pass
+  a handler for appear in the menu.
+- **`ExportMenu`** + **`exportToCSV` / `exportToExcel` / `exportToPDF` /
+  `exportTableData`** — batteries-included export for TanStack
+  `ColumnDef`-based tables (used by DataTable), generating the files
+  client-side via `xlsx`, `papaparse`, and `jspdf`.
+
+<ExportButtonPreview />
+
+<Callout type='info' title='What is exported'>
+  The exports are `ExportButtons`, `ExportPDFButton`, `ExportExcelButton`, `ExportMenu`, and the
+  `exportTo*` utilities documented below. There is no JSON export built in.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { ExportButtons, type ExportColumn } from '@telamonjs/ui'
+
+const columns: ExportColumn<User>[] = [
+  { header: 'Full Name', accessorKey: 'name' },
+  { header: 'Email', accessorKey: 'email' },
+  { header: 'Member Since', accessorFn: u => u.createdAt.toLocaleDateString() },
+]
+
+export default function UsersToolbar({ users }: { users: User[] }) {
+  return (
+    <ExportButtons
+      data={users}
+      columns={columns}
+      filename='users-export'
+      onExportCSV={async (data, cols, filename) => {
+        // Your export implementation (or delegate to exportToCSV — see below)
+      }}
+    />
+  )
+}
+```
+
+The dropdown renders only the entries whose handler you passed
+(`onExportPDF`, `onExportExcel`, `onExportCSV`). With no handler at all, the
+component renders nothing.
+
+---
+
+## Props
+
+### ExportButtons
+
+<TypeTable
+  type={{
+    data: { description: 'Rows to export — the button is disabled while empty', type: 'T[]', required: true },
+    columns: { description: 'Column definitions passed through to your handlers', type: 'ExportColumn<T>[]', required: true },
+    filename: { description: 'Base filename passed to your handlers', type: 'string', default: "'export'" },
+    onExportPDF: { description: 'Adds the PDF entry — called with (data, columns, filename)', type: '(data, columns, filename) => Promise<void>' },
+    onExportExcel: { description: 'Adds the Excel entry', type: '(data, columns, filename) => Promise<void>' },
+    onExportCSV: { description: 'Adds the CSV entry', type: '(data, columns, filename) => Promise<void>' },
+    disabled: { description: 'Force-disable the button', type: 'boolean', default: 'false' },
+    labels: { description: 'Override button/menu labels: exportButton, exportPDF, exportExcel, exportCSV (default: localized)', type: 'Partial<ExportLabels>' },
+    className: { description: 'Additional classes on the trigger button', type: 'string' },
+  }}
+/>
+
+### ExportColumn
+
+<TypeTable
+  type={{
+    header: { description: 'Column header text', type: 'string', required: true },
+    accessorKey: { description: 'Field key on the row (mutually exclusive with accessorFn)', type: 'keyof T & string' },
+    accessorFn: { description: 'Derived/formatted value for the cell', type: '(row: T) => string | number | null | undefined' },
+  }}
+/>
+
+### ExportPDFButton / ExportExcelButton
+
+Single-format standalone buttons — same `data`/`columns`/`filename`/`disabled`/
+`className` props, plus the one required handler (`onExportPDF` /
+`onExportExcel`) and an optional `label`. There is no standalone CSV button —
+use `ExportButtons` with only `onExportCSV`.
+
+---
+
+## Batteries-included: ExportMenu + exportUtils
+
+When your columns are TanStack `ColumnDef`s (as in DataTable), skip writing
+handlers — `ExportMenu` generates the files itself. `ColumnDef` is TanStack's type,
+imported from `@tanstack/react-table`: `@telamonjs/ui` depends on it but does not
+re-export it, so add it to the app to import the type:
+
+```tsx
+import { ExportMenu } from '@telamonjs/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+
+<ExportMenu
+  data={rows}
+  columns={columns} // ColumnDef<T>[]
+  filename='users'
+  formats={['excel', 'csv', 'pdf']}
+  pdfOptions={{ title: 'Users Report', orientation: 'landscape' }}
+  onExportComplete={() => toast.success('Export complete')}
+  onExportError={error => toast.error(error.message)}
+/>
+```
+
+### ExportMenu props
+
+<TypeTable
+  type={{
+    data: { description: 'All rows', type: 'T[]', required: true },
+    columns: { description: 'TanStack column definitions (headers/accessors reused for the file)', type: 'ColumnDef<T>[]', required: true },
+    selectedRows: { description: 'When set, offers exporting only the selection', type: 'T[]' },
+    currentPageRows: { description: 'When set, offers exporting only the current page', type: 'T[]' },
+    filename: { description: 'Base filename', type: 'string', default: "'export'" },
+    appendDate: { description: 'Append `_YYYY-MM-DD` (local day) to the filename, once', type: 'boolean', default: 'true' },
+    sheetName: { description: 'Excel sheet name (default: localized "Data")', type: 'string' },
+    formats: { description: 'Formats offered in the menu', type: "Array<'excel' | 'csv' | 'pdf'>", default: "['excel', 'csv', 'pdf']" },
+    pdfOptions: { description: 'PDF title, subtitle, orientation, logo (string or `{ src, width?, height? }` in mm), footer and generatedAt (`datetime` or `date`)', type: "Omit<PDFExportOptions, 'filename' | 't' | 'locale' | 'sheetName' | 'appendDate'>" },
+    onExport: { description: 'Custom generator: the menu only orchestrates (loading, toast, callbacks) and skips the built-in generation', type: "(format: 'excel' | 'csv' | 'pdf', rows: T[], columns: ColumnDef<T>[]) => Promise<void> | void" },
+    onExportStart: { description: 'Called before generating', type: '() => void' },
+    onExportComplete: { description: 'Called after the download starts', type: '() => void' },
+    onExportError: { description: 'Called on failure', type: '(error: Error) => void' },
+    disabled: { description: 'Disable the menu', type: 'boolean' },
+    className: { description: 'Additional classes', type: 'string' },
+    trigger: { description: 'Custom trigger, such as a "⋯" icon button. Must forward ref/props (asChild)', type: 'ReactNode' },
+    children: { description: 'Extra items above the export section, such as "Refresh"', type: 'ReactNode' },
+  }}
+/>
+
+### Utility functions
+
+```typescript
+exportToExcel(data, columns, filename, options)  // .xlsx via xlsx
+exportToCSV(data, columns, filename, options)    // .csv via papaparse (BOM included)
+exportToPDF(data, columns, filename, options)    // .pdf via jspdf-autotable
+exportTableData(data, columns, format, filename, options) // dispatch by format
+
+interface ExportOptions {
+  t: ReturnType<typeof useTelamonjsT> // required: library translator
+  locale: string                    // required: formats dates in cells
+  includeHiddenColumns?: boolean
+  filename?: string
+  sheetName?: string   // Excel only
+  appendDate?: boolean // default true
+}
+
+interface PDFExportOptions extends ExportOptions {
+  orientation?: 'portrait' | 'landscape'
+  logo?: string | { src: string; width?: number; height?: number } // size in mm
+  title?: string
+  subtitle?: string
+  footer?: string
+  generatedAt?: 'datetime' | 'date'
+}
+```
+
+All take TanStack `ColumnDef<T>[]` and download client-side with a
+date-stamped filename (`users_2026-08-18.csv`). `options` is required because
+headers and values are localized: pass the library translator and the active locale.
+
+Wiring them into `ExportButtons` handlers:
+
+```tsx
+'use client'
+
+import { useLocale } from 'next-intl'
+import { ExportButtons, exportToCSV, useTelamonjsT } from '@telamonjs/ui'
+
+export function UsersExport({ users }: { users: User[] }) {
+  const t = useTelamonjsT()
+  const locale = useLocale()
+
+  return (
+    <ExportButtons
+      data={users}
+      columns={exportColumns}
+      filename='users'
+      onExportCSV={async data => exportToCSV(data, columnDefs, 'users', { t, locale })}
+    />
+  )
+}
+```
+
+---
+
+## Which one do I use?
+
+| Situation | Use |
+| --- | --- |
+| DataTable/ListPage toolbar, `ColumnDef` columns | `ExportMenu` (or DataTable's built-in export) |
+| Custom export pipeline (server-generated file, API call) | `ExportButtons` with your handlers |
+| One format only, PDF or Excel | `ExportPDFButton` / `ExportExcelButton` |
+| Programmatic export (no UI) | `exportToCSV` / `exportToExcel` / `exportToPDF` |
+
+---
+
+## Best Practices
+
+1. **Limit data** - Don't export 100,000+ records client-side; generate large files on the server and download the URL
+2. **Format values** - Use `accessorFn` (ExportColumn) or cell accessors (ColumnDef) for dates and currency
+3. **Descriptive filenames** - The utilities append the date automatically
+4. **Error handling** - `ExportButtons` logs handler errors; surface feedback via `ExportMenu`'s `onExportError` or your own toasts
+5. **Permissions and audit** - Enforce who can export on the server, and log exports for compliance
+
+---
+
+## Accessibility
+
+- Trigger and menu are the library's `DropdownMenu` (Radix): keyboard
+  navigable, focus managed, Esc closes
+- The trigger disables itself while exporting or when `data` is empty
+
+---
+
+## Related Components
+
+- [DataTable](/docs/components/data-table) - Table with built-in export toolbar
+- [DropdownMenu](/docs/components/dropdown-menu) - The menu primitive used here
+

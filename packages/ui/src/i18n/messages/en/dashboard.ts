@@ -1,0 +1,35 @@
+import type { MessagesShape } from '../shape'
+import type { dashboard as base } from '../pt-BR/dashboard'
+
+export const dashboard = {
+  closeFullscreen: 'Close fullscreen',
+  now: 'now',
+  enableAutoRefresh: 'Enable auto-refresh',
+  disableAutoRefresh: 'Disable auto-refresh',
+  auto: 'Auto',
+  saveLayout: 'Save layout',
+  editLayout: 'Edit layout',
+  exitFullscreen: 'Exit fullscreen',
+  fullscreen: 'Fullscreen',
+  statusOnline: 'Live',
+  statusOffline: 'Offline',
+  statusLoading: 'Loading',
+  noActivity: 'No recent activity',
+  noData: 'No data available',
+  previousPeriodChange: 'vs. previous period',
+  feature: 'Feature',
+  accessModule: 'Access module',
+  unavailable: 'Unavailable',
+  exportPDF: 'Export PDF',
+  exportExcel: 'Export Excel',
+  exportCSV: 'Export CSV',
+  statusLabel: 'Status',
+  movingCount: '{count} mov.',
+  stoppedCount: '{count} stop.',
+  offlineCount: '{count} off',
+  onlineAria: '{count} online',
+  stoppedAria: '{count} stopped',
+  offlineAria: '{count} offline',
+  statusSummaryAria:
+    'Status: {online} online, {stopped} stopped, {offline} offline',
+} satisfies MessagesShape<typeof base>

@@ -1,0 +1,159 @@
+---
+title: Metrics
+description: Prometheus metrics with caching, batching and sampling for high-throughput queues
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+`@telamonjs/queue/monitoring` exports two Prometheus collectors:
+
+- **`QueueMetrics`** — the standard collector, fine for most workloads
+  (&lt; 100 jobs/sec)
+- **`OptimizedQueueMetrics`** — a drop-in replacement adding caching, batching,
+  sampling and lazy updates for high-throughput environments, with fewer Redis
+  calls and less CPU per event
+
+## Exposed metrics
+
+```text
+# Job counters
+queue_jobs_processed_total{queue="send-email",status="completed"}
+queue_jobs_completed_total{queue="send-email"}
+queue_jobs_failed_total{queue="send-email"}
+
+# Job duration quantiles
+queue_job_duration_seconds{queue="send-email",quantile="0.5"}
+queue_job_duration_seconds{queue="send-email",quantile="0.95"}
+queue_job_duration_seconds{queue="send-email",quantile="0.99"}
+
+# Queue sizes
+queue_size{queue="send-email",state="waiting"}
+queue_size{queue="send-email",state="active"}
+queue_size{queue="send-email",state="failed"}
+
+# Workers
+queue_active_workers{queue="send-email"}
+
+# Optimized-only: cache/batch performance
+queue_metrics_cache_hits_total
+queue_metrics_cache_misses_total
+queue_metrics_batch_size
+```
+
+## Quick start
+
+```typescript
+import { OptimizedQueueMetrics } from '@telamonjs/queue/monitoring'
+import express from 'express'
+
+const metrics = new OptimizedQueueMetrics(queueManager)
+metrics.startCollection()
+
+const app = express()
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', metrics.getRegistry().contentType)
+  res.end(await metrics.getMetrics())
+})
+```
+
+## Optimization features
+
+| Feature      | What it does                                            | Trade-off                        |
+| ------------ | ------------------------------------------------------- | -------------------------------- |
+| **Caching**  | Caches queue stats with TTL (default 5s)                | Stats stale up to `cacheTTL`     |
+| **Batching** | Groups metric updates, flushes every `batchInterval`    | Metrics delayed by ~1–2s         |
+| **Sampling** | Records only a fraction of events (e.g. 10%)            | Approximate counts               |
+| **Lazy**     | Fetches stats only on `getMetrics()` (Prometheus scrape)| —                                |
+
+## Configuration
+
+```typescript
+interface MetricsConfig {
+  cacheTTL?: number // default 5000 ms
+  enableBatching?: boolean // default true
+  batchInterval?: number // default 1000 ms
+  enableSampling?: boolean // default false
+  sampleRate?: number // 0.0–1.0, default 0.1
+  collectionInterval?: number // default 10000 ms
+}
+```
+
+### Recommended presets
+
+```typescript
+// Low throughput (< 100 jobs/sec): standard collector
+import { QueueMetrics } from '@telamonjs/queue/monitoring'
+const metrics = new QueueMetrics(queueManager)
+
+// Medium (100–1000 jobs/sec)
+new OptimizedQueueMetrics(queueManager, {
+  cacheTTL: 5000,
+  enableBatching: true,
+  batchInterval: 1000,
+})
+
+// High (1000–10,000 jobs/sec)
+new OptimizedQueueMetrics(queueManager, {
+  cacheTTL: 10000,
+  enableBatching: true,
+  batchInterval: 2000,
+})
+
+// Very high (> 10,000 jobs/sec): add sampling
+new OptimizedQueueMetrics(queueManager, {
+  cacheTTL: 15000,
+  enableBatching: true,
+  batchInterval: 5000,
+  enableSampling: true,
+  sampleRate: 0.1,
+})
+```
+
+<Callout type='info' title='Tuning cacheTTL'>
+  Set `cacheTTL` to 50–75% of your Prometheus scrape interval (e.g. scraping
+  every 15s → `cacheTTL: 10000`), and target a cache hit rate above 70%
+  (`cache_hits / (cache_hits + cache_misses)`).
+</Callout>
+
+## API
+
+`OptimizedQueueMetrics` shares the `QueueMetrics` API:
+
+```typescript
+metrics.incrementProcessed(queueName, jobName)
+metrics.incrementCompleted(queueName, jobName)
+metrics.incrementFailed(queueName, jobName, errorType)
+metrics.recordDuration(queueName, jobName, seconds)
+metrics.updateQueueSizes()
+metrics.updateActiveWorkers(queueName, count)
+await metrics.getMetrics()
+metrics.getRegistry()
+metrics.startCollection(interval)
+metrics.stopCollection()
+```
+
+Plus optimized-only methods:
+
+```typescript
+metrics.invalidateCache() // force fresh stats on next scrape
+metrics.getCacheStats() // cache hit rate
+metrics.getConfig() // current config
+```
+
+Invalidate the cache after manual queue operations (`pauseAll()`, bulk cleans) so
+the next scrape reflects reality.
+
+## Troubleshooting
+
+| Symptom                        | Fix                                                    |
+| ------------------------------ | ------------------------------------------------------ |
+| Metrics are stale              | Reduce `cacheTTL`                                      |
+| Inaccurate low-volume metrics  | Disable sampling or raise `sampleRate`                 |
+| Low cache hit rate             | Raise `cacheTTL` toward the Prometheus scrape interval |
+| High memory from batching      | Reduce `batchInterval` (more frequent flushes)         |
+
+## Related
+
+- [Logging](/docs/queue/logging)
+- [Error Handling](/docs/queue/error-handling)
+- [Dead Letter Queue](/docs/queue/dead-letter-queue)

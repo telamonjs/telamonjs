@@ -1,0 +1,210 @@
+---
+title: DetailCard
+description: Card component for grouping related information in detail pages
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Card component for grouping related information in detail/view pages with optional icons and actions.
+
+<DetailCardPreview />
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailCard` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailCard, DetailField } from '@telamonjs/ui'
+import { User } from 'lucide-react'
+
+export default function UserDetail({ user }) {
+  return (
+    <DetailCard title='Personal Information' icon={User}>
+      <DetailField label='Name' value={user.name} />
+      <DetailField label='Email' value={user.email} />
+      <DetailField label='Role' value={user.role} />
+    </DetailCard>
+  )
+}
+```
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    title: { description: 'Card title (optional if using only children)', type: 'I18nText' },
+    description: { description: 'Description shown below the title', type: 'I18nText' },
+    icon: { description: 'Icon shown next to the title', type: 'LucideIcon' },
+    headerBadge: { description: 'Badge or element in the top-right corner of the header', type: 'React.ReactNode' },
+    fields: {
+      description: 'Fields rendered automatically as DetailField rows',
+      type: 'DetailFieldProps[]',
+    },
+    children: { description: 'Custom content (ignored when fields is set)', type: 'React.ReactNode' },
+    className: { description: 'Additional classes', type: 'string' },
+    density: {
+      description: 'Spacing and sizing for the whole card',
+      type: "'compact' | 'comfortable' | 'spacious'",
+      default: "'comfortable'",
+    },
+    fieldLayout: {
+      description: 'Layout for fields inside the card',
+      type: "'single' | '2-col' | '3-col'",
+      default: "'single'",
+    },
+    headerSize: { description: 'Header title size', type: "'sm' | 'md'", default: "'md'" },
+  }}
+/>
+
+---
+
+## Examples
+
+### With Icon
+
+```tsx
+import { Mail } from 'lucide-react'
+;<DetailCard title='Contact Information' icon={Mail}>
+  <DetailField label='Email' value='john@example.com' />
+  <DetailField label='Phone' value='+1 234 567 890' />
+</DetailCard>
+```
+
+Icons improve visual hierarchy and scanability.
+
+### With Header Badge
+
+```tsx
+<DetailCard
+  title='Account Settings'
+  headerBadge={
+    <Button variant='outline' size='sm' asChild>
+      <Link href='/settings/edit'>Edit</Link>
+    </Button>
+  }
+>
+  <DetailField label='Username' value='johndoe' />
+  <DetailField label='Plan' value='Pro' />
+</DetailCard>
+```
+
+`headerBadge` is the only header slot — it renders in the top-right corner
+(badges, or a single action element like the button above). There is no
+separate `actions` prop.
+
+### Without Title (Grouped Fields)
+
+```tsx
+<DetailCard>
+  <DetailField label='Created At' value='2024-01-15' />
+  <DetailField label='Updated At' value='2024-01-20' />
+  <DetailField label='Last Login' value='2024-01-22' />
+</DetailCard>
+```
+
+Use when grouping fields without a specific category title.
+
+### Density
+
+```tsx
+// Compact — minimal spacing for dense information
+<DetailCard title='Info' density='compact'>
+  {/* Content */}
+</DetailCard>
+
+// Comfortable — default balanced spacing
+<DetailCard title='Info' density='comfortable'>
+  {/* Content */}
+</DetailCard>
+
+// Spacious — extra padding for emphasis
+<DetailCard title='Info' density='spacious'>
+  {/* Content */}
+</DetailCard>
+```
+
+There is no `variant` prop (`default`/`bordered`/`elevated`) — `density`
+controls spacing, and `fieldLayout` (`'single' | '2-col' | '3-col'`) controls
+the fields grid.
+
+---
+
+## Grid Layout
+
+Combine multiple cards in a responsive grid:
+
+```tsx
+<div className='grid gap-6 md:grid-cols-2'>
+  <DetailCard title='Personal Info' icon={User}>
+    {/* Fields */}
+  </DetailCard>
+  <DetailCard title='Address' icon={MapPin}>
+    {/* Fields */}
+  </DetailCard>
+</div>
+```
+
+**Result:**
+
+- Mobile: Stacks vertically
+- Desktop: 2 columns side-by-side
+
+---
+
+## With Custom Content
+
+DetailCard accepts any children, not just DetailField:
+
+```tsx
+<DetailCard title='Profile Picture' icon={Camera}>
+  <div className='flex justify-center py-4'>
+    <img src={user.avatar} alt={user.name} className='rounded-full w-32 h-32' />
+  </div>
+</DetailCard>
+```
+
+---
+
+## Best Practices
+
+1. **Group related fields** - Keep logically related information together
+2. **Add icons** - Improve visual hierarchy with relevant icons
+3. **Limit fields per card** - 3-7 fields per card for optimal readability
+4. **Use consistent ordering** - Most important info first
+5. **Responsive grids** - Use Tailwind grid classes for responsive layouts
+
+---
+
+## Accessibility
+
+- Renders a `<div>` card; the title is a `<div>` (`CardTitle`), not a heading element
+- Icons are decorative and sit next to the visible title text
+- Interactive elements passed in `headerBadge` or children stay keyboard navigable
+
+---
+
+## Related Components
+
+- [DetailLayout](/docs/components/detail-layout) - Page layout wrapper
+- [DetailField](/docs/components/detail-field) - Display label + value
+- [DetailStatsGrid](/docs/components/detail-stats-grid) - Metrics display
+- [DetailActions](/docs/components/detail-actions) - Action buttons card
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- [Quick Start](/docs/getting-started/quick-start) - CRUD example with detail page
+
+---
+
+**Status:** ✅ Stable

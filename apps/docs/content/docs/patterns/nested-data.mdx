@@ -1,0 +1,194 @@
+---
+title: Nested Data Pattern
+description: Handle nested data with React Hook Form + Zod - keep nested throughout
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Mandatory pattern for forms over nested records (e.g. a user with `person.name`) with React Hook
+Form (RHF) + Zod.
+
+<Callout type='error' title='Problem this solves'>
+  **Symptom:** nested fields did not save on edit — the old value persisted in the database.
+  **Root cause:** the record was flattened (`person.name` keys) before reaching the form, RHF then
+  held BOTH shapes (flat + nested) in its state, and the submit picked the stale flat keys.
+</Callout>
+
+---
+
+## Golden Rule: Keep Nested Throughout
+
+**Never flatten a record before giving it to a form.** RHF maps dot-notation field names to
+nested paths natively. `EditForm`, `EditPage` and the `ListPage` edit dialog pass `data` through
+as is; don't flatten it first.
+
+```tsx
+// ❌ WRONG — creates duplicate flat + nested values in RHF state
+<EditForm id={user.id} data={flatten(user)} sections={formSections} onSubmitValues={save} />
+
+// ✅ CORRECT — pass the record as the API returns it
+<EditForm id={user.id} data={user} sections={formSections} onSubmitValues={save} />
+```
+
+---
+
+## Implementation Checklist
+
+### 1. Zod schema — nested structure
+
+```ts
+// ❌ WRONG - flat keys
+const schema = z.object({
+  'person.name': z.string(),
+  'person.taxId': z.string(),
+})
+
+// ✅ CORRECT - nested structure
+const schema = z.object({
+  person: z.object({
+    name: z.string(),
+    taxId: z.string(),
+  }),
+  email: z.string().email(),
+})
+```
+
+### 2. FormSection — dot notation in field names
+
+```ts
+export const formSections: FormSection[] = [
+  {
+    label: 'Personal Data',
+    fields: [
+      { name: 'person.name', label: 'Name', type: 'text' }, // ← dot notation
+      { name: 'person.taxId', label: 'Tax ID', type: 'masked' },
+      { name: 'email', label: 'Email', type: 'email' },
+    ],
+  },
+]
+```
+
+### 3. Loading — return the record nested
+
+```tsx title="config.tsx"
+mutations: {
+  // the record exactly as the API sends it: { person: { name, taxId }, email, ... }
+  getForEdit: usersApi.get,
+  update: {
+    // values arrive NESTED: { person: { name, taxId }, email }
+    mutationFn: async ({ id, data }) => ({ success: true, data: await usersApi.update(id, data) }),
+    invalidates: [['users']],
+  },
+},
+```
+
+The same holds for a standalone `<EditForm id={id} data={user} sections={formSections} onSubmitValues={...} />`.
+
+### 4. Submit — what the handler receives
+
+Forms have two submit modes:
+
+| Mode | Prop | Receives |
+| --- | --- | --- |
+| JSON (preferred; what `ListPage` uses) | `onSubmitValues` / `mutations.*.mutationFn` | the values **nested** (`{ person: { name } }`) and typed, plus `id` |
+| FormData (Server Actions) | `action` | a `FormData` with **flat dot keys** (`'person.name'`), every value a string |
+
+With `onSubmitValues` or a `mutationFn` there is nothing to rebuild: send the values to the API as
+they are (the backend validates the nested DTO), or reshape them inside the `mutationFn` if the
+endpoint wants another format. Only a `FormData` handler has to rebuild nested objects from the
+dot keys itself.
+
+---
+
+## Data Flow
+
+```
+1. API (getForEdit)          { person: { name: 'John', taxId: '123' }, email: 'john@...' }
+2. Form data prop            same object, no conversion
+3. RHF defaultValues         same object
+4. Field name="person.name"  → RHF path values.person.name
+5. User edits                values.person.name = 'John Smith'
+6. Zod (form.validation)     nested schema, client-side
+7. onSubmitValues            { id, person: { name: 'John Smith', taxId: '123' }, email }
+8. mutationFn({ id, data })  → PATCH /users/:id with the nested body
+```
+
+| Layer | Structure | Example |
+| --- | --- | --- |
+| API / `getForEdit` | Nested | `{ person: { name, taxId } }` |
+| Form `data` prop | Nested | Same as API |
+| RHF `defaultValues` and state | Nested | `values.person.name` |
+| FormSection fields | Dot notation | `name: 'person.name'` |
+| Zod schema | Nested | `person: z.object({ ... })` |
+| `onSubmitValues` / `mutationFn` | Nested | `{ person: { name, taxId } }` |
+| `FormData` (`action`) | Flat | `'person.name': 'John'` |
+
+---
+
+## Common Pitfalls
+
+### Pitfall 1: flat Zod schema with nested data
+
+```ts
+const schema = z.object({ 'person.name': z.string() }) // expects a flat key
+schema.parse({ person: { name: 'John' } }) // ❌ Error: person.name is required
+```
+
+**Fix:** the schema mirrors the data structure (nested).
+
+### Pitfall 2: flattening the record before the form
+
+```ts
+// RHF defaultValues: { 'person.name': 'John' } (flat)
+// User edits field name="person.name" → RHF writes NESTED { person: { name: 'New' } }
+// Result: BOTH shapes in state — the submit picks the stale flat value ❌
+```
+
+**Fix:** pass the nested record directly (no flattening).
+
+### Pitfall 3: a FormData handler treating dot keys as nested
+
+```ts
+const data = Object.fromEntries(formData) // { 'person.name': 'John', ... } — flat, all strings
+userSchema.parse(data) // ❌ nested schema rejects flat keys
+```
+
+**Fix:** submit with `onSubmitValues` (or `mutations.*` through `CrudConfig`), which receives
+nested, typed values.
+
+---
+
+## Debugging Tips
+
+```tsx
+// Inside a component rendered in the form: look for duplicate flat/nested keys
+import { useWatch } from '@telamonjs/ui'
+
+function DebugFormState() {
+  const values = useWatch()
+  console.log({
+    hasFlat: Object.keys(values).some(k => k.includes('.')),
+    hasNested: Object.keys(values).some(k => typeof values[k] === 'object' && !Array.isArray(values[k])),
+  })
+  return null
+}
+```
+
+A key containing a dot in the form state means something flattened the record on the way in.
+
+---
+
+## Checklist
+
+- [ ] Zod schema is nested (no flat dot keys)
+- [ ] No flattening before passing `data` to a form
+- [ ] Submit via `onSubmitValues` / `mutations.*` (nested values), not a `FormData` `action`
+- [ ] Test: edit a nested field → save → reopen → the value persisted
+
+---
+
+## Related
+
+- [Form Pattern](/docs/patterns/form-pattern) — form components and field rules
+- [CRUD Field Pattern](/docs/patterns/crud-field) — 1:N/N:M lists inside a form
+- [Field Types](/docs/reference/field-types) — `'masked'`, `'crud'` and friends

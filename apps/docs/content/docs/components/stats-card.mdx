@@ -1,0 +1,213 @@
+---
+title: StatCard
+description: Card for one dashboard metric — label, value, icon and color, with an optional animated count
+---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+A dashboard card for one metric: a label, a value, an icon and a color, plus an optional
+subtitle, badge and animated count. It comes in three looks (`outlined`, `tinted`, `accent`).
+Import it from `@telamonjs/ui` (also available from `@telamonjs/ui/cards`,
+together with `StatsGrid` and `StatCardSkeleton`).
+
+<StatsCardPreview />
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { StatCard } from '@telamonjs/ui'
+import { DollarSign } from 'lucide-react'
+
+export function RevenueCard() {
+  return <StatCard label='Total Revenue' value={45231} icon={DollarSign} color='green' />
+}
+```
+
+`icon` and `color` are required. Numbers are formatted with the active locale
+(`formatNumber`, on by default); strings render as given.
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    label: { description: 'Metric name', type: 'I18nText', required: true },
+    value: { description: 'Main value. Numbers are locale-formatted; strings render as is', type: 'string | number', required: true },
+    icon: {
+      description: 'Lucide component, or an icon name resolved through setIconResolver()',
+      type: 'string | LucideIcon | ComponentType',
+      required: true,
+    },
+    color: {
+      description: 'Color of the icon and accents',
+      type: "'blue' | 'green' | 'yellow' | 'red' | 'purple' | 'orange' | 'gray'",
+      required: true,
+    },
+    variant: { description: 'Visual style', type: "'outlined' | 'tinted' | 'accent'", default: "'outlined'" },
+    size: {
+      description: '`tinted` honors all three; `accent` honors `compact` (and auto-compacts inside a dense StatsGrid)',
+      type: "'mini' | 'compact' | 'default'",
+    },
+    subtitle: { description: 'Secondary line under the label (hidden at `mini`)', type: 'I18nText' },
+    badge: {
+      description: 'Small badge under the value (`outlined` and `accent`)',
+      type: "{ text: I18nText; variant: 'success' | 'destructive' | 'warning' }",
+    },
+    animate: { description: 'Count up to the value — only when `value` is a number', type: 'boolean', default: 'false' },
+    animationDuration: { description: 'Count-up duration in ms', type: 'number', default: '500' },
+    formatNumber: { description: 'Locale-format numeric values', type: 'boolean', default: 'true' },
+    onClick: { description: 'Renders the card inside a button', type: '() => void' },
+    highlight: { description: 'Adds a colored ring', type: 'boolean' },
+    pulse: { description: 'Pulsing dot next to the label while the value is above zero', type: 'boolean' },
+    wrapLabel: { description: 'Wrap a long label instead of truncating (`outlined`/`accent`)', type: 'boolean', default: 'false' },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+There is no `title`, `change`, `trend`, `description` or `footer` prop. Put a delta in
+`badge` (formatting the sign yourself) and the comparison period in `subtitle`. For a card
+with a trend arrow and a target, use [KPICard](/docs/components/kpi-card).
+
+---
+
+## Examples
+
+### Variants
+
+```tsx
+<StatCard variant='outlined' label='Users' value={2543} icon={Users} color='blue' />
+<StatCard variant='tinted' label='Users' value={2543} icon={Users} color='blue' />
+<StatCard variant='accent' label='Users' value={2543} icon={Users} color='blue' />
+```
+
+### Delta in a badge
+
+```tsx
+<StatCard
+  label='Revenue'
+  value={45231}
+  icon={DollarSign}
+  color='green'
+  subtitle='vs last month'
+  badge={{ text: '+12.5%', variant: 'success' }}
+/>
+```
+
+### Animated count
+
+```tsx
+<StatCard label='Online' value={stats.online} icon={Activity} color='green' animate />
+```
+
+Only numeric values animate; a string value renders immediately.
+
+### Icon by name
+
+```tsx
+<StatCard label='Orders' value={127} icon='ShoppingCart' color='purple' />
+```
+
+String icons are resolved by the resolver your app registers with `setIconResolver()`.
+
+### Clickable
+
+```tsx
+<StatCard label='Open tickets' value={12} icon={Inbox} color='red' pulse onClick={() => router.push('/tickets')} />
+```
+
+### Loading state
+
+There is no `loading` prop. Render `StatCardSkeleton` (from `@telamonjs/ui/cards`)
+while data is pending and swap in the cards once the values resolve.
+
+```tsx
+import { StatCardSkeleton } from '@telamonjs/ui/cards'
+
+{isLoading ? <StatCardSkeleton count={4} /> : <DashboardStats stats={data} />}
+```
+
+---
+
+## Complete Example
+
+```tsx title="components/dashboard-stats.tsx"
+'use client'
+
+import { StatCard } from '@telamonjs/ui'
+import { StatsGrid } from '@telamonjs/ui/cards'
+import { DollarSign, Users, ShoppingCart, TrendingUp } from 'lucide-react'
+
+interface DashboardStats {
+  revenue: number
+  revenueChange: number
+  users: number
+  orders: number
+  conversion: number
+}
+
+function fmtChange(delta: number) {
+  return `${delta >= 0 ? '+' : ''}${delta.toFixed(1)}%`
+}
+
+export function DashboardStats({ stats }: { stats: DashboardStats }) {
+  return (
+    <StatsGrid columns={4}>
+      <StatCard
+        label='Total Revenue'
+        value={stats.revenue}
+        icon={DollarSign}
+        color='green'
+        subtitle='vs last month'
+        badge={{
+          text: fmtChange(stats.revenueChange),
+          variant: stats.revenueChange >= 0 ? 'success' : 'destructive',
+        }}
+      />
+      <StatCard label='Active Users' value={stats.users} icon={Users} color='blue' animate />
+      <StatCard label='Orders' value={stats.orders} icon={ShoppingCart} color='purple' animate />
+      <StatCard label='Conversion Rate' value={`${stats.conversion.toFixed(2)}%`} icon={TrendingUp} color='orange' />
+    </StatsGrid>
+  )
+}
+```
+
+`StatsGrid` from `@telamonjs/ui/cards` lays the cards out responsively
+(`columns` 2–6, `gap` `sm`/`md`/`lg`); with 5 or more columns, `accent` cards switch to
+their compact size. The root `StatsGrid` is a different component, used inside dialogs.
+
+---
+
+## Best Practices
+
+1. **Pick one variant per dashboard** - mixing looks reads as noise
+2. **Use color for meaning** - green/red for good/bad, the rest for categories
+3. **Pass numbers, not formatted strings** - formatting follows the locale and `animate` works
+4. **Put the comparison period in `subtitle`** - keep `label` short
+5. **Consistent grid** - 2–4 columns on most dashboards
+
+---
+
+## Accessibility
+
+- With `onClick`, the card renders inside a native `<button>`
+- Color is never the only signal: label and value are always text
+
+---
+
+## Related Components
+
+- [KPICard](/docs/components/kpi-card) - KPI card with trend arrow and target/progress
+- [DetailStatsGrid](/docs/components/detail-stats-grid) - Multiple stats in a detail view
+- [DashboardGrid](/docs/components/dashboard-grid) - Draggable widget grid
+- [useAnimatedCounter](/docs/hooks/use-animated-counter) - The count-up behind `animate`
+
+---
+
+## See Also
+
+- [Dashboard Pattern](/docs/patterns/dashboard) - Dashboard design

@@ -1,0 +1,14 @@
+{
+  "title": "Queue",
+  "pages": [
+    "dashboard",
+    "priorities",
+    "scheduling",
+    "bulk-operations",
+    "dead-letter-queue",
+    "error-handling",
+    "validation",
+    "metrics",
+    "logging"
+  ]
+}

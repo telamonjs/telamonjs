@@ -1,0 +1,144 @@
+---
+title: Dead Letter Queue
+description: Inspect, analyze and manually retry jobs that permanently failed after exhausting retries
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+When a job fails repeatedly and exhausts all retry attempts
+(`attemptsMade >= attempts`), instead of being lost it is automatically moved to the
+**Dead Letter Queue**, preserving the job data, error details (message, stack, code),
+attempt count and failure timestamp. From there you can inspect, analyze failure
+patterns, retry after fixing the root cause, or delete.
+
+- **Retry** (automatic, with backoff) handles *transient* failures.
+- **DLQ** (manual) handles *permanent* failures that need investigation first.
+
+## Enable / disable
+
+DLQ is **enabled by default**:
+
+```typescript
+import { QueueManager } from '@telamonjs/queue'
+
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  enableDLQ: true, // default
+})
+```
+
+All jobs share a single DLQ per `QueueManager`, named `{prefix}-dlq`
+(e.g. prefix `production` → queue `production-dlq`). Entries are persisted in Redis
+and survive restarts.
+
+## Operations
+
+```typescript
+const dlq = queueManager.getDLQ()
+if (!dlq) return // DLQ disabled
+
+// List (with pagination)
+const all = await dlq.list()
+const firstPage = await dlq.list(0, 9)
+
+// Get one entry
+const entry = await dlq.get('dlq-send-email-job-123')
+// entry: { id, jobName, originalJobId, data, error: { message, stack, code },
+//          attempts, failedAt }
+
+// Statistics
+const stats = await dlq.getStats()
+// { total: 47,
+//   byJobName: { 'send-email': 23, 'process-payment': 15, 'generate-report': 9 },
+//   oldest: Date, newest: Date }
+
+// Filter by job type
+const failedEmails = await dlq.filterByJobName('send-email')
+
+// Delete one / clear all
+await dlq.delete('dlq-send-email-job-123')
+const cleared = await dlq.clear() // ⚠️ irreversible
+```
+
+### Retry a failed job
+
+```typescript
+const dlq = queueManager.getDLQ()
+const queue = queueManager.getQueue('send-email')
+
+if (dlq && queue) {
+  const success = await dlq.retry('dlq-send-email-job-123', queue.getRawQueue())
+}
+```
+
+On retry, the job is re-added to its original queue with reset attempts and removed
+from the DLQ — a worker picks it up and processes it normally.
+
+## Best practices
+
+### Monitor DLQ size
+
+```typescript
+setInterval(async () => {
+  const dlq = queueManager.getDLQ()
+  if (!dlq) return
+
+  const stats = await dlq.getStats()
+  if (stats.total > 100) {
+    await sendAlert(`DLQ has ${stats.total} failed jobs!`)
+  }
+}, 60000)
+```
+
+### Investigate before retrying
+
+```typescript
+async function investigateAndRetry(dlqEntryId: string) {
+  const dlq = queueManager.getDLQ()
+  if (!dlq) return
+
+  const entry = await dlq.get(dlqEntryId)
+  if (!entry) return
+
+  logger.warn('Failed job investigation', {
+    jobName: entry.jobName,
+    error: entry.error.message,
+    attempts: entry.attempts,
+  })
+
+  const isFixed = await checkIfIssueIsFixed(entry.error.code)
+  if (isFixed) {
+    const queue = queueManager.getQueue(entry.jobName)
+    if (queue) await dlq.retry(entry.id, queue.getRawQueue())
+  }
+}
+```
+
+### Regular cleanup
+
+Delete entries older than your retention window (e.g. 30 days) on a schedule, using
+`dlq.list(0, -1)` + `dlq.delete(entry.id)` filtered by `entry.failedAt`.
+
+<Callout type='info' title='Failure isolation'>
+  DLQ operations never block the main job flow — if adding an entry to the DLQ
+  fails (e.g. a Redis hiccup), the error is logged and processing continues.
+</Callout>
+
+## FAQ
+
+**Can I customize when jobs go to the DLQ?**
+Indirectly — the trigger is `attemptsMade >= attempts`, so control it via the
+`attempts` job option. To avoid the DLQ entirely: `enableDLQ: false`, raise
+`attempts`, or handle errors inside `process()`.
+
+**Different DLQs per job type?**
+No — one DLQ per `QueueManager`. Use `filterByJobName()` to manage specific types.
+
+**Export DLQ data?**
+Yes: `const entries = await dlq.list(0, -1)` then serialize whatever fields you need.
+
+## Related
+
+- [Error Handling](/docs/queue/error-handling)
+- [Logging](/docs/queue/logging)
+- [Validation](/docs/queue/validation)

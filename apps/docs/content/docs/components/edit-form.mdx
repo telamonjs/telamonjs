@@ -1,0 +1,195 @@
+---
+title: EditForm
+description: Semantic wrapper for edit forms with required id and data props
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Semantic wrapper component for edit forms that **enforces** `id` and `data` props (TypeScript-enforced) and accepts nested records as they come from the API, addressed with dot-notation field names.
+
+<Callout type='success' title='Recommended for /[id]/edit pages'>
+  `EditForm` forces you to pass `id` and `data` at compile time, preventing
+  common bugs where forms are missing initial data.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { use } from 'react'
+import { useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
+import { EditForm } from '@telamonjs/ui'
+import { formSections, validationSchema, type UserFormData } from '../config'
+import { usersApi } from '@/lib/api/users-client'
+
+export default function EditUserPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params)
+  const router = useRouter()
+  const { data: user, isLoading } = useQuery({
+    queryKey: ['users', id],
+    queryFn: () => usersApi.get(id),
+  })
+
+  if (isLoading || !user) return null
+
+  return (
+    <EditForm
+      id={id}
+      data={user}
+      sections={formSections}
+      validation={validationSchema}
+      // values already include `id`; resolve { success, data? }
+      onSubmitValues={async values => ({
+        success: true,
+        data: await usersApi.update(id, values as Partial<UserFormData>),
+      })}
+      onSuccess={() => router.push('/admin/users')}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+Same submit contract as [`Form`](/docs/components/form#submitting), with **required** `id` and `data`.
+
+**Required Props:**
+
+- `id: string` - Entity ID (TypeScript enforced!) — added to the submitted values
+- `data: Partial<T>` - Entity data (TypeScript enforced!)
+
+**Optional Props:**
+
+- `sections?: FormSection[]` / `fields?: FormField[]` - Form layout
+- `onSubmitValues?: (values: Record<string, unknown>) => Promise<FormActionResult<T> | void>` - Default submit path: typed values, ideal for a React Query mutation
+- `action?: (formData: FormData) => Promise<FormActionResult<T> | void>` - Alternative: a Server Action receiving `FormData` (mutually exclusive with `onSubmitValues`)
+- `validation?: z.ZodType` - Zod validation schema
+- `submitText?: string` - Submit button text (default: localized "Save")
+- `cancelAction?: () => void` - Cancel button handler
+- `onSuccess?: (result) => void | Promise<void>` - Called after a successful submit
+- `useTabs?: boolean` - Sections as tabs (default: `true`)
+- `grid`, `hideButtons`, `flush`, `footerClassName`, `contentClassName`, `onFieldChange`, `onDirtyChange` - Same as `Form`
+
+---
+
+## TypeScript Enforcement
+
+`EditForm` **requires** both `id` and `data` at compile time:
+
+```tsx
+// ✅ GOOD - TypeScript is happy
+<EditForm
+  id={id}
+  data={user}
+  sections={formSections}
+  onSubmitValues={updateUser}
+/>
+
+// ❌ ERROR - TypeScript error: Property 'id' is missing
+<EditForm
+  data={user}
+  sections={formSections}
+  onSubmitValues={updateUser}
+/>
+
+// ❌ ERROR - TypeScript error: Property 'data' is missing
+<EditForm
+  id={id}
+  sections={formSections}
+  onSubmitValues={updateUser}
+/>
+```
+
+This prevents the common bug of forgetting to load data before rendering edit forms.
+
+---
+
+## Nested Data
+
+Pass the record as the API returns it. Field names in dot notation (`profile.bio`) are
+resolved against the nested object by React Hook Form:
+
+```tsx
+const user = {
+  id: '1',
+  name: 'John',
+  profile: { bio: 'Developer', avatar: 'https://...' },
+  address: { street: '123 Main St', city: 'NYC' },
+}
+
+// Field definition
+{ name: 'profile.bio', label: 'Bio', type: 'textarea' }
+```
+
+---
+
+## When to Use
+
+Use `EditForm` when:
+
+- ✅ Building edit pages (`/[id]/edit`)
+- ✅ You want TypeScript to enforce `id` and `data`
+- ✅ You have nested API data (dot-notation field names)
+- ✅ You want semantic clarity (code reads better)
+
+**Don't use when:**
+
+- ❌ Building creation pages → Use [CreateForm](/docs/components/create-form)
+- ❌ Building multi-step wizards → Use [ZustandForm](/docs/components/zustand-form)
+- ❌ Need full control → Use [Form](/docs/components/form)
+
+---
+
+## EditForm vs CreateForm vs Form
+
+| Feature              | EditForm          | CreateForm  | Form        |
+| -------------------- | ----------------- | ----------- | ----------- |
+| **Requires id**      | ✅ Yes (enforced) | ❌ No       | ❌ No       |
+| **Requires data**    | ✅ Yes (enforced) | ❌ No       | ⚠️ Optional |
+| **Filters editOnly** | ❌ No             | ✅ Yes      | ❌ No       |
+| **Use case**         | Edit only         | Create only | Any form    |
+
+---
+
+## With Page Wrapper
+
+`EditPage` wraps `EditForm` with a page title and description. It takes the `FormData`
+`action` (not `onSubmitValues`) — see the [Quick Start](/docs/getting-started/quick-start)
+for a complete example:
+
+```tsx
+<EditPage id={id} data={user} title={`Edit: ${user.name}`} sections={formSections} validation={validationSchema} action={action} />
+```
+
+---
+
+## Best Practices
+
+1. **Always use for edit pages** (TypeScript enforcement prevents bugs)
+2. **Load data before rendering** (loading state until the query resolves)
+3. **Handle not found** (the record query fails or returns nothing)
+4. **Resolve `{ success, data? }`** from `onSubmitValues`
+5. **Invalidate the record and list queries** after update (or use `invalidates` in `CrudConfig`)
+6. **Use dot notation** for nested fields (`profile.bio`)
+
+---
+
+## Related Components
+
+- [CreateForm](/docs/components/create-form) - For creation pages
+- [Form](/docs/components/form) - Base form component
+- [EditPage](/docs/components/edit-page) - Page wrapper with layout
+
+---
+
+## See Also
+
+- [Module Structure](/docs/patterns/admin-module-structure) - Organize form configuration
+- [Form Pattern](/docs/patterns/form-pattern) - Form best practices
+- [Quick Start](/docs/getting-started/quick-start) - Complete CRUD example

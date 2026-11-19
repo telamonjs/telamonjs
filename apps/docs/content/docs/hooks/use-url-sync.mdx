@@ -1,0 +1,72 @@
+---
+title: useUrlSync
+description: Sync state with URL query params in the Next.js App Router
+---
+
+Hook to synchronize state with URL query params (Next.js App Router). Use it for state that should survive a reload or a shared link: active tab, open dialog, filters, pagination.
+
+```tsx
+'use client'
+
+import { useUrlSync } from '@telamonjs/ui'
+
+const { getParam, setParam } = useUrlSync()
+
+const status = getParam('status') // string | null
+setParam('status', 'active') // pushes ?status=active
+setParam('status', null) // removes the param
+```
+
+---
+
+## API
+
+### Read
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `getParam` | `(key: string) => string \| null` | Read a query param |
+| `getNumberParam` | `(key: string, defaultValue?: number) => number \| undefined` | Read a numeric param with fallback |
+| `hasParam` | `(key: string) => boolean` | Check if a param exists |
+| `getAllParams` | `() => Record<string, string>` | All params as an object |
+
+### Write
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `setParam` | `(key, value, options?: { replace?: boolean }) => void` | Set one param (`null`/`undefined`/`''` deletes it) |
+| `setParams` | `(updates: Record<string, value>, options?: { replace?: boolean }) => void` | Atomic multi-param update in a single navigation |
+| `clearParam` | `(key: string) => void` | Remove one param |
+| `clearAllParams` | `() => void` | Remove all params |
+
+All writes use `router.push(..., { scroll: false })` by default.
+
+---
+
+## The `replace` Option
+
+`setParam` and `setParams` accept `{ replace: true }` to use `router.replace` instead of `push` — no browser history entry is created. This is the base of dialog deep-linking (`dialogs.*.urlParam` in [CrudConfig](/docs/getting-started/crud-config)).
+
+```tsx
+// No history entry — good for transient dialog state
+setParam('view', item.id, { replace: true })
+
+// Atomic view → edit handoff: delete ?view and set ?edit in ONE navigation,
+// avoiding stale intermediate snapshots
+setParams({ view: null, edit: item.id }, { replace: true })
+```
+
+---
+
+## When to Use
+
+- State that must survive reload / link sharing (active tab, open dialog, filters)
+- Prefer [useTabUrlSync](/docs/hooks/use-tab-url-sync) for tab state — it wraps this hook with validation and history semantics
+- For a `ListPage`, prefer its `urlSync` prop: it syncs pagination with the query params
+
+---
+
+## Related
+
+- [useTabUrlSync](/docs/hooks/use-tab-url-sync) — URL-driven tab state built on this hook
+- [useTableState](/docs/hooks/use-table-state) — in-memory table state

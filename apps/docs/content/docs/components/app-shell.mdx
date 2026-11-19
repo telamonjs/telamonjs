@@ -1,0 +1,274 @@
+---
+title: AppShell
+description: Flexible application layout with multiple variants
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Flexible application layout component supporting multiple layout variants for different use cases.
+
+<Callout type='info' title='Lower level; use AdminShell'>
+  `AppShell` is a lower-level layout primitive. For an app shell, use
+  [`AdminShell`](/docs/components/admin-shell), which ships the sidebar, Cmd+K and breadcrumb.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { AppShell, ModernSidebar } from '@telamonjs/ui'
+
+export default function Layout({ children }) {
+  return (
+    <AppShell topbar={<Topbar />} sidebar={<ModernSidebar menuConfig={menuConfig} />}>
+      {children}
+    </AppShell>
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface AppShellProps {
+  children: React.ReactNode // Main content, rendered inside <main> (required)
+  sidebar?: React.ReactNode // Desktop sidebar (hidden below lg, and with variant 'topnav')
+  topbar?: React.ReactNode // Top bar, rendered inside a sticky <header>
+  bottomNav?: React.ReactNode // Mobile bottom navigation (hidden from lg up)
+  variant?: 'sidebar' | 'topnav' | 'hybrid' // default: 'sidebar'
+  className?: string // Additional classes on the root element
+}
+```
+
+The sidebar column width follows the shared sidebar state that `ModernSidebar` drives:
+`w-64` expanded, `w-16` compact, collapsed to zero when hidden.
+
+---
+
+## Examples
+
+### Sidebar Layout (default)
+
+```tsx
+<AppShell
+  variant='sidebar'
+  topbar={
+    <div className='p-4'>
+      <h1>My App</h1>
+    </div>
+  }
+  sidebar={
+    <nav className='p-4'>
+      <ul>
+        <li>
+          <a href='/dashboard'>Dashboard</a>
+        </li>
+        <li>
+          <a href='/users'>Users</a>
+        </li>
+      </ul>
+    </nav>
+  }
+>
+  <div className='p-6'>{children}</div>
+</AppShell>
+```
+
+Layout: `[Topbar] + [Sidebar | Content]`
+
+### Top Navigation Layout
+
+```tsx
+<AppShell variant='topnav' topbar={<Topbar />}>
+  <div className='container mx-auto p-6'>{children}</div>
+</AppShell>
+```
+
+Layout: `[Topbar] + [Content]` — `sidebar` is ignored with `variant='topnav'`.
+
+### Hybrid Layout with Bottom Navigation
+
+```tsx
+<AppShell
+  variant='hybrid'
+  topbar={<Topbar />}
+  sidebar={<ModernSidebar menuConfig={menuConfig} />}
+  bottomNav={<MobileBottomNav />}
+>
+  <div className='p-6'>{children}</div>
+</AppShell>
+```
+
+Layout: `[Topbar] + [Sidebar | Content]` on desktop, `[Topbar] + [Content] + [Bottom nav]` on mobile.
+
+### Without Topbar
+
+```tsx
+<AppShell sidebar={<ModernSidebar menuConfig={menuConfig} />}>{children}</AppShell>
+```
+
+---
+
+## Complete Example
+
+```tsx title="app/layout.tsx"
+'use client'
+
+import { AppShell } from '@telamonjs/ui'
+import { Home, Users, Settings } from 'lucide-react'
+import Link from 'next/link'
+
+export default function RootLayout({ children }) {
+  return (
+    <AppShell
+      variant='sidebar'
+      topbar={
+        <div className='flex items-center justify-between px-6 py-4'>
+          <h1 className='text-xl font-bold'>Dashboard</h1>
+          <button className='px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700'>
+            New Item
+          </button>
+        </div>
+      }
+      sidebar={
+        <nav className='flex flex-col gap-2 p-4 bg-gray-50'>
+          <Link
+            href='/dashboard'
+            className='flex items-center gap-3 px-4 py-2 rounded hover:bg-gray-200'
+          >
+            <Home size={20} />
+            <span>Dashboard</span>
+          </Link>
+          <Link
+            href='/users'
+            className='flex items-center gap-3 px-4 py-2 rounded hover:bg-gray-200'
+          >
+            <Users size={20} />
+            <span>Users</span>
+          </Link>
+          <Link
+            href='/settings'
+            className='flex items-center gap-3 px-4 py-2 rounded hover:bg-gray-200'
+          >
+            <Settings size={20} />
+            <span>Settings</span>
+          </Link>
+        </nav>
+      }
+    >
+      <div className='p-6'>{children}</div>
+    </AppShell>
+  )
+}
+```
+
+---
+
+## Layout Variants Comparison
+
+| Variant   | Topbar               | Sidebar (desktop) | Use Case                       |
+| --------- | -------------------- | ----------------- | ------------------------------ |
+| `sidebar` | When `topbar` is set | ✅                | Standard app layout            |
+| `topnav`  | When `topbar` is set | ❌                | Marketing pages, simple apps   |
+| `hybrid`  | When `topbar` is set | ✅                | Sidebar plus top navigation    |
+
+`bottomNav` renders below `lg` with any variant.
+
+---
+
+## Use Cases
+
+- **Custom applications** - Need layout without AdminShell complexity
+- **Marketing sites** - Landing pages with a top bar (`variant='topnav'`)
+- **Documentation sites** - Sidebar navigation
+- **Mobile-first apps** - Bottom navigation on small screens
+- **Dashboards** - Custom dashboard layouts
+
+---
+
+## Responsive Behavior
+
+**Desktop (≥1024px, `lg`):**
+
+- Sidebar column visible (unless `variant='topnav'`), width from the sidebar state
+- `bottomNav` hidden
+
+**Below 1024px:**
+
+- Sidebar column hidden
+- `bottomNav` fixed to the bottom of the viewport; `<main>` gets bottom padding to clear it
+
+---
+
+## Best Practices
+
+1. **Choose right variant** - Match layout to content type
+2. **Consistent topbar** - Keep the topbar across all pages
+3. **Mobile navigation** - Pass `bottomNav` (or a sidebar with its own mobile drawer, like `ModernSidebar`), since the sidebar column is hidden below `lg`
+4. **Accessibility** - Use semantic HTML inside the slots
+
+---
+
+## Comparison: AppShell vs AdminShell
+
+| Feature          | AppShell                | AdminShell                             |
+| ---------------- | ----------------------- | -------------------------------------- |
+| **Complexity**   | Low (bring your own UI) | High (opinionated, batteries included) |
+| **Menu system**  | Custom                  | Built-in hierarchical menu             |
+| **Breadcrumbs**  | Custom                  | Auto-generated                         |
+| **User menu**    | Custom                  | Built-in with avatar                   |
+| **Cmd+K**        | Custom                  | Built-in `CommandPalette`              |
+| **Use when**     | Need flexibility        | Need complete admin solution           |
+
+**Decision tree:**
+
+- ✅ **Use AppShell** - Custom layouts, non-admin apps, marketing sites
+- ✅ **Use AdminShell** - Admin panels, dashboards, internal tools
+
+---
+
+## Accessibility
+
+- Slots render inside semantic landmarks: `topbar` in `<header>`, `sidebar` in `<aside>`,
+  `children` in `<main>`, `bottomNav` in `<nav>` — don't wrap `children` in another `<main>`
+- Skip to main content link (recommended)
+
+---
+
+## Sticky Header Pattern
+
+The topbar is already rendered inside a sticky, blurred `<header>` — pass only its content:
+
+```tsx
+<AppShell
+  topbar={
+    <div className='flex items-center justify-between px-6 py-4'>
+      <h1>My App</h1>
+      <nav>{/* Navigation */}</nav>
+    </div>
+  }
+>
+  {children}
+</AppShell>
+```
+
+---
+
+## Related Components
+
+- [AdminShell](/docs/components/admin-shell) - Canonical app shell (sidebar + Cmd+K + breadcrumb)
+- [ModernSidebar](/docs/components/modern-sidebar) - Standalone sidebar
+
+---
+
+## See Also
+
+- Layout Patterns - Layout design patterns
+- Responsive Design - Mobile-first approach
+
+---
+
+**Status:** ✅ Stable

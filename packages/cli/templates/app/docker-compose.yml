@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  db:
+    image: {{dbImage}}
+    container_name: {{projectName}}-db
+    restart: unless-stopped
+    environment:
+{{dbEnvironment}}
+    ports:
+      - '{{dbPort}}:{{dbPort}}'
+    volumes:
+      - {{projectSlug}}_db_data:/var/lib/{{dbVolumePath}}/data
+    healthcheck:
+      test: {{dbHealthCheck}}
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  {{projectSlug}}_db_data:

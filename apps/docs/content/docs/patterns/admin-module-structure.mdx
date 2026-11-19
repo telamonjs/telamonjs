@@ -1,0 +1,468 @@
+---
+title: Module Structure
+description: The files of a CRUD admin module, what goes in config.tsx, and how data flows from the list to the database
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+A TelamonJS admin module is one `config.tsx` that declares everything (schema,
+columns, form sections and the `CrudConfig` with its data layer), a one-line
+`page.tsx` that renders `<ListPage config={config} />`, a typed API client, and
+the REST Route Handlers behind it. Create, view, edit and delete open in dialogs
+on the list, so the list is the module's only route.
+
+This is the shape `telamonjs create` gives the reference module of a new app and
+the shape [`telamonjs generate crud`](/docs/packages/cli#generate-crud) writes
+from a Prisma model.
+
+<Callout type='info' title='Nested data?'>
+  If the module edits nested relations (e.g. `person.name`), read [Nested
+  Data](/docs/patterns/nested-data) first.
+</Callout>
+
+---
+
+## Files
+
+```
+src/
+├── app/
+│   ├── admin/users/
+│   │   ├── config.tsx              # 'use client': schema, columns, form sections, CrudConfig
+│   │   ├── page.tsx                # <ListPage config={config} />, the only route
+│   │   └── _components/
+│   │       └── UserDetail.tsx      # view dialog body, custom cells
+│   └── api/users/
+│       ├── route.ts                # GET (list) + POST (create)
+│       └── [id]/route.ts           # GET + PATCH + DELETE
+└── lib/api/
+    └── users-client.ts             # the only file that calls fetch() for this module
+```
+
+| Concern | File | Runs on |
+| --- | --- | --- |
+| Configuration | `config.tsx` | Client |
+| Page | `page.tsx` | Client |
+| API client | `lib/api/<module>-client.ts` | Client |
+| HTTP API | `app/api/<module>/route.ts`, `[id]/route.ts` | Server |
+
+Data flows in one direction:
+
+```
+ListPage (list + create/edit/view dialogs)
+        │  React Query: queryKey + queryFn / mutationFn
+        ▼
+lib/api/users-client.ts      ← typed fetch client
+        │  HTTP (credentials: 'include')
+        ▼
+app/api/users/route.ts       ← Route Handler: auth + Zod + Prisma
+        ▼
+      Prisma
+```
+
+The page never touches Prisma, and the Route Handlers never know about React
+Query. The API client is the seam between the two.
+
+---
+
+## What goes in config.tsx
+
+1. **`validationSchema`** (Zod) and the form-data type inferred from it
+2. **`columns`**: `CrudColumnDef<Entity>[]`
+3. **`formSections`**: `FormSection[]`
+4. **`config`**: `CrudConfig<Entity, EntityFormData>` with `module`, `list`, `form`,
+   `query`, `mutations`, `actionsConfig` and `dialogs`
+
+Everything is a **named export**, so pages, dialogs and tests import exactly what
+they use.
+
+<Callout type='warn' title="'use client' is required">
+  `ListPage` turns `query`/`mutations` into React Query hooks, and the config holds
+  React components (cells, icons) and functions (`loadField`, `mutationFn`). Next.js
+  cannot pass those from a Server Component, so the whole file is a Client Component.
+</Callout>
+
+```tsx title="app/admin/users/config.tsx"
+'use client'
+
+import { z } from 'zod'
+import type { CrudColumnDef, CrudConfig, DialogHeaderConfig, FormSection } from '@telamonjs/ui'
+import { getIcon } from '@/lib/icons'
+import { usersApi, type User } from '@/lib/api/users-client'
+import { UserDetail } from './_components/UserDetail'
+
+// 1. Validation schema: one schema, also the source of the form-data type
+export const validationSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+  role: z.enum(['USER', 'ADMIN']),
+  active: z.boolean().default(true),
+})
+
+export type UserFormData = z.infer<typeof validationSchema>
+
+// 2. Table columns
+export const columns: CrudColumnDef<User>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'role', header: 'Role' },
+]
+
+// 3. Form sections: `label`, not `title`; BaseForm is a CSS grid, widths come from `span`
+export const formSections: FormSection[] = [
+  {
+    label: 'User',
+    grid: '2',
+    fields: [
+      { name: 'name', label: 'Name', type: 'text', required: true, focus: true },
+      { name: 'email', label: 'Email', type: 'email', required: true },
+      {
+        name: 'role',
+        label: 'Role',
+        type: 'relationship', // there is no 'select' type; options come from loadField
+        required: true,
+        loadField: async () => [
+          { value: 'USER', label: 'User' },
+          { value: 'ADMIN', label: 'Admin' },
+        ],
+      },
+      { name: 'active', label: 'Active', type: 'boolean', span: '2' }, // full width = section grid
+    ],
+  },
+]
+
+const headerConfig: DialogHeaderConfig<User> = {
+  icon: 'User',
+  iconColor: 'blue',
+  title: user => user.name,
+  subtitle: user => user.email,
+  gradient: 'from-blue-50 to-indigo-50',
+}
+
+// 4. CrudConfig: the object ListPage reads
+export const config: CrudConfig<User, UserFormData> = {
+  module: { name: 'users', title: 'Users', description: 'Manage system users', route: '/admin/users' },
+
+  list: {
+    title: '', // the shell breadcrumb already names the page
+    description: '',
+    searchPlaceholder: 'Search...',
+    columns,
+    defaultPageSize: 100, // infinite scroll (the default) fetches large pages
+    enableExport: true,
+  },
+
+  form: { sections: formSections, validation: validationSchema },
+
+  // queryFn resolves PaginatedResponse<User> ({ data, total, page, pageSize, totalPages })
+  query: { queryKey: ['users'], queryFn: usersApi.list },
+
+  mutations: {
+    // mutationFn resolves { success, data? }; the client returns the raw entity, so adapt here
+    create: {
+      mutationFn: async data => ({ success: true, data: await usersApi.create(data) }),
+      invalidates: [['users']],
+    },
+    update: {
+      mutationFn: async ({ id, data }) => ({ success: true, data: await usersApi.update(id, data) }),
+      invalidates: [['users']],
+    },
+    delete: {
+      mutationFn: async ({ id }) => {
+        await usersApi.delete(id)
+        return { success: true }
+      },
+      invalidates: [['users']],
+    },
+    getForEdit: usersApi.getById, // loads the record when the edit dialog opens
+    getForView: usersApi.getById, // loads the record when the view dialog opens
+  },
+
+  actionsConfig: {
+    standard: {
+      view: { icon: getIcon('Eye'), tooltip: 'View' },
+      edit: { icon: getIcon('Pencil'), tooltip: 'Edit' },
+      delete: {
+        icon: getIcon('Trash2'),
+        tooltip: 'Delete',
+        confirmDialog: {
+          title: row => `Delete ${row.name}?`,
+          description: 'This action cannot be undone.',
+          confirmText: 'Delete',
+          variant: 'destructive',
+        },
+      },
+    },
+  },
+
+  dialogs: {
+    view: { urlParam: 'view', title: 'User', headerConfig, renderContent: user => <UserDetail user={user} /> },
+    edit: { urlParam: 'edit', title: 'Edit user', headerConfig },
+    create: { urlParam: 'create', title: 'New user', defaultValues: { active: true, role: 'USER' } },
+  },
+}
+```
+
+```tsx title="app/admin/users/page.tsx"
+'use client'
+
+import { ListPage } from '@telamonjs/ui'
+import { config } from './config'
+
+export default function UsersPage() {
+  return <ListPage config={config} />
+}
+```
+
+Every key is documented in [CrudConfig](/docs/getting-started/crud-config). What
+`ListPage` does with the config (search, filters, sorting, toolbar) is in
+[List pages](/docs/patterns/listpage-pattern), the dialogs in
+[Dialogs](/docs/patterns/dialogs), and the `query`/`mutations` contract in
+[Data layer](/docs/patterns/react-query).
+
+<Callout type='info' title='Keep config.tsx declarative'>
+  Move larger pieces (the view dialog body, custom cells) to `_components/` and keep
+  business rules in the API, not in the config. In an app with i18n set up, text slots
+  take `msg('<key>')` instead of literals; see [i18n](/docs/patterns/i18n).
+</Callout>
+
+---
+
+## Route Handlers
+
+The module owns a small REST API under `app/api/<module>/`. Every handler does
+three things in order: **authenticate, validate, execute**.
+
+```ts title="app/api/users/route.ts"
+import { NextRequest, NextResponse } from 'next/server'
+import { z } from 'zod'
+import { prisma } from '@/lib/prisma'
+import { getCurrentUser } from '@/lib/auth'
+
+const createSchema = z.object({
+  name: z.string().min(1),
+  email: z.string().email(),
+  role: z.enum(['ADMIN', 'USER']).default('USER'),
+  active: z.boolean().default(true),
+})
+
+// Whitelist sortable fields: never interpolate user input into orderBy
+const SORTABLE_FIELDS = new Set(['name', 'email', 'role', 'active', 'createdAt'])
+
+export async function GET(request: NextRequest) {
+  if (!(await getCurrentUser())) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  }
+
+  const { searchParams } = new URL(request.url)
+  const page = Number(searchParams.get('page') ?? '1')
+  const pageSize = Number(searchParams.get('pageSize') ?? '10')
+  const search = searchParams.get('search') || undefined
+  const sortByParam = searchParams.get('sortBy')
+  const sortBy = sortByParam && SORTABLE_FIELDS.has(sortByParam) ? sortByParam : 'createdAt'
+  const sortOrder = searchParams.get('sortOrder') === 'asc' ? 'asc' : 'desc'
+
+  const where = search
+    ? {
+        OR: [
+          { name: { contains: search, mode: 'insensitive' as const } },
+          { email: { contains: search, mode: 'insensitive' as const } },
+        ],
+      }
+    : undefined
+
+  const [data, total] = await Promise.all([
+    prisma.user.findMany({ where, orderBy: { [sortBy]: sortOrder }, skip: (page - 1) * pageSize, take: pageSize }),
+    prisma.user.count({ where }),
+  ])
+
+  return NextResponse.json({ data, total, page, pageSize, totalPages: Math.ceil(total / pageSize) })
+}
+
+export async function POST(request: NextRequest) {
+  if (!(await getCurrentUser())) {
+    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
+  }
+
+  const parsed = createSchema.safeParse(await request.json())
+  if (!parsed.success) {
+    return NextResponse.json({ message: parsed.error.issues[0]?.message ?? 'Invalid data' }, { status: 400 })
+  }
+
+  const user = await prisma.user.create({ data: parsed.data })
+  return NextResponse.json(user, { status: 201 })
+}
+```
+
+The `[id]/route.ts` sibling implements `GET` (one record), `PATCH` (partial update,
+every field optional) and `DELETE`. Route params are async:
+`const { id } = await params`.
+
+Conventions:
+
+- **GET list** returns the `PaginatedResponse` shape (`data`, `total`, `page`,
+  `pageSize`, `totalPages`) that `ListPage` expects.
+- **Errors** are `{ message }` with the right status: 400 validation, 401
+  unauthenticated, 403 forbidden, 404 not found, 409 conflict.
+- **Server-side rules stay server-side**: password hashing, uniqueness checks,
+  "you cannot deactivate yourself". The client schema is UX; the route schema is the law.
+- **Never serialize secrets**: strip `password` before returning entities.
+
+---
+
+## API client
+
+One file per module wraps the REST API in typed functions. The `query` and
+`mutations` of the config consume it:
+
+```ts title="lib/api/users-client.ts"
+import type { PaginatedResponse, PaginationParams } from '@telamonjs/ui'
+import type { UserFormData } from '@/app/admin/users/config'
+
+export interface User {
+  id: string
+  name: string
+  email: string
+  role: 'ADMIN' | 'USER'
+  active: boolean
+  createdAt: string
+}
+
+const BASE_URL = '/api/users'
+
+async function parse<T>(res: Response, errorMessage: string): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? errorMessage)
+  }
+  return res.json()
+}
+
+const json = (method: string, data: unknown): RequestInit => ({
+  method,
+  headers: { 'Content-Type': 'application/json' },
+  credentials: 'include',
+  body: JSON.stringify(data),
+})
+
+export const usersApi = {
+  list: (params: PaginationParams): Promise<PaginatedResponse<User>> => {
+    const query = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) })
+    if (params.search) query.set('search', params.search)
+    if (typeof params.sortBy === 'string' && params.sortBy) query.set('sortBy', params.sortBy)
+    if (params.sortOrder) query.set('sortOrder', params.sortOrder)
+    return fetch(`${BASE_URL}?${query}`, { credentials: 'include' }).then(res => parse(res, 'Failed to load users'))
+  },
+  getById: (id: string): Promise<User> =>
+    fetch(`${BASE_URL}/${id}`, { credentials: 'include' }).then(res => parse(res, 'User not found')),
+  create: (data: UserFormData): Promise<User> =>
+    fetch(BASE_URL, json('POST', data)).then(res => parse(res, 'Failed to create user')),
+  update: (id: string, data: Partial<UserFormData>): Promise<User> =>
+    fetch(`${BASE_URL}/${id}`, json('PATCH', data)).then(res => parse(res, 'Failed to update user')),
+  delete: (id: string): Promise<void> =>
+    fetch(`${BASE_URL}/${id}`, { method: 'DELETE', credentials: 'include' }).then(res => {
+      if (!res.ok) throw new Error('Failed to delete user')
+    }),
+}
+```
+
+Rules of the seam:
+
+- **`credentials: 'include'`** on every call: the session cookie is the auth.
+- **Throw `Error` with the server's `message`** on non-OK responses; React Query
+  surfaces it and the dialogs toast it.
+- **The entity interface lives here**, typed as it travels over JSON (dates are
+  strings), and is imported by the config and the components.
+- **Query keys** are `['users']` for the list and `['users', id]` for one record.
+  Mutations invalidate the list key.
+
+---
+
+## Dedicated pages (not the default)
+
+Dialogs cover create, edit and view for most modules. When a form or a detail view
+outgrows a dialog, the standalone pages are documented in
+[Standalone form pages](/docs/patterns/edit-page) and
+[Detail views](/docs/patterns/detail-page); they reuse the same `formSections` and
+schema. For six or more detail sections, prefer `dialogs.view.portal` over a route.
+
+`telamonjs lint` reports `adicionar/page.tsx`, `[id]/page.tsx` and
+`[id]/editar/page.tsx` next to a `config.tsx` as `no-crud-pages` errors. Silence it
+per file with `// telamonjs-lint-disable-file no-crud-pages` when the page is
+deliberate. See the [rule table](/docs/packages/cli#lint).
+
+---
+
+## Naming
+
+| Item | Convention | Example |
+| --- | --- | --- |
+| Module folder | kebab-case, plural | `users`, `order-items` |
+| API route | mirrors the module name | `app/api/users/` |
+| API client file | `<module>-client.ts` | `lib/api/users-client.ts` |
+| API client object | `<module>Api` | `usersApi` |
+| Entity interface | PascalCase singular | `User` |
+| Form data type | `<Entity>FormData` | `UserFormData` |
+| Query keys | `[module]` / `[module, id]` | `['users']`, `['users', id]` |
+| Components | PascalCase, module-prefixed, in `_components/` | `_components/UserDetail.tsx` |
+
+---
+
+## Testing the config
+
+Everything is a named export, so the declarations are testable without rendering:
+
+```ts title="config.test.ts"
+import { describe, expect, it } from 'vitest'
+import { columns, validationSchema } from './config'
+
+describe('users config', () => {
+  it('accepts a valid record', () => {
+    expect(validationSchema.safeParse({ name: 'Ada', email: 'ada@example.com', role: 'USER' }).success).toBe(true)
+  })
+
+  it('has the expected columns', () => {
+    expect(columns.map(c => c.header)).toEqual(['Name', 'Email', 'Role'])
+  })
+})
+```
+
+---
+
+## FAQ
+
+**A module without CRUD (a report)?** It doesn't need a `CrudConfig`. Keep its
+filters and metadata in `config.tsx` as named exports and render your own
+component from the page.
+
+**Custom toolbar buttons (import, sync)?** Use the `ListPage` props
+`headerActions`, `toolbarPrepend` and `toolbarContent`. Export comes from
+`list.enableExport`.
+
+**Auto-filling a field from another?** `form.onFieldChange` receives
+`{ field, value, values, setValue }` on every change.
+
+---
+
+## Checklist
+
+- [ ] `config.tsx` starts with `'use client'` and has named exports only
+- [ ] `EntityFormData` is inferred from `validationSchema`
+- [ ] `columns` are typed `CrudColumnDef<Entity>[]`, with no hand-written actions column (`ListPage` builds it from `actionsConfig`)
+- [ ] `query.queryFn` resolves `PaginatedResponse<Entity>`, not an array
+- [ ] Every `mutationFn` resolves `{ success, data? }` and every `invalidates` includes the list's `queryKey`
+- [ ] `lib/api/<module>-client.ts` is the only place with `fetch()`
+- [ ] `page.tsx` renders `<ListPage config={config} />`; create, edit and view are `dialogs`
+- [ ] `telamonjs lint` reports no errors
+- [ ] No `any`
+
+---
+
+## Related
+
+- [CrudConfig](/docs/getting-started/crud-config): every key of the config object
+- [List pages](/docs/patterns/listpage-pattern): search, filters, row actions
+- [Dialogs](/docs/patterns/dialogs): create, edit and view dialogs
+- [Data layer](/docs/patterns/react-query): API client, mutations, invalidation
+- [Forms & fields](/docs/patterns/form-pattern): sections, grid, validation
+- [CLI](/docs/packages/cli): `generate crud` and `lint`

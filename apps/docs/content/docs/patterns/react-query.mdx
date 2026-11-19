@@ -1,0 +1,268 @@
+---
+title: Data Layer (React Query)
+description: API client, query, mutations and cache invalidation behind every CrudConfig module
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+The browser talks to your REST API directly, in one hop, and React Query owns the cache. A
+module's data layer has three parts:
+
+| Part | Where | Job |
+| --- | --- | --- |
+| API client | `lib/api/[entity]-client.ts` | The only file that calls `fetch()` for the entity. Returns raw entities, throws on errors |
+| `query` | `CrudConfig.query` in `config.tsx` | Loads the list: resolves `PaginatedResponse<T>` |
+| `mutations` | `CrudConfig.mutations` in `config.tsx` | Adapts the client to the `{ success, message?, data? }` contract and declares what to invalidate |
+
+`config.tsx` starts with `'use client'`: `ListPage` turns `query` and `mutations` into React
+Query hooks. The app's `QueryClient` and providers are covered in
+[Provider Setup](/docs/patterns/provider-setup); a complete client is in the
+[Quick Start](/docs/getting-started/quick-start).
+
+<Callout type='warn' title='Server Actions are not a data layer'>
+  `query` and `mutations` are required on `CrudConfig`: the data layer is React Query talking to
+  your REST API, not Server Actions or `unstable_cache`.
+</Callout>
+
+---
+
+## The API Client
+
+Keep the client thin: build the URL, send cookies, parse the response, and throw when the
+response is not OK. Do not shape results for the UI here; that happens in `mutationFn`.
+
+```ts title="lib/api/orders-client.ts"
+import type { PaginatedResponse, PaginationParams } from '@telamonjs/ui'
+
+const BASE_URL = `${process.env.NEXT_PUBLIC_API_URL}/orders`
+
+async function parse<T>(res: Response, fallback: string): Promise<T> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    throw new Error(body?.message ?? fallback) // this message reaches the error toast
+  }
+  return res.status === 204 ? (undefined as T) : res.json()
+}
+
+export const ordersApi = {
+  list: (params: PaginationParams): Promise<PaginatedResponse<Order>> => {
+    const qs = new URLSearchParams({ page: String(params.page), pageSize: String(params.pageSize) })
+    if (params.search) qs.set('search', params.search)
+    if (typeof params.sortBy === 'string') qs.set('sortBy', params.sortBy)
+    if (params.sortOrder) qs.set('sortOrder', params.sortOrder)
+    for (const [key, value] of Object.entries(params.filters ?? {})) {
+      if (value !== undefined && value !== null && value !== '') qs.set(key, String(value))
+    }
+    return fetch(`${BASE_URL}?${qs}`, { credentials: 'include' }).then(res => parse(res, 'Failed to load orders'))
+  },
+  get: (id: string): Promise<Order> =>
+    fetch(`${BASE_URL}/${id}`, { credentials: 'include' }).then(res => parse(res, 'Order not found')),
+  // create / update / delete follow the same shape and return the raw entity (or nothing)
+}
+```
+
+- `credentials: 'include'` sends the session cookie; the API validates it (see
+  [Auth](/docs/packages/auth) for the NestJS guard).
+- The library reads the error message from `Error.message`, a NestJS body
+  `{ message: string | string[] }`, an axios-style `response.data.message`, or
+  `errors: Record<string, string[]>`. Throw something that carries the backend's message and the
+  toast shows it.
+- The list endpoint pages, searches, sorts and filters on the server. The browser never imports
+  Prisma.
+
+---
+
+## `query`
+
+```ts
+query: {
+  queryKey: ['orders'],
+  queryFn: ordersApi.list,
+  staleTime: 30_000, // default: 5_000
+},
+```
+
+| Key | Purpose |
+| --- | --- |
+| `queryKey` | Base key. `ListPage` appends the current page, search, sort and filters to it |
+| `queryFn` | Receives `PaginationParams` (`page`, `pageSize`, `search?`, `sortBy?`, `sortOrder?`, `filters?`) and resolves `PaginatedResponse<T>` |
+| `staleTime` | Milliseconds before a cached page is refetched. Default `5_000` |
+| `refetchInterval` | Polling interval, or `false`. Paginated table only |
+| `options` | Extra `useQuery` options. Paginated table only |
+
+<Callout type='warn' title='Infinite scroll ignores refetchInterval and options'>
+  The default infinite list only reads `queryKey`, `queryFn` and `staleTime`. For a polling list,
+  set `list.infiniteScroll: false`, or invalidate the key yourself on an interval.
+</Callout>
+
+`ListPage` always sends `sortBy` as a single column name. If your client's own params type says
+`sortBy?: string` (narrower than `PaginationParams`), wrap it with `asQueryFn` instead of
+casting:
+
+```ts
+import { asQueryFn } from '@telamonjs/ui'
+
+query: { queryKey: ['orders'], queryFn: asQueryFn<Order>(ordersApi.list) },
+```
+
+On the server, `createPaginatedResponse(data, total, page, pageSize)` builds the response, and
+`buildPrismaOrderBy(sortBy, sortOrder)` / `buildPrismaOrderByMulti(sortFields)` turn sort params
+into a Prisma `orderBy` (dotted fields such as `customer.name` become nested objects).
+
+---
+
+## `mutations`
+
+Each `mutationFn` resolves a fixed shape. The API client returns raw entities, so adapt inside
+the `mutationFn`:
+
+```ts
+mutations: {
+  create: {
+    mutationFn: async data => ({ success: true, message: 'Order created', data: await ordersApi.create(data) }),
+    invalidates: [['orders']],
+  },
+  update: {
+    mutationFn: async ({ id, data }) => ({ success: true, data: await ordersApi.update(id, data) }),
+    invalidates: [['orders'], id => ['orders', id]],
+  },
+  delete: {
+    mutationFn: async ({ id }) => {
+      await ordersApi.delete(id)
+      return { success: true }
+    },
+    invalidates: [['orders']],
+  },
+  getForEdit: ordersApi.get,
+  getForView: ordersApi.get,
+},
+```
+
+| Key | Receives | Resolves |
+| --- | --- | --- |
+| `create.mutationFn` | the form values | `{ success, message?, data? }` |
+| `update.mutationFn` | `{ id, data }` | `{ success, message?, data? }` |
+| `delete.mutationFn` | `{ id }` | `{ success, message? }` |
+| `getForEdit` | `id` | the record the edit form needs (nested relations included) |
+| `getForView` | `id` | the record the view dialog shows |
+
+What the library does around each mutation:
+
+- **On success** it invalidates every key in `invalidates`, calls your `onSuccess(result, variables)`,
+  and shows a success toast when the result has a `message`.
+- **On error** (the `mutationFn` throws) it calls your `onError(error, variables)` and shows an error
+  toast with the error's message.
+- A result with `success: false` keeps the form open and shows its `message` as a toast and an
+  inline error.
+- Resolving the raw entity, without `success`, leaves the dialog open with no feedback, even
+  though the record was saved.
+
+Every mutation is optional. Leave out `create` (or `update`, `delete`) and the matching button is
+not rendered.
+
+---
+
+## Cache Invalidation
+
+`invalidates` lists query keys, or functions that receive the mutated record's `id` and return a
+key (`update` and `delete` pass the id; `create` passes `undefined`).
+
+- **Include the list's `queryKey`.** Because `ListPage` appends the params to it, invalidating
+  `['orders']` refreshes every cached page, search and filter of that list. A key that doesn't
+  match leaves the list stale after a save.
+- **Use hierarchical keys** for everything about one entity: `['orders']` for lists,
+  `['orders', id]` for a detail, `['orders', 'stats']` for aggregates. Invalidating `['orders']`
+  then reaches all of them.
+- **Invalidation does not block the dialog.** The dialog closes as soon as the API confirms; the
+  refetch runs after, and a failing refetch does not turn the save into an error.
+
+The list also refreshes on its own after a successful custom row action (`actionsConfig.custom`)
+or bulk action; return `{ success: false }` from the handler to skip that. Other queries (a
+dashboard, another module, a detail page) need an explicit invalidation:
+
+```tsx
+'use client'
+import { useQueryClient } from '@tanstack/react-query'
+import { ListPage } from '@telamonjs/ui'
+
+export default function OrdersPage() {
+  const queryClient = useQueryClient()
+  return (
+    <ListPage
+      config={config}
+      // runs after every list refresh, including the one after an action
+      onRefreshAction={async () => {
+        await queryClient.invalidateQueries({ queryKey: ['dashboard', 'orders'] })
+      }}
+    />
+  )
+}
+```
+
+Import `useQueryClient`, `useQuery` and the rest from `@tanstack/react-query` directly. The
+library does not re-export React Query, on purpose: a second copy causes "No QueryClient set".
+
+---
+
+## Errors
+
+| Where it fails | What handles it |
+| --- | --- |
+| The list query | `ListPage` renders an error state with a retry button |
+| A CRUD mutation | The library toasts the message; add `onError` only for extra behavior |
+| Rendering (a cell, dialog content) | `ListPage` wraps itself in an error boundary (`errorBoundary`, default `true`; `errorFallback` customizes it) |
+| An automatic background refresh | Logged, never toasted. Refresh on window focus is opt-in: `disableAutoRefresh={false}` |
+| A button you wire yourself | `try`/`catch`, a loading state that disables the button, and a toast for success and failure |
+
+Every query and mutation the library runs carries `meta: { skipErrorToast: true }`. If the app's
+`QueryClient` has a global `onError` toast, skip those or users see the error twice: see
+[Provider Setup](/docs/patterns/provider-setup).
+
+---
+
+## Testing
+
+Everything in `config.tsx` is a named export, so the data layer can be tested without rendering:
+mock the API client and call the adapters directly.
+
+```ts title="config.test.ts"
+import { describe, expect, it, vi } from 'vitest'
+import { config, validationSchema } from './config'
+
+vi.mock('@/lib/api/orders-client', () => ({
+  ordersApi: { create: vi.fn(async (data: unknown) => ({ id: '1', ...(data as object) })) },
+}))
+
+describe('orders config', () => {
+  it('create resolves the mutation contract, not the raw entity', async () => {
+    const result = await config.mutations.create?.mutationFn({ customer: 'ACME', total: 10 })
+    expect(result).toMatchObject({ success: true, data: { id: '1' } })
+  })
+
+  it('rejects an order without a customer', () => {
+    expect(validationSchema.safeParse({ total: 10 }).success).toBe(false)
+  })
+})
+```
+
+To render `ListPage` in a test, wrap it in the same providers the app uses (see
+[Provider Setup](/docs/patterns/provider-setup)), with a `QueryClient` that does not retry.
+
+---
+
+## Checklist
+
+- [ ] `config.tsx` starts with `'use client'`
+- [ ] The API client is the only `fetch()` for the entity, sends `credentials: 'include'` and throws with the backend's message
+- [ ] `queryFn` resolves `PaginatedResponse<T>`, not an array
+- [ ] Every `mutationFn` resolves `{ success, message?, data? }`
+- [ ] Every `invalidates` includes the list's `queryKey`
+- [ ] React Query is imported from `@tanstack/react-query`, never through the library
+
+---
+
+## Related
+
+- [ListPage Pattern](/docs/patterns/listpage-pattern) - What `ListPage` does with `query` and `mutations`
+- [CrudConfig](/docs/getting-started/crud-config) - The full config object
+- [Provider Setup](/docs/patterns/provider-setup) - The app's `QueryClient` and global error handling

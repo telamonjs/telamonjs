@@ -1,0 +1,57 @@
+---
+title: useAnimatedCounter
+description: Animate number transitions with easing at 60 FPS
+---
+
+Animate a number from its previous value to a new target using `requestAnimationFrame` with ease-out easing (starts fast, decelerates at the end). Powers `StatCard`'s `animate` prop.
+
+```tsx
+'use client'
+
+import { useAnimatedCounter } from '@telamonjs/ui'
+
+function AssetCount({ total }: { total: number }) {
+  const animated = useAnimatedCounter(total, 500)
+  return <span>{Math.round(animated)}</span>
+}
+```
+
+---
+
+## Signature
+
+```typescript
+function useAnimatedCounter(
+  target: number,
+  duration?: number // ms, default: 500
+): number
+```
+
+| Param | Type | Default | Description |
+| --- | --- | --- | --- |
+| `target` | `number` | - | Value to animate to |
+| `duration` | `number` | `500` | Animation duration in milliseconds |
+
+**Returns:** the current animated value (integer, rounded each frame).
+
+---
+
+## Behavior
+
+- Animates **from the previous value** to the new target — subsequent updates transition smoothly instead of restarting from zero.
+- A new target cancels the in-flight animation and starts a new one from the current position.
+- Automatic cleanup: pending animation frames are cancelled on unmount.
+
+## When to Use
+
+- Numeric stat values that change on refresh (counters, totals)
+- Page-load effect (initial value → target)
+
+Avoid for string values or performance-critical mobile dashboards — pass the raw value instead.
+
+---
+
+## Related
+
+- [Dashboard Pattern](/docs/patterns/dashboard) — stat cards and dashboard composition
+- [StatCard](/docs/components/stats-card) — `animate` uses this hook

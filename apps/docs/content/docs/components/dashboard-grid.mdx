@@ -1,0 +1,133 @@
+---
+title: DashboardGrid
+description: Drag-and-drop dashboard layout for widgets, powered by react-grid-layout
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Positions dashboard widgets on a responsive grid. Each widget is placed by a layout item
+(`x`, `y`, `w`, `h` in grid units); with `editable`, users can drag and resize widgets and you
+persist the new layout through `onLayoutChange`.
+
+```tsx
+'use client'
+
+import { DashboardGrid, StatCard, generateDefaultLayout } from '@telamonjs/ui'
+import { DollarSign, Users, ShoppingCart, TrendingUp } from 'lucide-react'
+
+const widgets = [
+  { id: 'revenue', component: <StatCard label='Revenue' value={45231} icon={DollarSign} color='green' /> },
+  { id: 'users', component: <StatCard label='Users' value={2543} icon={Users} color='blue' /> },
+  { id: 'orders', component: <StatCard label='Orders' value={127} icon={ShoppingCart} color='purple' /> },
+  { id: 'growth', component: <StatCard label='Growth' value='+12.5%' icon={TrendingUp} color='orange' /> },
+]
+
+export function Dashboard() {
+  return <DashboardGrid widgets={widgets} layout={generateDefaultLayout(widgets.map(w => w.id))} />
+}
+```
+
+<Callout type='info' title='Browser-only'>
+  `react-grid-layout` is loaded dynamically on the client, so the grid renders nothing during
+  SSR and appears after hydration. Use it inside a `'use client'` component. `react-grid-layout`
+  is an optional peer dependency (`^1.5.0 || ^2.0.0`) — add it to your app to use the grid.
+</Callout>
+
+---
+
+## Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `widgets` | `Widget[]` | — | Widgets to render (required) |
+| `layout` | `Layout[]` | — | One layout item per widget, matched by `layout.i === widget.id` (required) |
+| `onLayoutChange` | `(layout: Layout[]) => void` | — | Called after a drag/resize |
+| `editable` | `boolean` | `false` | Enables drag and resize (drag handle appears on hover) |
+| `rowHeight` | `number` | `60` | Row height in pixels |
+| `breakpoints` | `{ lg?, md?, sm?, xs? }` | `{ lg: 1200, md: 996, sm: 768, xs: 480 }` | Container widths for each breakpoint |
+| `responsiveCols` | `{ lg?, md?, sm?, xs? }` | `{ lg: 12, md: 10, sm: 6, xs: 4 }` | Column count per breakpoint |
+| `compactType` | `'vertical' \| 'horizontal' \| null` | `'vertical'` | How items float to fill gaps |
+| `className` | `string` | — | Classes on the wrapper |
+
+The props type also declares `cols`, but the grid reads its column counts from
+`responsiveCols` only — set that instead.
+
+### Widget
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `id` | `string` | Unique id; must match a layout item's `i` |
+| `component` | `ReactNode` | What the cell renders |
+| `title` | `string` | Optional label |
+| `type` | `string` | Optional category, for your own filtering |
+
+### Layout item
+
+`{ i, x, y, w, h }` plus the optional `minW`, `maxW`, `minH`, `maxH`, `static`,
+`isDraggable`, `isResizable` and `isBounded` constraints. A layout item without a matching
+widget is skipped (with a logged warning).
+
+---
+
+## generateDefaultLayout
+
+Builds a left-to-right, top-to-bottom layout for a list of widget ids:
+
+```ts
+generateDefaultLayout(widgetIds: string[], options?: {
+  cols?: number          // default 12
+  defaultWidth?: number  // default 3
+  defaultHeight?: number // default 2
+}): Layout[]
+```
+
+---
+
+## Editable layout
+
+Persist the user's arrangement and restore it on the next visit:
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import { DashboardGrid, StatCard, ChartWidget } from '@telamonjs/ui'
+import { Users } from 'lucide-react'
+
+const widgets = [
+  { id: 'users', component: <StatCard label='Users' value={1234} icon={Users} color='blue' /> },
+  { id: 'revenue', component: <ChartWidget title='Revenue' type='line' data={revenue} dataKeys={['value']} /> },
+]
+
+const initialLayout = [
+  { i: 'users', x: 0, y: 0, w: 3, h: 2 },
+  { i: 'revenue', x: 3, y: 0, w: 9, h: 4 },
+]
+
+export function EditableDashboard() {
+  const [layout, setLayout] = useState(initialLayout)
+
+  return (
+    <DashboardGrid
+      widgets={widgets}
+      layout={layout}
+      editable
+      onLayoutChange={next => {
+        setLayout(next)
+        saveLayout(next) // your persistence (API, localStorage...)
+      }}
+    />
+  )
+}
+```
+
+For a static row of cards that never moves, a plain CSS grid
+(`<div className='grid gap-4 md:grid-cols-2 lg:grid-cols-4'>`) is simpler than `DashboardGrid`.
+
+---
+
+## Related
+
+- [StatCard](/docs/components/stats-card) — the metric widget
+- [ChartWidget](/docs/components/chart-widget) — chart inside a card
+- [Dashboard Pattern](/docs/patterns/dashboard)

@@ -1,0 +1,256 @@
+---
+title: CLI
+description: Create a TelamonJS app, generate CRUD modules from Prisma, and check modules against the conventions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+`@telamonjs/cli` ships two binaries and no library code:
+
+| Binary | What it runs |
+| --- | --- |
+| `create-telamonjs-app` | `telamonjs create` with the same arguments; with no arguments, the wizard |
+| `telamonjs` | Every command on this page; with no arguments, the wizard |
+
+It requires Node 22 or later.
+
+---
+
+## Create an app
+
+```bash
+npx -p @telamonjs/cli create-telamonjs-app my-admin
+```
+
+Or install the CLI globally and use `telamonjs`:
+
+```bash
+npm install -g @telamonjs/cli
+telamonjs create my-admin
+```
+
+The single-app template is a Next.js admin wired to `@telamonjs/ui`: an
+`AdminShell` layout with its menu, NextAuth v5, Prisma with a `docker-compose.yml`
+database, a reference CRUD module (`usuarios`) whose create, edit and view open in
+dialogs, and `pt-BR`/`en`/`es` messages. Unless you pass `--skip-install`, the CLI
+installs dependencies and then sets the app up: it copies `.env`, starts the
+database container, runs the migrations and the seed. Then:
+
+```bash
+cd my-admin
+pnpm dev     # http://localhost:3001, sign in as admin@example.com / 12345
+```
+
+If the automatic setup fails (Docker not running, for example), the CLI prints
+the manual steps: `docker compose up -d db`, `cp .env.example .env`,
+`pnpm db:migrate`, `pnpm db:seed`.
+
+### Options
+
+```bash
+telamonjs create [project-name] [options]   # alias: telamonjs new
+```
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `-p, --provider <provider>` | `postgresql` | Database: `postgresql` or `mysql` |
+| `--port <port>` | `3001` | Development server port |
+| `--monorepo` | asked | Generate a pnpm monorepo instead of a single app (see below) |
+| `--skip-install` | | Skip dependency installation and the automatic setup |
+| `--skip-git` | | Skip `git init` |
+
+Without `--monorepo`, `create` asks whether you want a monorepo when it runs in a
+terminal, and creates a single app when it does not (CI, piped stdin).
+
+```bash
+telamonjs create my-admin --provider mysql --port 3005 --skip-git
+```
+
+### The wizard
+
+`telamonjs` with no arguments, `telamonjs wizard` (alias `init`), or
+`npx -p @telamonjs/cli create-telamonjs-app` with no arguments starts an
+interactive setup. It asks for:
+
+1. the project name
+2. the database (PostgreSQL or MySQL)
+3. the development server port (1024-65535, default 3001)
+4. monorepo or single app
+5. whether to install dependencies
+6. whether to initialize git
+
+It shows a summary, asks for confirmation, then runs `create` with those answers.
+
+### `--monorepo`
+
+```bash
+npx -p @telamonjs/cli create-telamonjs-app my-admin --monorepo
+```
+
+```
+apps/web/         Next.js + @telamonjs/ui, port <port>
+apps/api/         NestJS API, prefix /v1, port <port> + 1000
+apps/jobs/        BullMQ worker and scheduler on @telamonjs/queue
+packages/shared/  Prisma schema and client, shared by web, api and jobs
+```
+
+`apps/web` starts from the single-app template, with Prisma and the reference
+module's Route Handlers moved out to `packages/shared` and `apps/api`. The
+monorepo uses pnpm through corepack and does not run the database setup for you:
+
+```bash
+cd my-admin
+corepack enable pnpm        # once per machine
+cp .env.example .env        # fill NEXTAUTH_SECRET (openssl rand -base64 32)
+docker compose up -d        # postgres + redis
+pnpm db:push
+pnpm db:seed
+pnpm dev                    # apps/web
+pnpm dev:api                # apps/api
+pnpm worker                 # apps/jobs
+```
+
+---
+
+## generate crud
+
+```bash
+telamonjs generate crud [name] [options]   # alias: telamonjs g crud
+```
+
+Run it from the app root. It reads `prisma/schema.prisma`, maps each model field
+to a form field type and a column, and writes a module in the
+[standard structure](/docs/patterns/admin-module-structure):
+
+| File | Contents |
+| --- | --- |
+| `src/app/admin/<name>/config.tsx` | Zod schema, columns, form sections and the `CrudConfig`, with create, edit and view dialogs |
+| `src/app/admin/<name>/page.tsx` | `<ListPage config={…} />`, the module's only route |
+| `src/app/admin/<name>/_components/<Model>Detail.tsx` | The view dialog body |
+| `src/lib/api/<name>-client.ts` | Typed REST client used by the config |
+| `src/app/api/<name>/route.ts`, `[id]/route.ts` | Route Handlers backed by Prisma |
+
+It also adds the module to `menu-items.ts`, writes the module's messages to
+`messages/{pt-BR,en,es}.json` when the app has i18n, and formats the files with
+Prettier when it is available.
+
+| Option | Effect |
+| --- | --- |
+| `[name]` | Module name, plural: folder, route and query key |
+| `-m, --model <model>` | Prisma model to read (singular) |
+| `-p, --path <path>` | Module path (default `src/app/admin/<name>`) |
+| `--no-prisma-schema` | Skip Prisma detection and generate generic fields |
+| `--no-update-menu` | Do not add the module to the menu |
+| `-f, --force` | Overwrite the module's messages block if it already exists |
+
+Missing arguments are asked interactively, including a pick list of the models
+found in the schema.
+
+```bash
+telamonjs generate crud products --model Product
+telamonjs g crud                                  # fully interactive
+```
+
+The output is a starting point. Fill in the `loadField` stubs for relationships,
+review the validation schema, and check that the Route Handlers match your
+authorization rules: none of that can be inferred from the schema. Icons are
+resolved by name from `src/lib/icons.ts`.
+
+<Callout type='warn' title='Monorepo apps'>
+  The generated Route Handlers import `@/lib/prisma`, which only exists in the single-app
+  template. In a monorepo, the API belongs in `apps/api`: move the data access there and
+  point the generated client at it.
+</Callout>
+
+---
+
+## lint
+
+```bash
+telamonjs lint [dir] [--json]
+```
+
+Checks admin modules against the list, dialog and hub conventions. `dir` defaults
+to `src/app/admin` when it exists, otherwise the current directory. Generated apps
+have it as a script: `pnpm lint:telamonjs`.
+
+Rules on `CrudConfig` run on every `config.tsx`; page rules run on every other
+`.tsx`. A value the linter cannot resolve statically is never reported. The exit
+code is 1 when there is at least one error, 0 otherwise, and 2 when the directory
+does not exist. `--json` prints the report as JSON. Messages are printed in
+Portuguese.
+
+| Rule | Severity | Checks |
+| --- | --- | --- |
+| `list-infinite` | error | `list.infiniteScroll: false`: lists use infinite scroll, the default |
+| `list-title-empty` | warning | `list.title` / `list.description` should be `''`: the shell breadcrumb names the page |
+| `list-pagesize` | warning | `list.defaultPageSize` missing or below 50 (use 100 with infinite scroll) |
+| `actions-icon-tooltip` | error | `actionsConfig.standard.view/edit/delete` needs `{ icon, tooltip }`, and `delete` also a `confirmDialog` |
+| `view-header` | error / warning | `dialogs.view` without `headerConfig` or `renderHeader` (error); a `headerConfig` without `icon` or `title` (warning) |
+| `view-content` | error | `dialogs.view` without `renderContent` or `portal` |
+| `view-tabs` | error | The view dialog body imports raw `Tabs`/`TabsList`/`TabsTrigger`/`TabsContent` instead of `ContentTabs` |
+| `dialog-height` | warning | A view dialog body with `ContentTabs` and no fixed height (`h-[min(600px,60vh)] overflow-y-auto`) |
+| `portal-size` | warning | A view dialog body with more than 5 tabs: use `dialogs.view.portal` |
+| `form-span` | error | A field `span` other than `'1'`, `'2'`, `'3'`, `'12'` or `'full'` |
+| `no-fetch-in-config` | error | `fetch()` in `config.tsx`: only `src/lib/api/<module>-client.ts` calls `fetch` |
+| `no-crud-pages` | error | `adicionar/page.tsx`, `[id]/page.tsx` or `[id]/editar/page.tsx` next to a `config.tsx`: CRUD happens in the list's dialogs |
+| `icons-from-registry` | error | `config.tsx` imports from `lucide-react` instead of using `getIcon('Name')` from `@/lib/icons` |
+| `no-raw-link` | error | A raw `<a>` or next/link `<Link>` for navigation instead of `<Button asChild><Link /></Button>` (external `target='_blank'`, downloads, `mailto:` and `tel:` are allowed) |
+| `button-icon-size` | warning | An icon inside a `Button` whose `className` lacks `h-4 w-4` or `size-4` |
+| `i18n-literal-in-config` | error | A pt-BR literal in `title`, `label`, `header`, `placeholder` or `description` in `config.tsx`, in an app with i18n: use `msg('<key>')` |
+| `hub-tabs` | warning | A page with more than 5 tabs in `useTabUrlSync`: use `AdminPortal` |
+| `i18n-untranslated` | warning | A key in `messages/en.json` or `es.json` whose value is identical to `pt-BR.json` |
+
+To silence a deliberate exception, add a comment to the flagged file:
+
+```tsx
+// telamonjs-lint-disable-file no-crud-pages
+```
+
+List several rules separated by commas, or name none to disable every rule in that
+file.
+
+---
+
+## db
+
+```bash
+telamonjs db dump [name]   # database/dumps/<name>_<timestamp>.sql.gz
+telamonjs db restore       # pick a dump from a list, confirm, restore
+```
+
+Both read `DATABASE_URL` from `.env` in the current directory and use `pg_dump`
+and `psql`, so they need the PostgreSQL client tools on the `PATH` and work with
+PostgreSQL only. Without a name, the dump is `dump_<timestamp>.sql.gz`.
+
+---
+
+## analyze
+
+```bash
+telamonjs analyze [--verbose] [--json]
+```
+
+Reads `package.json` in the current directory and reports the TelamonJS packages
+installed, the database provider, NextAuth, Docker, and the recommended scripts
+that are missing (`dev`, `build`, `db:migrate`, `db:seed`, and the `db:dump`
+scripts for PostgreSQL), with a snippet to add them.
+
+---
+
+## stats
+
+```bash
+telamonjs stats [--verbose] [--json] [-p, --path <path>]
+```
+
+Git statistics for a repository (the current directory by default): lines added
+and removed, commits, authors, activity by time of day, and lines per commit.
+
+---
+
+## Related
+
+- [Installation](/docs/getting-started/installation): adding `@telamonjs/ui` to an existing app
+- [Quick Start](/docs/getting-started/quick-start): from `create` to a generated module
+- [Module structure](/docs/patterns/admin-module-structure): the files `generate crud` writes

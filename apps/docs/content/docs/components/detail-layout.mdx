@@ -1,0 +1,343 @@
+---
+title: DetailLayout
+description: Base layout for detail/view pages with alerts, header actions and responsive columns
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Base layout component for detail/view pages with a title, alerts, header actions, responsive column modes and a built-in error boundary.
+
+<Callout type='info' title='Detail Components Pattern'>
+  `DetailLayout` is part of the [Detail Components
+  Pattern](/docs/patterns/detail-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { DetailLayout, DetailCard, DetailField } from '@telamonjs/ui'
+import { User } from 'lucide-react'
+
+export default function UserDetail({ user }) {
+  return (
+    <DetailLayout
+      title={user.name}
+      leftColumn={
+        <DetailCard title='User Info' icon={User}>
+          <DetailField label='Email' value={user.email} />
+          <DetailField label='Role' value={user.role} />
+        </DetailCard>
+      }
+    />
+  )
+}
+```
+
+`DetailLayout` takes no `children`: content goes in the column props for the chosen `layout`.
+
+---
+
+## Props
+
+```typescript
+interface DetailLayoutProps {
+  title?: I18nText // Page title
+  description?: I18nText // Text below the title
+  layout?: DetailLayoutMode // '2-columns' | '3-columns-sidebar' | '4-columns' (default: '2-columns')
+  leftColumn?: React.ReactNode // Left column ('2-columns')
+  rightColumn?: React.ReactNode // Right column ('2-columns')
+  mainColumn?: React.ReactNode // Main column, 2/3 width ('3-columns-sidebar')
+  sidebar?: React.ReactNode // Sidebar, 1/3 width ('3-columns-sidebar')
+  columns?: React.ReactNode[] // One node per column ('4-columns')
+  gap?: 'sm' | 'md' | 'lg' // Gap between columns (default: 'lg')
+  density?: 'compact' | 'comfortable' | 'spacious' // Vertical spacing (default: 'comfortable')
+  alerts?: Omit<DetailAlertProps, 'className'>[] // Alerts at the top
+  headerActions?: React.ReactNode // Actions in header (right side)
+  footer?: React.ReactNode // Full-width content below the grid
+  errorBoundary?: boolean // Wrap in an ErrorBoundary (default: true)
+  errorFallback?: React.ReactNode // Custom ErrorBoundary fallback
+  className?: string // Additional classes
+}
+```
+
+There is no `subtitle` prop (use `description`) and no `breadcrumbs` prop.
+
+---
+
+## Examples
+
+### With Header Actions
+
+```tsx
+<DetailLayout
+  title='John Doe'
+  headerActions={
+    <>
+      <Button asChild variant='outline'>
+        <Link href={`/admin/users/${user.id}/edit`}>Edit</Link>
+      </Button>
+      <Button variant='destructive' onClick={handleDelete}>
+        Delete
+      </Button>
+    </>
+  }
+  leftColumn={<UserInfoCard user={user} />}
+/>
+```
+
+Actions appear in the header, aligned to the right.
+
+### With Alerts
+
+```tsx
+<DetailLayout
+  title='John Doe'
+  alerts={[
+    {
+      variant: 'warning',
+      title: 'Pending Verification',
+      message: 'This user has not verified their email.',
+    },
+  ]}
+  leftColumn={<UserInfoCard user={user} />}
+/>
+```
+
+Alerts appear at the top, before content.
+
+### With Two Columns
+
+```tsx
+<DetailLayout
+  title='John Doe'
+  leftColumn={
+    <>
+      <DetailCard title='Personal Info'>{/* Fields */}</DetailCard>
+      <DetailCard title='Address'>{/* Fields */}</DetailCard>
+    </>
+  }
+  rightColumn={
+    <>
+      <DetailCard title='Avatar'>
+        <DetailAvatar name={user.name} imageUrl={user.avatar} />
+      </DetailCard>
+      <DetailActions
+        actions={[
+          { label: 'Edit', href: `/admin/users/${user.id}/edit` },
+          { label: 'Delete', onClick: handleDelete, variant: 'destructive' },
+        ]}
+      />
+    </>
+  }
+/>
+```
+
+**Result:**
+
+- Mobile: Stacks vertically (left then right)
+- Desktop (≥ 768px): two equal-width columns
+
+### Single Column
+
+```tsx
+<DetailLayout
+  title='John Doe'
+  leftColumn={<DetailCard title='Personal Info'>{/* Fields */}</DetailCard>}
+/>
+```
+
+Omit `rightColumn` and only the left column renders.
+
+---
+
+## Layout Modes
+
+### `2-columns` (Default)
+
+```tsx
+<DetailLayout
+  title='User'
+  leftColumn={<LeftContent />}
+  rightColumn={<RightContent />}
+/>
+```
+
+Two equal columns from `md` (768px) up.
+
+### `3-columns-sidebar`
+
+```tsx
+<DetailLayout
+  title='User'
+  layout='3-columns-sidebar'
+  mainColumn={<MainContent />}
+  sidebar={<SidebarContent />}
+/>
+```
+
+Main content (2/3) + sidebar (1/3) from `lg` (1024px) up.
+
+### `4-columns`
+
+```tsx
+<DetailLayout
+  title='User'
+  layout='4-columns'
+  gap='md'
+  density='compact'
+  columns={[<ColA />, <ColB />, <ColC />, <ColD />]}
+/>
+```
+
+One column on mobile, two from `sm`, four from `lg`.
+
+---
+
+## Complete Example
+
+The actions pass functions, so this view is a Client Component. The route's `page.tsx` (a Server Component) loads `user` and `stats` and renders it.
+
+```tsx title="app/admin/users/[id]/user-detail.tsx"
+'use client'
+
+import {
+  DetailLayout,
+  DetailCard,
+  DetailField,
+  DetailStatus,
+  DetailStatsGrid,
+  DetailActions,
+  DetailAvatar,
+} from '@telamonjs/ui'
+import { User, Mail, Shield } from 'lucide-react'
+import { deleteUser, sendEmail } from '../service'
+import type { UserRecord, UserStats } from '../types'
+
+export function UserDetail({ user, stats }: { user: UserRecord; stats: UserStats }) {
+  const id = user.id
+  const handleSendEmail = (email: string) => sendEmail(email)
+  const handleDelete = (userId: string) => deleteUser(userId)
+
+  return (
+    <DetailLayout
+      title={user.name}
+      description={user.email}
+      alerts={
+        !user.emailVerified
+          ? [
+              {
+                variant: 'warning',
+                title: 'Email not verified',
+                message: 'User has not verified their email address.',
+              },
+            ]
+          : undefined
+      }
+      leftColumn={
+        <>
+          <DetailCard title='Personal Information' icon={User}>
+            <DetailField label='Name' value={user.name} />
+            <DetailField label='Email' value={user.email} icon={Mail} />
+            <DetailField label='Role' value={user.role} icon={Shield} />
+            <DetailField
+              label='Status'
+              value={
+                <DetailStatus
+                  status={user.active ? 'ACTIVE' : 'INACTIVE'}
+                  statusConfig={{
+                    ACTIVE: { label: 'Active', variant: 'default' },
+                    INACTIVE: { label: 'Inactive', variant: 'secondary' },
+                  }}
+                />
+              }
+            />
+          </DetailCard>
+
+          <DetailStatsGrid
+            stats={[
+              { label: 'Posts', value: stats.postsCount },
+              { label: 'Comments', value: stats.commentsCount },
+              { label: 'Likes', value: stats.likesCount },
+            ]}
+          />
+        </>
+      }
+      rightColumn={
+        <>
+          <DetailCard title='Avatar'>
+            <DetailAvatar
+              name={user.name}
+              imageUrl={user.avatar}
+              size='lg'
+              zoomable
+            />
+          </DetailCard>
+
+          <DetailActions
+            actions={[
+              {
+                label: 'Edit',
+                href: `/admin/users/${id}/edit`,
+                variant: 'default',
+              },
+              {
+                label: 'Send Email',
+                onClick: () => handleSendEmail(user.email),
+                variant: 'outline',
+              },
+              {
+                label: 'Delete',
+                onClick: () => handleDelete(id),
+                variant: 'destructive',
+              },
+            ]}
+          />
+        </>
+      }
+    />
+  )
+}
+```
+
+---
+
+## Best Practices
+
+1. **Show alerts** for important context (warnings, errors)
+2. **Use `3-columns-sidebar`** for sidebar-like content (avatar, actions)
+3. **Group related fields** in DetailCard components
+4. **Add icons** to cards and fields for visual hierarchy
+
+---
+
+## Responsive Behavior
+
+| Layout                  | Mobile        | Tablet (≥ 768px)        | Desktop (≥ 1024px)  |
+| ----------------------- | ------------- | ----------------------- | ------------------- |
+| **`2-columns`**         | Stacked       | Two equal columns       | Two equal columns   |
+| **`3-columns-sidebar`** | Stacked       | Stacked                 | 2/3 main + 1/3 side |
+| **`4-columns`**         | Single column | Two columns (from 640px) | Four columns        |
+
+---
+
+## Related Components
+
+- [DetailCard](/docs/components/detail-card) - Group related information
+- [DetailField](/docs/components/detail-field) - Display label + value
+- [DetailActions](/docs/components/detail-actions) - Action buttons card
+- [DetailStatus](/docs/components/detail-status) - Status badge
+- [DetailAvatar](/docs/components/detail-avatar) - Avatar component
+- [DetailStatsGrid](/docs/components/detail-stats-grid) - Metrics grid
+
+---
+
+## See Also
+
+- [Detail Views](/docs/patterns/detail-page) - Complete pattern guide
+- [Quick Start](/docs/getting-started/quick-start) - CRUD example with detail page
+
+---
+
+**Status:** ✅ Stable

@@ -1,0 +1,270 @@
+---
+title: Permissions
+description: RBAC materialized in the JWT — pure checkers, role helpers, Nest guard and Prisma models
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { Steps, Step } from 'fumadocs-ui/components/steps'
+
+`@telamonjs/permissions` (current version:
+<PkgVersion pkg='permissions' />) is the authorization system of the TelamonJS
+ecosystem: **RBAC materialized in the JWT**.
+
+Permissions are resolved from the database **once, at login**, and carried in
+the session token as a flat `permissions: string[]`. Every check after that is
+a pure function over the token claims — **no query per request, no cache to
+invalidate, client-safe by construction**.
+
+- **Core (isomorphic)** — `createPermissionChecker` (`can` / `canAny` /
+  `canAll` / `hasBypassRole`) and role helpers
+- **`/nest` subpath** — `@Permissions()` decorator + `createPermissionsGuard()`
+- **Prisma reference schema** — `Papel`, `UsuarioPapel`, `Permissao`,
+  `PermissaoPapel`, `PermissaoUsuario` models to copy into your app
+
+```bash
+pnpm add @telamonjs/permissions
+```
+
+Dual ESM+CJS build; the `/nest` subpath expects `@nestjs/common` and
+`@nestjs/core` in the host.
+
+---
+
+## Data Model (Prisma)
+
+Copy the models from the package's reference schema into your
+`schema.prisma` (exported at
+`@telamonjs/permissions/prisma/schema.prisma`) and migrate:
+
+| Model              | Table                 | Role                                          |
+| ------------------ | --------------------- | --------------------------------------------- |
+| `Papel`            | `papeis`              | Role: unique `codigo` (`superadmin`, `admin`, …), `sistema` flag protects built-ins |
+| `UsuarioPapel`     | `usuarios_papeis`     | User ↔ Role pivot (N:N — **multi-role**)      |
+| `Permissao`        | `permissoes`          | Permission catalog: unique `codigo` (`clientes.create`), `modulo` + `acao` (enum `AcaoPermissao`: CREATE/READ/UPDATE/DELETE/EXECUTE/EXPORT/IMPORT/APPROVE/PUBLISH) |
+| `PermissaoPapel`   | `permissoes_papeis`   | Permissions granted to a role (RBAC), optional ABAC `condicoes`/`escopo` JSON |
+| `PermissaoUsuario` | `permissoes_usuarios` | Per-user override: `tipo` CONCEDER (grant) or REVOGAR (revoke), optional `expiraEm` for temporary grants, `motivo`/`concessaoPor` for audit |
+| `LogPermissao`     | `logs_permissoes`     | Audit log of permission checks (optional)     |
+
+Effective permissions for a user =
+**union of all their roles' permissions, plus CONCEDER overrides, minus
+REVOGAR overrides** (skipping expired ones).
+
+---
+
+## The Flow: Resolve at Login, Check from the Token
+
+<Steps>
+<Step>
+
+### Resolve permissions in `authorize()`
+
+At login, the app materializes the user's effective permission codes and puts
+them in the session claims. The convention is a `getPermissionsForJWT` helper
+that implements the union/override resolution over the models above:
+
+```ts title="auth.ts (authorize)"
+async authorize(credentials) {
+  const user = await verifyLogin(credentials)
+  if (!user) return null
+
+  return {
+    id: user.id,
+    email: user.email,
+    role: user.papel,                    // { id, name, code }
+    roles: user.papeis,                  // multi-role via UsuarioPapel
+    permissions: await getPermissionsForJWT(user.id),
+    // → ['clientes.read', 'clientes.create', 'produtos.read', ...]
+  }
+}
+```
+
+```ts title="getPermissionsForJWT (shape)"
+// Union of role permissions (all roles via UsuarioPapel)
+// + PermissaoUsuario CONCEDER  (skip expired: expiraEm < now)
+// - PermissaoUsuario REVOGAR
+// → string[] of permission codes
+```
+
+The [Auth package](/docs/packages/auth)'s `createAuthCallbacks()` copies
+`permissions` into the JWT and back into the session — both the Next app and
+the Nest API see the same array.
+
+<Callout type='info' title='Trade-off'>
+  Changes to a user's roles/permissions take effect on the **next login** (or
+  forced token refresh) — the token is the snapshot. In exchange, checks cost
+  zero queries and work identically on client, server and API.
+</Callout>
+
+</Step>
+<Step>
+
+### Create the app's checker (once)
+
+```ts title="lib/permissions.ts"
+import { createPermissionChecker } from '@telamonjs/permissions'
+
+const checker = createPermissionChecker({
+  bypassRoles: ['superadmin'], // app domain — these roles pass every check
+})
+
+export const { can, canAny, canAll, hasBypassRole } = checker
+```
+
+</Step>
+<Step>
+
+### Check anywhere
+
+```tsx
+import { can, canAny } from '@/lib/permissions'
+
+// Client Component — session.user satisfies UserWithPermissions by shape
+{can(session?.user, 'clientes.create') && <CreateButton />}
+
+// Server Action
+export async function deleteCliente(id: string) {
+  const session = await auth()
+  if (!can(session?.user, 'clientes.delete')) {
+    throw new Error('Unauthorized: clientes.delete')
+  }
+  // ...
+}
+```
+
+| Function                | Semantics                                          |
+| ----------------------- | -------------------------------------------------- |
+| `can(user, p)`          | User has permission `p` (or a bypass role)         |
+| `canAny(user, ps)`      | Has **at least one** (OR)                          |
+| `canAll(user, ps)`      | Has **all** (AND)                                  |
+| `hasBypassRole(user)`   | Has any configured bypass role                     |
+
+All are pure and null-safe (`user` may be `null`/`undefined` → `false`). The
+`UserWithPermissions` type is structural on purpose: the `AuthUser` from the
+auth package satisfies it by shape, with no dependency between the packages.
+
+</Step>
+</Steps>
+
+---
+
+## Role Helpers
+
+Two distinct questions, two distinct helpers — do not mix them:
+
+```ts
+import {
+  isAdminRole,
+  isSuperAdminRole,
+  hasGlobalDataVisibility,
+  getPrimaryRole,
+} from '@telamonjs/permissions'
+```
+
+| Helper                       | Question it answers                                | Use for |
+| ---------------------------- | -------------------------------------------------- | ------- |
+| `isSuperAdminRole(role, roles)` | "Is this a superadmin?"                         | **Privilege gates**: system roles management, impersonating admins, dangerous maintenance |
+| `hasGlobalDataVisibility(role, roles)` | "Can they see all records?" (admin **or** superadmin) | **Data scoping**: skip the per-user visibility filter |
+| `isAdminRole(role, roles)`   | admin or superadmin                                | Building block of the above |
+| `getPrimaryRole(role, roles)` | First role of the list (or the singular role)     | Display  |
+
+All helpers check `roles[]` first (multi-role) and fall back to the singular
+`role`.
+
+---
+
+## NestJS: Decorator + Guard
+
+### `@Permissions` — clause semantics
+
+```ts
+import { Permissions, RequirePermission } from '@telamonjs/permissions/nest'
+
+// string clauses = OR: needs ONE of the two
+@Permissions('relatorios.read', 'relatorios.export')
+
+// array clause = AND: needs BOTH
+@Permissions(['clientes.update', 'clientes.approve'])
+
+// mixed: (a AND b) OR c
+@Permissions(['clientes.update', 'clientes.approve'], 'admin.override')
+```
+
+`RequirePermission` is an alias of `Permissions` for projects that use that
+naming convention. Routes without the decorator are **not** restricted by the
+guard.
+
+### `createPermissionsGuard`
+
+```ts title="src/common/guards/permissions.guard.ts"
+import { createPermissionsGuard } from '@telamonjs/permissions/nest'
+
+export const PermissionsGuard = createPermissionsGuard()
+// options: createPermissionsGuard({ bypassRoles: ['superadmin', 'admin'] })
+// default bypassRoles: ['superadmin']
+```
+
+```ts
+@Get('admin')
+@UseGuards(JwtAuthGuard, PermissionsGuard) // order matters
+@Permissions('admin.read')
+getAdminData() {}
+```
+
+The guard runs **after** the auth guard from
+[@telamonjs/auth](/docs/packages/auth): it reads
+`request.user.permissions` (the array materialized in the JWT), applies the
+clause semantics, and throws `ForbiddenException` listing the missing
+permissions. Bypass roles short-circuit to allow. It can also be registered
+globally via `APP_GUARD` after the auth guard.
+
+---
+
+## Advanced Grants (database-side)
+
+The models support more than plain RBAC — resolution happens in your
+`getPermissionsForJWT`, so these are conventions of the schema:
+
+- **Temporary permission**: `PermissaoUsuario` with `expiraEm`; resolution
+  skips expired grants, so the permission disappears from tokens issued after
+  expiry.
+- **Revoke override**: `tipo: 'REVOGAR'` subtracts a role-granted permission
+  from a specific user.
+- **Audit trail**: `motivo` and `concessaoPor` on the grant; `LogPermissao`
+  for check/denial logging if the app wants it.
+- **ABAC columns**: `condicoes`/`escopo` JSON on `PermissaoPapel` exist for
+  apps that implement contextual checks on top — the core checker itself is
+  deliberately context-free.
+
+---
+
+## Troubleshooting
+
+### `can()` returns false for a permission the user clearly has
+
+The token predates the grant — permissions are materialized at login. Have the
+user log out/in, or implement token refresh. Verify by logging
+`session.user.permissions`.
+
+### Guard throws "User not authenticated"
+
+`PermissionsGuard` ran without `JwtAuthGuard` before it — nothing attached
+`request.user`. Check guard order.
+
+### Every check passes for some users
+
+They hold a bypass role. `bypassRoles` is configured per app in
+`createPermissionChecker` / `createPermissionsGuard` — make sure the list is
+what you intend (default for the guard: `['superadmin']`).
+
+### `permissions` is empty in the token
+
+The login path never called the resolution helper, or the auth callbacks
+dropped the claim — see the
+[auth troubleshooting](/docs/packages/auth#troubleshooting).
+
+---
+
+## Related Links
+
+- [Auth](/docs/packages/auth) — the token that carries `permissions[]`
+- [Admin Module Structure](/docs/patterns/admin-module-structure) — module conventions that name the permission codes

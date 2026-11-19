@@ -1,0 +1,297 @@
+---
+title: CreatePage
+description: Page wrapper for create forms with consistent layout
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Page wrapper for create forms: renders a [`CreateForm`](/docs/components/create-form) from `sections` + `action`, inside a card with a title and description.
+
+<Callout type='info' title='Dialogs are the default'>
+  Generated CRUD modules create, edit and view records in [dialogs](/docs/patterns/dialogs).
+  `CreatePage` is for the cases that need a [standalone form page](/docs/patterns/edit-page).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { CreatePage } from '@telamonjs/ui'
+import { createUser } from './actions'
+import { formSections, validationSchema } from './config'
+
+export default function CreateUserPage() {
+  return (
+    <CreatePage
+      title='Create New User'
+      description='Add a new user to the system'
+      sections={formSections}
+      action={createUser}
+      validation={validationSchema}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface CreatePageProps<T = Record<string, unknown>> {
+  sections: FormSection[] | readonly FormSection[] // Form sections (required)
+  action: (formData: FormData) => Promise<FormActionResult<T> | void> // Server Action (required)
+  defaultValues?: Partial<T> // Initial values
+  validation?: z.ZodType // Zod schema
+
+  // Layout
+  title?: I18nText // Page title — without it, the form renders with no card wrapper
+  description?: I18nText // Shown under the title
+
+  // Passed to CreateForm
+  submitText?: I18nText // Default: localized "Create" (dialog.createSubmit)
+  cancelAction?: () => void // Cancel button handler
+  onSuccess?: (result: FormActionResult<T>) => void
+  grid?: string // Grid columns: '1', '2', '3', '4'
+  useTabs?: boolean // Default: false
+  hideButtons?: boolean // Hide submit/cancel buttons
+}
+```
+
+Like `CreateForm`, it drops sections and fields marked `editOnly`, and fields of `type: 'crud'`.
+
+---
+
+## Examples
+
+### Basic Create Page
+
+```tsx
+<CreatePage sections={formSections} action={createUser} />
+```
+
+### With Title and Description
+
+```tsx
+<CreatePage
+  title='Create New Product'
+  description='Add a new product to your catalog'
+  sections={formSections}
+  action={createProduct}
+/>
+```
+
+### With Default Values
+
+```tsx
+<CreatePage
+  title='Create Order'
+  sections={formSections}
+  action={createOrder}
+  defaultValues={{ status: 'draft' }}
+/>
+```
+
+### With Validation and Submit Text
+
+```tsx
+import { CreatePage } from '@telamonjs/ui'
+import { createProduct } from './actions'
+import { validationSchema, formSections } from './config'
+
+export default function CreateProductPage() {
+  return (
+    <CreatePage
+      title='Create Product'
+      description='Add a new product to your inventory'
+      sections={formSections}
+      action={createProduct}
+      validation={validationSchema}
+      submitText='Create Product'
+    />
+  )
+}
+```
+
+---
+
+## Complete Example
+
+```tsx title="app/admin/users/new/page.tsx"
+import { CreatePage } from '@telamonjs/ui'
+import { redirect } from 'next/navigation'
+import { createUser } from '../actions'
+import { validationSchema, formSections } from '../config'
+
+export default function CreateUserPage() {
+  async function handleSubmit(data: FormData) {
+    'use server'
+
+    const result = await createUser(data)
+
+    if (result.success) {
+      redirect(`/admin/users/${result.data.id}`)
+    }
+
+    return result // { success: false, message, errors } reaches the form
+  }
+
+  return (
+    <CreatePage
+      title='Create New User'
+      description='Add a new user with role and permissions'
+      sections={formSections}
+      action={handleSubmit}
+      validation={validationSchema}
+      submitText='Create User'
+    />
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **CRUD create routes** - `/admin/users/new`
+- **New record forms** - Adding entities to database
+- **Data entry** - User-facing creation forms
+- **Onboarding** - New item setup wizards
+
+---
+
+## Layout Behavior
+
+**CreatePage provides:**
+
+1. **Card container** - Form wrapped in a card with padding (only when `title` is set)
+2. **Card header** - Title and description
+3. **Consistent spacing** - Standard margins and padding
+4. **Responsive layout** - Mobile-friendly
+
+Without `title`, `CreatePage` renders the bare `CreateForm`.
+
+**Visual hierarchy:**
+
+```
+┌─────────────────────┐
+│  [Title]            │
+│  [Description]      │
+├─────────────────────┤
+│  [Form Fields]      │
+│                     │
+│  [Form Fields]      │
+│                     │
+│  [Submit] [Cancel]  │
+└─────────────────────┘
+```
+
+---
+
+## Best Practices
+
+1. **Always provide title** - Clear page context
+2. **Add description** - Explain purpose when not obvious
+3. **Redirect on success** - Navigate to detail or list page
+4. **Handle errors** - Return `{ success: false, message, errors }` from the Server Action
+5. **Cancel button** - Pass `cancelAction` (from a Client Component)
+
+---
+
+## Pattern: Page Config + CreatePage
+
+**Recommended structure:**
+
+```tsx
+// config.tsx
+export const validationSchema = z.object({ ... })
+export const formSections: FormSection[] = [ ... ]
+
+// adicionar/page.tsx
+import { CreatePage } from '@telamonjs/ui'
+import { createEntity } from '../actions'
+import { validationSchema, formSections } from '../config'
+
+export default function CreateEntityPage() {
+  return (
+    <CreatePage
+      title="Create Entity"
+      sections={formSections}
+      action={createEntity}
+      validation={validationSchema}
+    />
+  )
+}
+```
+
+**Benefits:**
+
+- Config centralized in one file
+- Page logic minimal and clean
+- Easy to maintain
+- Consistent with Page Config Pattern
+
+---
+
+## Comparison: CreatePage vs Manual Layout
+
+### With CreatePage (Recommended)
+
+```tsx
+// Concise
+export default function CreateUserPage() {
+  return (
+    <CreatePage title='Create User' sections={formSections} action={createUser} />
+  )
+}
+```
+
+### Without CreatePage (Manual)
+
+```tsx
+// Verbose
+export default function CreateUserPage() {
+  return (
+    <div className='container mx-auto py-6'>
+      <div className='mb-6'>
+        <h1 className='text-3xl font-bold'>Create User</h1>
+      </div>
+      <div className='bg-card rounded-lg border p-6'>
+        <UserCreateForm />
+      </div>
+    </div>
+  )
+}
+```
+
+**CreatePage provides:** Consistent styling, less boilerplate, easier maintenance.
+
+---
+
+## Accessibility
+
+- Semantic HTML structure
+- The title renders in a `section`, not a heading element, so it does not compete with the page `h1`
+- Screen reader friendly layout
+
+---
+
+## Related Components
+
+- [CreateForm](/docs/components/create-form) - Form component for creation
+- [EditPage](/docs/components/edit-page) - Page wrapper for editing
+- [BaseFormPage](/docs/components/base-form-page) - Base wrapper
+- [ListPage](/docs/components/list-page) - List page component
+
+---
+
+## See Also
+
+- [Form Pattern](/docs/patterns/form-pattern) - Complete form guide
+- [Module Structure](/docs/patterns/admin-module-structure) - CRUD module structure
+- [CRUD Pattern](/docs/patterns/listpage-pattern) - Full CRUD implementation
+
+---
+
+**Status:** ✅ Stable

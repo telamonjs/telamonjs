@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  db:
+    image: {{dbImage}}
+    container_name: {{projectName}}-db
+    restart: unless-stopped
+    environment:
+{{dbEnvironment}}
+    ports:
+      - '{{dbPort}}:{{dbPort}}'
+    volumes:
+      - db_data:/var/lib/{{dbVolumePath}}/data
+    healthcheck:
+      test: {{dbHealthCheck}}
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {{projectName}}
+    restart: unless-stopped
+    ports:
+      - '{{appPort}}:{{appPort}}'
+    environment:
+      DATABASE_URL: {{dockerDatabaseUrl}}
+      NEXTAUTH_SECRET: {{projectSlug}}-development-secret-key-12345
+      NEXTAUTH_URL: http://localhost:{{appPort}}
+      NEXT_PUBLIC_APP_NAME: {{appName}}
+      NEXT_PUBLIC_APP_URL: http://localhost:{{appPort}}
+    depends_on:
+      db:
+        condition: service_healthy
+    volumes:
+      - ./src:/app/src
+      - ./public:/app/public
+
+volumes:
+  db_data:

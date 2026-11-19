@@ -1,0 +1,389 @@
+---
+title: Calendar
+description: Interactive calendar component for date selection and event display
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Two calendar components: `Calendar`, a date picker grid for selecting dates, and
+`CalendarWithEvents`, a month view that lays events out on their days.
+
+<Callout type='info' title='Which one?'>
+  Use `Calendar` (from `@telamonjs/ui`) to pick a date, several dates or a range. Use
+  `CalendarWithEvents` (from `@telamonjs/ui` or `@telamonjs/ui/business`) for booking systems,
+  event management and scheduling screens that show events per day.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import { Calendar } from '@telamonjs/ui'
+
+export default function DatePicker() {
+  const [selected, setSelected] = useState<Date | undefined>(new Date())
+
+  return <Calendar mode='single' selected={selected} onSelect={setSelected} />
+}
+```
+
+```tsx
+'use client'
+
+import { CalendarWithEvents, type CalendarEvent } from '@telamonjs/ui'
+
+export function TeamCalendar({ events }: { events: CalendarEvent[] }) {
+  return (
+    <CalendarWithEvents
+      events={events}
+      onDateClick={date => console.log('day', date)}
+      onEventClick={event => console.log('event', event.id)}
+    />
+  )
+}
+```
+
+---
+
+## Props
+
+### Calendar
+
+`Calendar` is a styled [react-day-picker](https://react-day-picker.js.org/) `DayPicker`:
+`CalendarProps` is `React.ComponentProps<typeof DayPicker>`, so every DayPicker prop works.
+The ones you will use most:
+
+```typescript
+// CalendarProps = React.ComponentProps<typeof DayPicker>
+{
+  mode?: 'single' | 'multiple' | 'range' // Selection mode (enables selected/onSelect)
+  selected?: Date | Date[] | DateRange // Shape follows `mode`
+  onSelect?: (selected) => void // Receives the same shape as `selected`
+  defaultMonth?: Date // Initial month shown
+  disabled?: Matcher | Matcher[] // Dates, ranges or { before } / { after } / { dayOfWeek }
+  startMonth?: Date // Earliest month the user can navigate to
+  endMonth?: Date // Latest month the user can navigate to
+  weekStartsOn?: 0 | 1 | 2 | 3 | 4 | 5 | 6 // 0 = Sunday, 1 = Monday
+  showWeekNumber?: boolean // Show week numbers
+  showOutsideDays?: boolean // Days of adjacent months (default: true)
+  locale?: Locale // date-fns locale object
+  className?: string // Additional classes
+  classNames?: Partial<ClassNames> // Merged over the built-in styles
+}
+```
+
+### CalendarWithEvents
+
+```typescript
+interface CalendarWithEventsProps {
+  events: CalendarEvent[] // Events to display (required)
+  onDateClick?: (date: Date) => void // A day cell was clicked
+  onEventClick?: (event: CalendarEvent) => void // An event chip was clicked
+  defaultDate?: Date // Month shown first (default: today)
+  className?: string // Additional classes
+}
+
+interface CalendarEvent {
+  id: string
+  title: string
+  date: Date // Day the event is shown on
+  color?: string // CSS color for the chip (default: primary)
+  allDay?: boolean
+  description?: string
+}
+```
+
+`CalendarWithEvents` shows one month at a time with Today / previous / next month buttons,
+up to two event chips per day and a "+N more" line for the rest. There is no week or day view.
+
+---
+
+## Examples
+
+### Single Date Selection
+
+```tsx
+const [date, setDate] = useState<Date>()
+
+<Calendar
+  mode="single"
+  selected={date}
+  onSelect={setDate}
+/>
+```
+
+### Multiple Date Selection
+
+```tsx
+const [dates, setDates] = useState<Date[] | undefined>([])
+
+<Calendar
+  mode="multiple"
+  selected={dates}
+  onSelect={setDates}
+/>
+```
+
+Select multiple individual dates.
+
+### Date Range Selection
+
+```tsx
+import type { DateRange } from '@telamonjs/ui'
+
+const [range, setRange] = useState<DateRange | undefined>()
+
+<Calendar
+  mode="range"
+  selected={range}
+  onSelect={setRange}
+/>
+```
+
+Select start and end dates (e.g., booking periods).
+
+### With Events
+
+```tsx
+const events = [
+  {
+    id: '1',
+    title: 'Team Meeting',
+    date: new Date(2024, 0, 20, 10, 0),
+    color: '#3b82f6',
+  },
+  {
+    id: '2',
+    title: 'Project Deadline',
+    date: new Date(2024, 0, 25),
+    allDay: true,
+    color: '#ef4444',
+  },
+]
+
+<CalendarWithEvents
+  events={events}
+  defaultDate={new Date(2024, 0, 1)}
+  onEventClick={(event) => console.log(event)}
+/>
+```
+
+Shows events on calendar dates.
+
+### Disabled Dates
+
+```tsx
+const disabledDates = [
+  new Date(2024, 0, 15),
+  new Date(2024, 0, 22),
+]
+
+<Calendar
+  mode="single"
+  selected={date}
+  onSelect={setDate}
+  disabled={disabledDates}
+/>
+```
+
+Prevent selection of specific dates.
+
+### Disable Past Dates
+
+```tsx
+<Calendar mode='single' selected={date} onSelect={setDate} disabled={{ before: new Date() }} />
+```
+
+Only allow future date selection (booking systems).
+
+### Date Range Restrictions
+
+```tsx
+<Calendar
+  mode="single"
+  selected={date}
+  onSelect={setDate}
+  disabled={[{ before: new Date() }, { after: new Date(2024, 11, 31) }]}
+  startMonth={new Date()}
+  endMonth={new Date(2024, 11)}
+/>
+```
+
+### First Day of Week
+
+```tsx
+// Monday as first day
+<Calendar
+  mode="single"
+  selected={date}
+  onSelect={setDate}
+  weekStartsOn={1}
+/>
+```
+
+`CalendarWithEvents` takes the first day of the week from the active locale.
+
+---
+
+## Complete Example
+
+```tsx title="components/booking-calendar.tsx"
+'use client'
+
+import { useState } from 'react'
+import { Calendar } from '@telamonjs/ui'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
+
+interface Booking {
+  id: string
+  date: Date
+  timeSlot: string
+  customer: string
+}
+
+export default function BookingCalendar({ bookings }: { bookings: Booking[] }) {
+  const [selected, setSelected] = useState<Date>()
+
+  // Get booked dates to disable
+  const bookedDates = bookings.map(b => b.date)
+
+  function handleDateSelect(date: Date | undefined) {
+    if (!date) return
+    setSelected(date)
+    // Open booking form for selected date
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Appointment Booking</CardTitle>
+        <CardDescription>
+          Select a date to view available time slots
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Calendar
+          mode='single'
+          selected={selected}
+          onSelect={handleDateSelect}
+          disabled={[...bookedDates, { before: new Date() }]}
+          className='mx-auto'
+        />
+
+        {selected && (
+          <div className='mt-6 space-y-2'>
+            <h4 className='font-semibold'>
+              Available Slots for {selected.toLocaleDateString()}
+            </h4>
+            <div className='grid grid-cols-3 gap-2'>
+              {['09:00', '10:00', '11:00', '14:00', '15:00', '16:00'].map(
+                slot => (
+                  <Button key={slot} variant='outline'>
+                    {slot}
+                  </Button>
+                )
+              )}
+            </div>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Booking systems** - Appointments, reservations, rentals
+- **Event management** - Conference schedules, event calendars
+- **Project planning** - Deadlines, milestones, sprints
+- **Availability** - Staff schedules, resource allocation
+- **Date pickers** - Forms with date selection
+- **Content calendar** - Publishing schedule
+- **Leave management** - PTO requests, vacation tracking
+
+---
+
+## Best Practices
+
+1. **Clear visual feedback** - Highlight selected dates prominently
+2. **Disable unavailable dates** - Prevent invalid selections
+3. **Show events** - Display bookings, holidays, important dates
+4. **Mobile-friendly** - Ensure touch targets are 44×44px minimum
+5. **Time zone awareness** - Handle time zones correctly
+6. **Loading states** - Show skeleton when loading events
+7. **Legend** - Explain color coding for events
+
+---
+
+## Accessibility
+
+`Calendar` inherits react-day-picker's grid semantics and keyboard support:
+
+- `Arrow keys` - Navigate between dates
+- `Enter/Space` - Select date
+- `PageUp/PageDown` - Previous/next month
+- `Home/End` - First/last day of the week
+
+`CalendarWithEvents` navigation buttons are labeled ("Previous month" / "Next month", localized),
+but day cells and event chips are clickable `div`s without keyboard focus — offer another way
+(a list or a form) to reach the same actions from the keyboard.
+
+---
+
+## Localization
+
+`CalendarWithEvents` formats month names, weekdays and the first day of the week with the
+active TelamonJS locale. `Calendar` takes react-day-picker's `locale` prop (a date-fns locale):
+
+```tsx
+import { ptBR } from 'date-fns/locale'
+;<Calendar
+  mode='single'
+  selected={date}
+  onSelect={setDate}
+  locale={ptBR}
+/>
+```
+
+---
+
+## Performance
+
+**Optimization tips:**
+
+- Lazy load events (fetch only the visible month)
+- Memoize the `events` array when it is derived from query data
+- Cache formatted dates
+
+---
+
+## Related Components
+
+- `DateRangePicker` - Form date range input
+- [Timeline](/docs/components/timeline) - Event timeline
+- [KanbanBoard](/docs/components/kanban-board) - Visual workflow
+
+---
+
+## See Also
+
+- [react-day-picker](https://react-day-picker.js.org/) - Library behind `Calendar`
+- Booking System Pattern - Implementation guide
+
+---
+
+**Status:** ✅ Stable

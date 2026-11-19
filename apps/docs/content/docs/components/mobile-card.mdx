@@ -1,0 +1,286 @@
+---
+title: MobileCard
+description: Card component for mobile-responsive data display in tables
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Card component that displays one table row on mobile, built from the same TanStack column
+definitions as the table, with an actions menu and selection state.
+
+<Callout type='info' title='Auto-used by DataTable'>
+  `MobileCard` is automatically used by [DataTable](/docs/components/data-table)
+  on mobile screens. You typically don't need to use it directly unless building
+  custom mobile layouts.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { MobileCard } from '@telamonjs/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: string
+}
+
+const columns: ColumnDef<User>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'role', header: 'Role' },
+]
+
+export function UserCard({ user }: { user: User }) {
+  return <MobileCard data={user} columns={columns} />
+}
+```
+
+---
+
+## Props
+
+```typescript
+{
+  data: TData // Row data (required)
+  columns: ColumnDef<TData, TValue>[] // TanStack column definitions (required)
+  onSelect?: (data: TData) => void // Card click
+  isSelected?: boolean // Shows a ring border when true
+  actions?: Array<{
+    label: string
+    onClick: (data: TData) => void
+    variant?: 'default' | 'destructive'
+  }> // Rendered in a 3-dot dropdown menu in the top-right corner
+}
+```
+
+There is no `fields`, `variant`, `onClick` or `className` prop — the card layout comes from
+`columns`.
+
+---
+
+## Column Mapping
+
+The card uses the first 4 columns, skipping `select`, `actions` and an `id` accessor:
+
+- **Column 1:** title (bold)
+- **Column 2:** subtitle (small, muted)
+- **Columns 3-4:** detail rows, labelled with the column `header`; empty values are skipped
+
+Boolean values render as a localized Yes/No badge. Put the most important data in the first
+columns and keep headers short — they become the labels.
+
+---
+
+## Examples
+
+### Custom Rendering
+
+A column with an `accessorKey` (or `accessorFn`) shows the raw value. To render custom content,
+define the column with an `id` and a `cell` instead:
+
+```tsx
+import { Badge } from '@telamonjs/ui'
+
+const columns: ColumnDef<User>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  {
+    id: 'role',
+    header: 'Role',
+    cell: ({ row }) => (
+      <Badge variant={row.original.role === 'ADMIN' ? 'default' : 'secondary'}>
+        {row.original.role}
+      </Badge>
+    ),
+  },
+  {
+    id: 'createdAt',
+    header: 'Created',
+    cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+  },
+]
+
+<MobileCard data={user} columns={columns} />
+```
+
+### With Actions
+
+```tsx
+<MobileCard
+  data={user}
+  columns={columns}
+  actions={[
+    { label: 'View', onClick: u => router.push(`/users/${u.id}`) },
+    { label: 'Edit', onClick: u => router.push(`/users/${u.id}/edit`) },
+    { label: 'Delete', onClick: u => handleDelete(u.id), variant: 'destructive' },
+  ]}
+/>
+```
+
+Actions appear in a dropdown menu in the top-right corner; selecting one does not trigger
+`onSelect`. Inside `DataTable`, pass them as `cardActions`.
+
+### Selectable Card
+
+```tsx
+const [selectedId, setSelectedId] = useState<string | null>(null)
+
+<MobileCard
+  data={user}
+  columns={columns}
+  isSelected={selectedId === user.id}
+  onSelect={u => setSelectedId(u.id)}
+/>
+```
+
+The whole card is clickable and calls `onSelect` with the row data.
+
+---
+
+## Complete Example
+
+```tsx title="components/user-mobile-list.tsx"
+'use client'
+
+import { MobileCard, Badge } from '@telamonjs/ui'
+import type { ColumnDef } from '@tanstack/react-table'
+import { useRouter } from 'next/navigation'
+
+interface User {
+  id: string
+  name: string
+  email: string
+  role: 'USER' | 'ADMIN'
+  active: boolean
+}
+
+const columns: ColumnDef<User>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  {
+    id: 'role',
+    header: 'Role',
+    cell: ({ row }) => (
+      <Badge variant={row.original.role === 'ADMIN' ? 'default' : 'secondary'}>
+        {row.original.role}
+      </Badge>
+    ),
+  },
+  { accessorKey: 'active', header: 'Active' }, // boolean → Yes/No badge
+]
+
+export function UserMobileList({ users }: { users: User[] }) {
+  const router = useRouter()
+
+  async function handleDelete(id: string) {
+    if (confirm('Delete this user?')) {
+      // Delete logic
+    }
+  }
+
+  return (
+    <div className='grid gap-4'>
+      {users.map(user => (
+        <MobileCard
+          key={user.id}
+          data={user}
+          columns={columns}
+          onSelect={u => router.push(`/admin/users/${u.id}`)}
+          actions={[
+            { label: 'Edit', onClick: u => router.push(`/admin/users/${u.id}/edit`) },
+            { label: 'Delete', onClick: u => handleDelete(u.id), variant: 'destructive' },
+          ]}
+        />
+      ))}
+    </div>
+  )
+}
+```
+
+---
+
+## When to Use
+
+Use `MobileCard` when:
+
+- ✅ Building custom mobile layouts for tables
+- ✅ Creating mobile-optimized list views
+- ✅ Need different mobile layout than desktop table
+- ✅ Building responsive dashboards
+
+**Don't use directly when:**
+
+- ❌ Using DataTable (already includes MobileCard)
+- ❌ Using ListPage (already includes MobileCard)
+- ❌ Desktop-only interfaces
+
+For a fully custom card inside `DataTable`/`ListPage`, pass `cardComponent` instead.
+
+---
+
+## Best Practices
+
+1. **Prioritize important fields** - Only the first 4 columns are shown
+2. **Use custom rendering** - Format dates, badges, status with `cell` columns
+3. **Limit actions** - Show only the most common operations
+4. **Show visual hierarchy** - Order columns so title and subtitle carry the key data
+5. **Test on real devices** - Emulators don't show actual mobile UX
+
+---
+
+## Responsive Design
+
+**DataTable automatically switches:**
+
+- **Desktop (≥ 768px):** Full table view
+- **Mobile (< 768px):** MobileCard view
+
+**Manual breakpoint:**
+
+```tsx
+import { useIsMobile, DataTable, MobileCard } from '@telamonjs/ui'
+
+export function UserList({ users }) {
+  const isMobile = useIsMobile() // < 768px
+
+  if (isMobile) {
+    return users.map(user => <MobileCard key={user.id} data={user} columns={columns} />)
+  }
+
+  return <DataTable columns={columns} data={users} />
+}
+```
+
+---
+
+## Accessibility
+
+- Title renders as an `<h3>`
+- The actions trigger is a button with an accessible label (localized "open row actions")
+- Destructive actions are styled distinctly in the menu
+- The card itself is a clickable container, not a button — for keyboard-reachable navigation,
+  provide an action or a link in a `cell`
+
+---
+
+## Related Components
+
+- [DataTable](/docs/components/data-table) - Uses MobileCard automatically
+- [ListPage](/docs/components/list-page) - Higher-level list component
+- Card - Base card component
+
+---
+
+## See Also
+
+- [ListPage Pattern](/docs/patterns/listpage-pattern) - Responsive lists
+- Mobile-First Design - Best practices
+
+---
+
+**Status:** ✅ Stable

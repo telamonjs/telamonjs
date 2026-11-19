@@ -1,0 +1,76 @@
+{
+  "common": {
+    "appName": "TelamonJS App",
+    "welcome": "Welcome"
+  },
+  "nav": {
+    "home": "Home",
+    "users": "Users"
+  },
+  "auth": {
+    "signIn": "Sign in",
+    "signOut": "Sign out"
+  },
+  "usuarios": {
+    "title": "Users",
+    "description": "System user management",
+    "searchPlaceholder": "Search by name or email...",
+    "noName": "No name",
+    "roleAdmin": "Administrator",
+    "roleUser": "User",
+    "statusActive": "Active",
+    "statusInactive": "Inactive",
+    "sections": {
+      "personal": {
+        "label": "Personal Data",
+        "description": "Basic user information"
+      },
+      "access": {
+        "label": "Access",
+        "description": "Login and permission settings"
+      }
+    },
+    "columns": {
+      "name": "Name",
+      "role": "Role",
+      "status": "Status",
+      "createdAt": "Created at"
+    },
+    "fields": {
+      "name": "Full Name",
+      "namePlaceholder": "Enter the user's name",
+      "email": "Email",
+      "emailPlaceholder": "user@example.com",
+      "password": "Password",
+      "passwordPlaceholder": "At least 5 characters",
+      "passwordDescription": "Leave blank to keep the current password (edit only)",
+      "role": "Role",
+      "ativo": "Active User",
+      "ativoDescription": "Inactive users can't sign in"
+    },
+    "dialogs": {
+      "view": {
+        "title": "User Details"
+      },
+      "edit": {
+        "title": "Edit User",
+        "description": "Update the user's information"
+      },
+      "create": {
+        "title": "New User",
+        "description": "Register a new user in the system"
+      }
+    },
+    "actions": {
+      "view": "View details",
+      "edit": "Edit user",
+      "delete": "Deactivate user"
+    },
+    "confirmDelete": {
+      "title": "Deactivate {name}?",
+      "description": "Deactivated users won't be able to sign in.",
+      "confirmText": "Deactivate",
+      "cancelText": "Cancel"
+    }
+  }
+}

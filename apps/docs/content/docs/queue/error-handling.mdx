@@ -1,0 +1,219 @@
+---
+title: Error Handling
+description: Structured error classes with categorized codes, context data and classification utilities
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+All errors in the queue system extend the base `QueueError` class, which provides:
+
+- **Structured error codes** — categorized by domain (`QUEUE_1xxx`–`QUEUE_9xxx`)
+- **Context data** — extra information for debugging and logging
+- **Operational flag** — recoverable vs. critical errors
+- **Timestamp** and **JSON serialization** (`toJSON()`) for structured logging
+
+```typescript
+class QueueError extends Error {
+  code: ErrorCode
+  context: Record<string, any>
+  timestamp: Date
+  isOperational: boolean
+  toJSON(): Record<string, any>
+}
+```
+
+<Callout type='info' title='Import paths'>
+  The full error hierarchy, `ErrorCode` enum and utilities are exported from
+  `@telamonjs/queue/utils`. The most common classes (`QueueError`,
+  `JobNotFoundError`, `JobAlreadyRegisteredError`, `RedisConnectionError`,
+  `WorkerError`, `QueueOperationError`, `JobValidationError`, `JobTimeoutError`)
+  are also re-exported from the package root.
+</Callout>
+
+## Error code categories
+
+| Range | Domain        | Base class            |
+| ----- | ------------- | --------------------- |
+| 1xxx  | Configuration | `ConfigurationError`  |
+| 2xxx  | Job           | `JobError`            |
+| 3xxx  | Worker        | `WorkerError`         |
+| 4xxx  | Queue         | `QueueOperationError` |
+| 5xxx  | Redis         | `RedisError`          |
+| 6xxx  | Flow          | `FlowError`           |
+| 7xxx  | Registry      | `RegistryError`       |
+| 9xxx  | Generic       | `QueueError`          |
+
+## Error reference
+
+| Error class                 | Code       | Operational | Use case                       |
+| --------------------------- | ---------- | ----------- | ------------------------------ |
+| `InvalidRedisConfigError`   | QUEUE_1001 | No          | Invalid Redis configuration    |
+| `InvalidWorkerConfigError`  | QUEUE_1002 | No          | Invalid worker configuration   |
+| `InvalidJobOptionsError`    | QUEUE_1003 | No          | Invalid job options            |
+| `InvalidJobNameError`       | QUEUE_1004 | No          | Invalid job name format        |
+| `InvalidCronScheduleError`  | QUEUE_1005 | No          | Invalid cron schedule          |
+| `JobNotFoundError`          | QUEUE_2000 | Yes         | Job not registered             |
+| `JobAlreadyRegisteredError` | QUEUE_2001 | Yes         | Duplicate job registration     |
+| `JobValidationError`        | QUEUE_2002 | Yes         | Job data validation failed     |
+| `JobTimeoutError`           | QUEUE_2003 | Yes         | Job execution timeout          |
+| `JobExecutionError`         | QUEUE_2004 | Yes         | Job execution failed           |
+| `JobTransformError`         | QUEUE_2005 | Yes         | Job data transformation failed |
+| `JobStalledError`           | QUEUE_2006 | Yes         | Job stalled                    |
+| `WorkerNotFoundError`       | QUEUE_3001 | Yes         | Worker not found               |
+| `WorkerAlreadyExistsError`  | QUEUE_3002 | Yes         | Worker already exists          |
+| `WorkerStartError`          | QUEUE_3003 | No          | Worker failed to start         |
+| `WorkerStopError`           | QUEUE_3004 | No          | Worker failed to stop          |
+| `QueueNotFoundError`        | QUEUE_4001 | Yes         | Queue not found                |
+| `QueueAddError`             | QUEUE_4002 | Yes         | Failed to add job to queue     |
+| `QueueRemoveError`          | QUEUE_4003 | Yes         | Failed to remove job           |
+| `QueuePauseError`           | QUEUE_4004 | Yes         | Failed to pause queue          |
+| `QueueResumeError`          | QUEUE_4005 | Yes         | Failed to resume queue         |
+| `RedisConnectionError`      | QUEUE_5000 | No          | Redis connection failed        |
+| `RedisHealthCheckError`     | QUEUE_5002 | Yes         | Redis health check failed      |
+| `FlowInvalidStructureError` | QUEUE_6001 | No          | Invalid flow structure         |
+| `FlowExecutionError`        | QUEUE_6002 | Yes         | Flow execution failed          |
+| `RegistryValidationError`   | QUEUE_7001 | No          | Registry validation failed     |
+
+## Using custom errors
+
+```typescript
+import {
+  QueueError,
+  ErrorCode,
+  JobNotFoundError,
+  InvalidJobOptionsError,
+} from '@telamonjs/queue/utils'
+
+// Specific error
+throw new JobNotFoundError('send-email')
+
+// With context for debugging
+throw new InvalidJobOptionsError('send-email', 'attempts must be >= 1', {
+  attempts: 0,
+})
+
+// Base error with a custom code
+throw new QueueError('Custom error message', ErrorCode.INTERNAL_ERROR, {
+  customData: 'value',
+})
+```
+
+### Serialization for structured logging
+
+```typescript
+try {
+  await job.process(data)
+} catch (error) {
+  const jobError = new JobExecutionError('send-email', 'job-123', error)
+  logger.error('Job failed', jobError.toJSON())
+  // { name, message, code: 'QUEUE_2004', context, timestamp, isOperational, stack }
+}
+```
+
+## Utilities
+
+```typescript
+import {
+  isQueueError,
+  isOperationalError,
+  getErrorCode,
+  formatError,
+  ErrorCode,
+} from '@telamonjs/queue/utils'
+
+try {
+  await queueManager.add(SendEmailJob, data)
+} catch (error) {
+  // Type guard
+  if (isQueueError(error)) {
+    logger.error('Queue operation failed', error.toJSON())
+  } else {
+    logger.error('Unexpected error', formatError(error))
+  }
+
+  // Extract code from any error
+  if (getErrorCode(error) === ErrorCode.JOB_NOT_FOUND) {
+    // job not registered
+  }
+
+  // Operational vs critical
+  if (isOperationalError(error)) {
+    await retry() // recoverable — retry / notify
+  } else {
+    await gracefulShutdown() // critical — shut down
+    process.exit(1)
+  }
+}
+```
+
+## Failures inside a job
+
+The classes above describe failures of the queue system itself. A job reports its
+own failure by **throwing** from `process()` (or `validate()`/`transform()`):
+
+1. The `onFailed(error)` hook runs. It runs after **every** failed attempt, not only
+   the last one, so keep it idempotent (log, count, alert).
+2. BullMQ retries the job according to `attempts` and `backoff`. The `Job` defaults
+   are 3 attempts with exponential backoff starting at 1 second.
+3. After the last attempt the job stays in the queue's failed set (the newest 500
+   by default, `removeOnFail`) and is copied to the
+   [Dead Letter Queue](/docs/queue/dead-letter-queue).
+
+```typescript
+import { Job } from '@telamonjs/queue'
+
+export class ChargeOrderJob extends Job<ChargeData, ChargeResult> {
+  name = 'charge-order' as const
+
+  options = {
+    attempts: 3,
+    backoff: { type: 'exponential', delay: 5000 },
+  }
+
+  async process(data: ChargeData): Promise<ChargeResult> {
+    try {
+      return await primaryGateway.charge(data, { idempotencyKey: `order-${data.orderId}` })
+    } catch (error) {
+      // Degrade instead of failing when a fallback exists
+      if (isRateLimited(error)) return secondaryGateway.charge(data)
+      throw error // retried by BullMQ
+    }
+  }
+
+  async onFailed(error: Error): Promise<void> {
+    await alerts.notify(`charge-order attempt failed: ${error.message}`)
+  }
+}
+```
+
+**Make every job idempotent.** A retry runs `process()` again from the start, and a
+worker that crashes mid-job (a *stalled* job) gets its job re-run by BullMQ. Check
+for work already done (an existing row, a sent flag), pass idempotency keys to
+external APIs, and give enqueue calls a stable `jobId` when the same logical job
+must not be added twice:
+
+```typescript
+await queueManager.add(SendInvoiceJob, { invoiceId }, { jobId: `invoice-${invoiceId}` })
+```
+
+**Don't retry what can't succeed.** When an error is permanent (bad input, a 4xx
+from an external API), retrying only delays the DLQ. Validate data before `add()`,
+set `attempts: 1` on jobs that must never run twice (imports, payments without an
+idempotency key), or catch the error and return a result that records the failure.
+
+## Best practices
+
+1. **Use the most specific error class** — `new JobNotFoundError('send-email')`,
+   not `new Error('Job not found: send-email')`.
+2. **Provide context data** — include the invalid values, limits, IDs.
+3. **Catch specific error types** — `instanceof JobNotFoundError` branches instead
+   of a generic catch-all.
+4. **Log with `toJSON()`** — keeps logs structured and queryable.
+5. **Split handling by `isOperational`** — recover from operational errors, shut
+   down on non-operational ones.
+
+## Related
+
+- [Logging](/docs/queue/logging)
+- [Validation](/docs/queue/validation)
+- [Dead Letter Queue](/docs/queue/dead-letter-queue)

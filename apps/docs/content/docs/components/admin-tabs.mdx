@@ -1,0 +1,62 @@
+---
+title: AdminTabs
+description: ContentTabs wrapper with height-filling CSS for shell page layouts
+---
+
+`ContentTabs` wrapper for page layouts. Injects `flex-1 min-h-0` (plus child selectors) so tab panels fill the remaining height of a [ShellPage](/docs/components/shell-page) — essential for maps and other viewport-filling content. `ContentTabs` itself is not modified; dialogs keep using it directly.
+
+```tsx
+import { ShellPage, AdminHeader, AdminTabs } from '@telamonjs/ui'
+import { useTabUrlSync } from '@telamonjs/ui'
+
+const tabDefs = [
+  { value: 'overview', label: 'Overview', icon: 'LayoutDashboard', content: <OverviewTab /> },
+  { value: 'rules', label: 'Rules', icon: 'ListChecks', content: <RulesTab /> },
+]
+
+export default function AlertsPage() {
+  const { activeTab, setTab } = useTabUrlSync({ tabs: tabDefs.map((t) => t.value) })
+
+  return (
+    <ShellPage>
+      <AdminHeader title='Alerts' icon='Bell' />
+      <AdminTabs tabs={tabDefs} value={activeTab} onValueChange={setTab} />
+    </ShellPage>
+  )
+}
+```
+
+---
+
+## Props
+
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `tabs` | `TabItem[]` | - | Tab definitions (value, label, shortLabel, icon, badge, content) |
+| `value` | `string` | - | Controlled active tab |
+| `onValueChange` | `(value: string) => void` | - | Tab change callback |
+| `fillHeight` | `boolean` | `true` | Fill remaining height — use for full-height content like maps |
+| `compact` | `boolean` | `false` | Compact tab sizing |
+| `variant` | `ContentTabsVariant` | `'default'` | ContentTabs visual variant (`'default' \| 'underline' \| 'pill' \| 'glass' \| 'gradient'`) |
+| `className` | `string` | - | Extra classes |
+
+---
+
+## URL-Driven Tabs
+
+Pair with [useTabUrlSync](/docs/hooks/use-tab-url-sync) so the URL is the source of truth (`?tab=rules` deep-links to a tab, and the browser Back button returns to the previous tab):
+
+```tsx
+const { activeTab, setTab } = useTabUrlSync({ tabs: visibleDefs.map((d) => d.value) })
+
+<AdminTabs tabs={tabs} value={activeTab} onValueChange={setTab} />
+```
+
+---
+
+## Related
+
+- [ShellPage](/docs/components/shell-page) — full-height container
+- [AdminHeader](/docs/components/admin-header) — header above the tabs
+- [TabToolbar](/docs/components/tab-toolbar) — filters/search/actions inside tab panels
+- [useTabUrlSync](/docs/hooks/use-tab-url-sync) — deep-linkable tab state

@@ -1,0 +1,82 @@
+{
+  "name": "@telamonjs/cli",
+  "version": "1.0.1",
+  "description": "CLI for TelamonJS: create a Next.js admin app (single app or monorepo), generate CRUD modules from a Prisma schema, lint admin modules and manage database dumps",
+  "type": "module",
+  "bin": {
+    "create-telamonjs-app": "./dist/create-bin.js",
+    "telamonjs": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc && pnpm run copy:templates",
+    "copy:templates": "mkdir -p dist/templates/database && cp templates/database/*.sh dist/templates/database/ 2>/dev/null || true",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "pnpm run clean && pnpm run build",
+    "cli": "node dist/cli.js",
+    "test:create": "node dist/cli.js create test-app --template app",
+    "link:local": "pnpm build && npm link && echo '\n✅ CLI linked globally! Use: telamonjs create <project-name>\n'",
+    "unlink:local": "npm unlink --global && echo '\n✅ CLI unlinked from global\n'",
+    "reinstall:local": "npm unlink --global 2>/dev/null || true && pnpm build && npm link && echo '\n✅ CLI reinstalled globally!\n'",
+    "type-check": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "keywords": [
+    "telamonjs",
+    "cli",
+    "nextjs",
+    "admin",
+    "dashboard",
+    "scaffold"
+  ],
+  "author": "Marcos Tullyo (https://github.com/mtullyoc)",
+  "license": "MIT",
+  "dependencies": {
+    "chalk": "^4.1.2",
+    "commander": "^11.1.0",
+    "execa": "^5.1.1",
+    "fs-extra": "^11.1.1",
+    "inquirer": "^8.2.6",
+    "ora": "^5.4.1",
+    "typescript": "^5.9.3",
+    "validate-npm-package-name": "^5.0.0"
+  },
+  "devDependencies": {
+    "@telamonjs/ui": "workspace:*",
+    "@tanstack/react-query": "^5.90.2",
+    "@tanstack/react-table": "^8.21.3",
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^8.2.10",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@types/validate-npm-package-name": "^4.0.2",
+    "lucide-react": "^0.545.0",
+    "next": "catalog:",
+    "sonner": "^2.0.7",
+    "vitest": "catalog:",
+    "zod": "catalog:"
+  },
+  "files": [
+    "dist",
+    "templates",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telamonjs/telamonjs.git",
+    "directory": "packages/cli"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "homepage": "https://github.com/telamonjs/telamonjs/tree/main/packages/cli#readme",
+  "bugs": "https://github.com/telamonjs/telamonjs/issues"
+}

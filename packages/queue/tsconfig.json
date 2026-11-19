@@ -1,0 +1,58 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "noEmit": false,
+    "composite": true,
+    // Without this, tsBuildInfoFile is inherited from the root tsconfig.json
+    // (../../node_modules/.tmp/tsconfig.tsbuildinfo) - the SAME shared
+    // incremental cache the root, noEmit, all-packages type-check uses.
+    // The two projects fight over one buildinfo: after a real `tsc` build
+    // here writes to it, deleting dist/ without also clearing that shared
+    // file makes the next `tsc` run here believe nothing changed and skip
+    // emission entirely (exit 0, zero files written - a silent no-op
+    // build). Own buildinfo, scoped to this package, fixes it.
+    "tsBuildInfoFile": "./dist/tsconfig.tsbuildinfo",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022"
+    ],
+    "target": "ES2022",
+    "module": "Node16",
+    "moduleResolution": "node16",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    // Scoped to this package only (not root/base tsconfig) — needed to parse
+    // NestJS's decorators (@Controller/@Get/... in src/nestjs/) under the
+    // legacy TS decorator model NestJS is built on. No other package is
+    // affected: `pnpm type-check` runs `tsc --noEmit` per package against
+    // its own tsconfig (`pnpm -r run type-check`), not the shared root one.
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true
+  },
+  "include": [
+    "src/**/*"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "examples",
+    "tests",
+    "src/test/**",
+    // Test-only mock builders for http/*.test.ts — imports `vitest` (a
+    // devDependency), so it must never land in dist (nothing not-a-test
+    // imports it; vitest itself resolves it fine via a plain relative
+    // import regardless of this tsconfig exclude).
+    "src/**/test-support.ts"
+  ]
+}

@@ -1,0 +1,302 @@
+---
+title: StatusBadge
+description: Reusable status badge with typed variants (new, beta, status, trend, custom)
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Reusable badge component for "new"/"beta" tags, status labels and trend
+percentages, configured per call.
+
+<StatusBadgePreview />
+
+<Callout type='info' title='Not the same as DetailStatus'>
+  `StatusBadge` is a **base component** configured per call. `DetailStatus`
+  is a separate detail-page component driven by a `statusConfig` map; it
+  renders the `Badge` primitive, not `StatusBadge`.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import { StatusBadge } from '@telamonjs/ui'
+
+export default function MyComponent() {
+  return <StatusBadge type='status' label='Active' variant='success' />
+}
+```
+
+<Callout type='warn' title='There is no `status` prop'>
+  The component is driven by `type` + `label` + `variant`, and `icon` takes a rendered `ReactNode`,
+  not a component reference.
+</Callout>
+
+---
+
+## Props
+
+```typescript
+type BadgeType = 'new' | 'beta' | 'custom' | 'status' | 'trend'
+type BadgeVariant =
+  | 'default'
+  | 'secondary'
+  | 'destructive'
+  | 'outline'
+  | 'success'
+  | 'warning'
+
+interface StatusBadgeProps {
+  type?: BadgeType // Badge kind — drives default label/variant (default: 'custom')
+  label?: string // Display text (overrides the type's default label)
+  variant?: BadgeVariant // Color variant (overrides the type's default variant)
+  value?: number // Percentage value, only used when type='trend'
+  icon?: React.ReactNode // Icon element, already rendered (e.g. <Check className="h-3 w-3" />)
+  size?: 'sm' | 'md' | 'lg' // Badge size (default: 'sm')
+  className?: string // Additional classes
+}
+```
+
+**Type → default label/variant:**
+
+| `type`     | Default label | Default variant |
+| ---------- | -------------- | ---------------- |
+| `new`      | Localized "New" (`common.create`) | `secondary` |
+| `beta`     | "Beta"          | `outline`         |
+| `custom`   | (none — pass `label`) | `secondary` |
+| `status`   | (none — pass `label`) | `default`   |
+| `trend`    | (none — renders `value`%) | `secondary` |
+
+Any of these can be overridden by passing an explicit `label`/`variant`.
+
+<Callout type='info' title='No auto-coloring from status strings'>
+  `StatusBadge` does **not** infer a color from the text of `label` (e.g. the string `"failed"` does
+  not automatically turn the badge red). You always pass `variant` explicitly — build your own
+  `Record<Status, variant>` mapping if you need per-status colors (see
+  [Complete Example](#complete-example) below).
+</Callout>
+
+---
+
+## Variants
+
+### Status Badge
+
+```tsx
+<StatusBadge type='status' label='Active' variant='success' />
+<StatusBadge type='status' label='Pending' variant='warning' />
+<StatusBadge type='status' label='Failed' variant='destructive' />
+<StatusBadge type='status' label='Draft' variant='outline' />
+```
+
+### New / Beta
+
+```tsx
+<StatusBadge type='new' />   {/* "New" (localized), secondary variant */}
+<StatusBadge type='beta' />  {/* "Beta", outline variant */}
+```
+
+### Trend
+
+```tsx
+<StatusBadge type='trend' value={15.5} />   {/* Green up-arrow, "15.5%" */}
+<StatusBadge type='trend' value={-4.2} />   {/* Red down-arrow, "4.2%" */}
+<StatusBadge type='trend' value={0} />      {/* Muted dash, "0%" */}
+```
+
+Trend color and arrow direction are derived automatically from the sign of `value`.
+
+### Custom
+
+```tsx
+<StatusBadge type='custom' label='VIP' variant='outline' />
+```
+
+---
+
+## Examples
+
+### With Icon
+
+```tsx
+import { Check, AlertCircle, X } from 'lucide-react'
+
+<StatusBadge type='status' label='Verified' variant='success' icon={<Check className='h-3 w-3' />} />
+<StatusBadge type='status' label='Warning' variant='warning' icon={<AlertCircle className='h-3 w-3' />} />
+<StatusBadge type='status' label='Blocked' variant='destructive' icon={<X className='h-3 w-3' />} />
+```
+
+`icon` takes a rendered element (`ReactNode`), not a component reference.
+
+### Different Sizes
+
+```tsx
+<StatusBadge type='status' label='Active' variant='success' size='sm' />   {/* Small (default) */}
+<StatusBadge type='status' label='Active' variant='success' size='md' />   {/* Medium */}
+<StatusBadge type='status' label='Active' variant='success' size='lg' />   {/* Large */}
+```
+
+### In Table
+
+```tsx
+import type { ColumnDef } from '@tanstack/react-table'
+
+const columns: ColumnDef<User>[] = [
+  {
+    accessorKey: 'name',
+    header: 'Name',
+  },
+  {
+    accessorKey: 'active',
+    header: 'Status',
+    cell: ({ row }) => (
+      <StatusBadge
+        type='status'
+        label={row.original.active ? 'Active' : 'Inactive'}
+        variant={row.original.active ? 'success' : 'secondary'}
+      />
+    ),
+  },
+]
+```
+
+### In Card
+
+```tsx
+import { DetailCard, StatusBadge } from '@telamonjs/ui'
+;<DetailCard
+  title='Order Details'
+  headerBadge={<StatusBadge type='status' label={order.status} variant='success' />}
+>
+  {/* Order details */}
+</DetailCard>
+```
+
+---
+
+## Complete Example
+
+```tsx title="components/order-status.tsx"
+import { StatusBadge } from '@telamonjs/ui'
+import { Check, Clock, AlertCircle, X, Package } from 'lucide-react'
+
+type OrderStatus = 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled'
+
+interface OrderStatusBadgeProps {
+  status: OrderStatus
+}
+
+const statusConfig: Record<
+  OrderStatus,
+  {
+    variant: 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'warning'
+    icon: React.ReactNode
+    label: string
+  }
+> = {
+  pending: { variant: 'warning', icon: <Clock className='h-3 w-3' />, label: 'Pending' },
+  processing: { variant: 'outline', icon: <Package className='h-3 w-3' />, label: 'Processing' },
+  shipped: { variant: 'outline', icon: <Package className='h-3 w-3' />, label: 'Shipped' },
+  delivered: { variant: 'success', icon: <Check className='h-3 w-3' />, label: 'Delivered' },
+  cancelled: { variant: 'destructive', icon: <X className='h-3 w-3' />, label: 'Cancelled' },
+}
+
+export default function OrderStatusBadge({ status }: OrderStatusBadgeProps) {
+  const config = statusConfig[status]
+
+  return <StatusBadge type='status' label={config.label} variant={config.variant} icon={config.icon} />
+}
+```
+
+---
+
+## Use Cases
+
+- **Tables** - Status columns
+- **Cards** - Header badges
+- **Lists** - Item status indicators
+- **Forms** - Status display
+- **Dashboards** - Trend/metric badges
+- **Detail pages** - Entity status
+
+---
+
+## Best Practices
+
+1. **Consistent mapping** - Build one `Record<Status, variant>` map and reuse it across the app (see Complete Example)
+2. **Appropriate variants** - Match color to meaning (`success` = green, `destructive` = red)
+3. **Icons optional** - Pass a rendered `ReactNode`, only add when it clarifies meaning
+4. **Size consistency** - Use the same `size` within the same context
+5. **Explicit variant** - There is no auto-coloring from label text; always pass `variant`
+6. **Text clarity** - Use clear, concise labels
+7. **Accessibility** - Don't rely only on color (use text + icon)
+
+---
+
+## StatusBadge vs DetailStatus
+
+| Feature         | StatusBadge (Base)      | DetailStatus (Higher-level) |
+| --------------- | ------------------------ | ---------------------------- |
+| **Use case**     | General-purpose          | Detail pages specifically    |
+| **Location**     | Tables, cards, anywhere  | Detail pages only            |
+| **Config**       | Props per call (`type`/`label`/`variant`) | External `statusConfig` map (`status`/`statusConfig` props) |
+| **Import from**  | `@telamonjs/ui`          | `@telamonjs/ui` or `@telamonjs/ui/detail` |
+
+**Decision:**
+
+- ✅ Use **StatusBadge** - Tables, cards, lists, forms
+- ✅ Use **DetailStatus** - Detail/view pages with a shared `statusConfig` map
+
+---
+
+## Accessibility
+
+- Semantic HTML (renders a `<span>`-based Badge)
+- Color + text + icon (don't rely on color alone)
+- Sufficient color contrast (WCAG AA)
+- Screen reader friendly
+
+---
+
+## Customization
+
+**Custom colors:**
+
+```tsx
+<StatusBadge
+  type='custom'
+  label='Custom'
+  className='bg-purple-100 text-purple-700 border-purple-200'
+/>
+```
+
+**Custom styling:**
+
+```tsx
+<StatusBadge
+  type='custom'
+  label='VIP'
+  variant='outline'
+  className='font-bold uppercase tracking-wider'
+/>
+```
+
+---
+
+## Related Components
+
+- [DetailStatus](/docs/components/detail-status) - Detail page status driven by a `statusConfig` map
+- Badge - Generic badge component
+
+---
+
+## See Also
+
+- Status Indicators - Status design patterns
+- Color System - Color usage guidelines
+
+---
+
+**Status:** ✅ Stable

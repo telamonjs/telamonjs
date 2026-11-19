@@ -1,0 +1,161 @@
+// This is the Prisma schema for the telamonjs permissions system
+// Copy this into your main schema.prisma file and adjust to your needs
+
+// Permission actions enum
+enum AcaoPermissao {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  EXECUTE
+  EXPORT
+  IMPORT
+  APPROVE
+  PUBLISH
+}
+
+// Override type for user permissions
+enum TipoOverride {
+  CONCEDER  // Grant permission
+  REVOGAR   // Revoke permission
+}
+
+// Permission check result
+enum ResultadoPermissao {
+  PERMITIDO
+  NEGADO
+  ERRO
+}
+
+// Roles (RBAC) — system roles cannot be deleted
+model Papel {
+  id         String  @id @default(cuid())
+  nome       String
+  codigo     String  @unique // e.g., "superadmin", "admin", "supervisor"
+  descricao  String?
+  cor        String?
+  prioridade Int     @default(0)
+  sistema    Boolean @default(false)
+
+  usuarioPapeis UsuarioPapel[]
+  permissoes    PermissaoPapel[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime? @updatedAt
+
+  @@map("papeis")
+}
+
+// Pivot table: User <-> Role (N:N, multi-role)
+model UsuarioPapel {
+  id String @id @default(cuid())
+
+  usuarioId String
+  papelId   String
+
+  usuario User  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  papel   Papel @relation(fields: [papelId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([usuarioId, papelId])
+  @@index([usuarioId])
+  @@index([papelId])
+  @@map("usuarios_papeis")
+}
+
+// Available permissions in the system
+model Permissao {
+  id          String   @id @default(cuid())
+  codigo      String   @unique  // e.g., "clientes.create", "produtos.view"
+  modulo      String              // e.g., "clientes", "produtos"
+  acao        AcaoPermissao       // CREATE, READ, UPDATE, DELETE, etc.
+  descricao   String?
+  categoria   String?             // Organization (cadastro, relatorios, etc)
+
+  // Advanced attributes
+  requerContexto Boolean @default(false)  // Requires contextual validation (ABAC)
+  tempoExpiracao Int?                     // Minutes until expiration (for temporary permissions)
+
+  // Relations
+  papeis      PermissaoPapel[]
+  usuarios    PermissaoUsuario[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([modulo, acao])
+  @@index([codigo])
+  @@map("permissoes")
+}
+
+// Pivot table: Permissions by Role (RBAC)
+model PermissaoPapel {
+  id          String @id @default(cuid())
+  papelId     String
+  permissaoId String
+
+  // Additional attributes (ABAC)
+  condicoes   Json?   // Extra conditions: { "clienteId": "$user.clienteId" }
+  escopo      Json?   // Limits: { "maxRegistros": 100 }
+
+  // Relations
+  papel       Papel     @relation(fields: [papelId], references: [id], onDelete: Cascade)
+  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([papelId, permissaoId])
+  @@index([papelId])
+  @@map("permissoes_papeis")
+}
+
+// Individual user permissions (override role permissions)
+model PermissaoUsuario {
+  id          String @id @default(cuid())
+  usuarioId   String
+  permissaoId String
+
+  // Override type
+  tipo        TipoOverride @default(CONCEDER)  // GRANT or REVOKE
+
+  // Temporality
+  expiraEm    DateTime?
+
+  // Context
+  condicoes   Json?
+  motivo      String?     // Audit reason
+  concessaoPor String?    // Who granted
+
+  // Relations
+  usuario     User      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([usuarioId, permissaoId])
+  @@index([usuarioId])
+  @@index([expiraEm])
+  @@map("permissoes_usuarios")
+}
+
+// Audit log for all permission checks
+model LogPermissao {
+  id          String @id @default(cuid())
+  usuarioId   String
+  permissao   String
+  acao        String
+  recurso     String?
+  resultado   ResultadoPermissao  // PERMITIDO, NEGADO, ERRO
+  motivo      String?
+  contexto    Json?
+  ip          String?
+  userAgent   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([usuarioId, createdAt])
+  @@index([permissao, resultado])
+  @@index([createdAt])
+  @@map("logs_permissoes")
+}

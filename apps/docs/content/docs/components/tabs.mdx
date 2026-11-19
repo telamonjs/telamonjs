@@ -1,0 +1,446 @@
+---
+title: Tabs
+description: Tab navigation component for switching between related views
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+Tab navigation component for organizing and switching between related content views or sections.
+
+<Callout type='info' title='Content Organization'>
+  `Tabs` help organize related information without cluttering the interface or
+  requiring page navigation.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+} from '@telamonjs/ui'
+
+export default function SettingsPage() {
+  return (
+    <Tabs defaultValue='profile'>
+      <TabsList>
+        <TabsTrigger value='profile'>Profile</TabsTrigger>
+        <TabsTrigger value='account'>Account</TabsTrigger>
+        <TabsTrigger value='security'>Security</TabsTrigger>
+      </TabsList>
+
+      <TabsContent value='profile'>{/* Profile settings */}</TabsContent>
+
+      <TabsContent value='account'>{/* Account settings */}</TabsContent>
+
+      <TabsContent value='security'>{/* Security settings */}</TabsContent>
+    </Tabs>
+  )
+}
+```
+
+---
+
+## Props
+
+`Tabs`, `TabsList`, `TabsTrigger` and `TabsContent` are styled [Radix Tabs](https://www.radix-ui.com/primitives/docs/components/tabs)
+parts and accept the Radix props. The ones you use most:
+
+```typescript
+// Tabs (Radix Tabs.Root)
+{
+  defaultValue?: string // Initial active tab
+  value?: string // Controlled active tab
+  onValueChange?: (value: string) => void // Tab change callback
+  orientation?: 'horizontal' | 'vertical' // Arrow-key direction (default 'horizontal')
+  activationMode?: 'automatic' | 'manual' // default 'automatic'
+  className?: string
+  children: React.ReactNode
+}
+
+// TabsTrigger (Radix Tabs.Trigger)
+{
+  value: string // Tab identifier (required)
+  disabled?: boolean // Disable tab
+  className?: string
+  children: React.ReactNode // Tab label — put icons and badges here
+}
+
+// TabsContent (Radix Tabs.Content)
+{
+  value: string // Tab identifier (required)
+  forceMount?: true // Keep mounted while inactive
+  className?: string
+  children: React.ReactNode
+}
+```
+
+`TabsTrigger` has no `icon` or `badge` prop. For a data-driven tab bar with icons and badges,
+use [`ContentTabs`](/docs/components/admin-tabs) (`TabItem.icon` / `TabItem.badge`).
+
+---
+
+## Examples
+
+### Basic Tabs
+
+```tsx
+<Tabs defaultValue='overview'>
+  <TabsList>
+    <TabsTrigger value='overview'>Overview</TabsTrigger>
+    <TabsTrigger value='analytics'>Analytics</TabsTrigger>
+    <TabsTrigger value='reports'>Reports</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value='overview'>Overview content</TabsContent>
+  <TabsContent value='analytics'>Analytics content</TabsContent>
+  <TabsContent value='reports'>Reports content</TabsContent>
+</Tabs>
+```
+
+### With Icons
+
+```tsx
+import { User, Settings, Bell, Shield } from 'lucide-react'
+;<Tabs defaultValue='profile'>
+  <TabsList>
+    <TabsTrigger value='profile' className='gap-2'>
+      <User className='h-4 w-4' /> Profile
+    </TabsTrigger>
+    <TabsTrigger value='settings' className='gap-2'>
+      <Settings className='h-4 w-4' /> Settings
+    </TabsTrigger>
+    <TabsTrigger value='notifications' className='gap-2'>
+      <Bell className='h-4 w-4' /> Notifications
+    </TabsTrigger>
+    <TabsTrigger value='security' className='gap-2'>
+      <Shield className='h-4 w-4' /> Security
+    </TabsTrigger>
+  </TabsList>
+
+  {/* Content */}
+</Tabs>
+```
+
+### With Badges
+
+```tsx
+import { Badge } from '@telamonjs/ui'
+;<Tabs defaultValue='all'>
+  <TabsList>
+    <TabsTrigger value='all'>All Orders</TabsTrigger>
+    <TabsTrigger value='pending' className='gap-2'>
+      Pending <Badge variant='secondary'>12</Badge>
+    </TabsTrigger>
+    <TabsTrigger value='processing' className='gap-2'>
+      Processing <Badge variant='secondary'>5</Badge>
+    </TabsTrigger>
+    <TabsTrigger value='completed' className='gap-2'>
+      Completed <Badge variant='secondary'>150</Badge>
+    </TabsTrigger>
+  </TabsList>
+
+  {/* Content */}
+</Tabs>
+```
+
+### Controlled Tabs
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+export default function ControlledTabs() {
+  const [activeTab, setActiveTab] = useState('tab1')
+
+  return (
+    <>
+      <Button onClick={() => setActiveTab('tab2')}>Jump to Tab 2</Button>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value='tab1'>Tab 1</TabsTrigger>
+          <TabsTrigger value='tab2'>Tab 2</TabsTrigger>
+          <TabsTrigger value='tab3'>Tab 3</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value='tab1'>Content 1</TabsContent>
+        <TabsContent value='tab2'>Content 2</TabsContent>
+        <TabsContent value='tab3'>Content 3</TabsContent>
+      </Tabs>
+    </>
+  )
+}
+```
+
+### Vertical Tabs
+
+```tsx
+<Tabs defaultValue='general' orientation='vertical' className='flex gap-4'>
+  <TabsList className='h-auto flex-col items-stretch'>
+    <TabsTrigger value='general'>General</TabsTrigger>
+    <TabsTrigger value='appearance'>Appearance</TabsTrigger>
+    <TabsTrigger value='notifications'>Notifications</TabsTrigger>
+    <TabsTrigger value='privacy'>Privacy</TabsTrigger>
+  </TabsList>
+
+  <TabsContent value='general'>{/* Content */}</TabsContent>
+  <TabsContent value='appearance'>{/* Content */}</TabsContent>
+  <TabsContent value='notifications'>{/* Content */}</TabsContent>
+  <TabsContent value='privacy'>{/* Content */}</TabsContent>
+</Tabs>
+```
+
+Layout: Tabs on left, content on right. `orientation` only switches arrow-key navigation to
+up/down — the column layout comes from the classes.
+
+### Disabled Tabs
+
+```tsx
+<Tabs defaultValue='tab1'>
+  <TabsList>
+    <TabsTrigger value='tab1'>Available</TabsTrigger>
+    <TabsTrigger value='tab2' disabled>
+      Coming Soon
+    </TabsTrigger>
+    <TabsTrigger value='tab3' disabled>
+      Premium Only
+    </TabsTrigger>
+  </TabsList>
+
+  {/* Content */}
+</Tabs>
+```
+
+---
+
+## Complete Example
+
+```tsx title="app/admin/users/[id]/page.tsx"
+'use client'
+
+import { use } from 'react'
+import {
+  Tabs,
+  TabsList,
+  TabsTrigger,
+  TabsContent,
+  Badge,
+  DetailCard,
+  DetailField,
+  DataTable,
+  Timeline,
+} from '@telamonjs/ui'
+import { User, ShoppingCart, Activity, Settings } from 'lucide-react'
+import { getUser, getUserOrders, getUserActivity } from './service'
+
+export default function UserDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
+  const user = use(getUser(id))
+  const orders = use(getUserOrders(id))
+  const activity = use(getUserActivity(id))
+
+  return (
+    <div className='container py-6'>
+      <h1 className='text-3xl font-bold mb-6'>{user.name}</h1>
+
+      <Tabs defaultValue='profile'>
+        <TabsList>
+          <TabsTrigger value='profile' className='gap-2'>
+            <User className='h-4 w-4' /> Profile
+          </TabsTrigger>
+          <TabsTrigger value='orders' className='gap-2'>
+            <ShoppingCart className='h-4 w-4' /> Orders
+            <Badge variant='secondary'>{orders.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger value='activity' className='gap-2'>
+            <Activity className='h-4 w-4' /> Activity
+          </TabsTrigger>
+          <TabsTrigger value='settings' className='gap-2'>
+            <Settings className='h-4 w-4' /> Settings
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value='profile'>
+          <div className='mt-6 space-y-6'>
+            <DetailCard title='Personal Information'>
+              <DetailField label='Name' value={user.name} />
+              <DetailField label='Email' value={user.email} />
+              <DetailField label='Phone' value={user.phone} />
+            </DetailCard>
+
+            <DetailCard title='Address'>
+              <DetailField label='Street' value={user.address.street} />
+              <DetailField label='City' value={user.address.city} />
+            </DetailCard>
+          </div>
+        </TabsContent>
+
+        <TabsContent value='orders'>
+          <div className='mt-6'>
+            <DataTable columns={orderColumns} data={orders} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value='activity'>
+          <div className='mt-6'>
+            <Timeline items={activity} />
+          </div>
+        </TabsContent>
+
+        <TabsContent value='settings'>
+          <div className='mt-6 space-y-6'>{/* Settings forms */}</div>
+        </TabsContent>
+      </Tabs>
+    </div>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Settings pages** - Organize settings by category
+- **User profiles** - Separate profile, orders, activity
+- **Product details** - Overview, specifications, reviews
+- **Dashboard views** - Different data perspectives
+- **Form sections** - Multi-section forms (alternative to wizard)
+- **Data tables** - Filter/categorize data
+
+---
+
+## URL Sync (Optional)
+
+**Sync active tab with URL:**
+
+```tsx
+'use client'
+
+import { useSearchParams, useRouter } from 'next/navigation'
+
+export default function URLSyncedTabs() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const tab = searchParams.get('tab') || 'overview'
+
+  function handleTabChange(value: string) {
+    const params = new URLSearchParams(searchParams)
+    params.set('tab', value)
+    router.push(`?${params.toString()}`)
+  }
+
+  return (
+    <Tabs value={tab} onValueChange={handleTabChange}>
+      {/* Tabs */}
+    </Tabs>
+  )
+}
+```
+
+Now tabs persist through page reloads and can be bookmarked/shared. `useTabUrlSync` from
+`@telamonjs/ui` packages this pattern: `const { activeTab, setTab } = useTabUrlSync({ tabs: ['overview', 'reports'] })`.
+
+---
+
+## Best Practices
+
+1. **Limit tabs** - 3-7 tabs optimal (use dropdown for more)
+2. **Short labels** - 1-2 words per tab
+3. **Related content** - Only group related content
+4. **Default tab** - Choose most important/common tab
+5. **Persist state** - Remember active tab (localStorage or URL)
+6. **Lazy load** - Load content when tab activated
+7. **Responsive** - Stack or scroll on mobile
+
+---
+
+## Accessibility
+
+- ✅ Keyboard navigation (Tab, Arrow keys, Home, End) — from Radix Tabs
+- ✅ ARIA roles (`tablist`, `tab`, `tabpanel`)
+- ✅ `aria-selected` and `aria-controls`
+- ✅ Focus management
+- ✅ Screen reader announcements
+- ✅ Disabled state properly communicated
+
+**Keyboard shortcuts:**
+
+- `Tab` - Move focus into the tab list (active trigger), then into the panel
+- `Arrow Left/Right` - Navigate between tabs (`Up/Down` with `orientation='vertical'`)
+- `Home/End` - First/last tab
+- `Enter/Space` - Activate focused tab (with `activationMode='manual'`; otherwise focus activates)
+
+---
+
+## Performance
+
+**Lazy loading content:**
+
+```tsx
+import { lazy, Suspense } from 'react'
+
+const AnalyticsTab = lazy(() => import('./tabs/analytics'))
+const ReportsTab = lazy(() => import('./tabs/reports'))
+
+<Tabs defaultValue="overview">
+  <TabsList>{/* Triggers */}</TabsList>
+
+  <TabsContent value="overview">{/* Always loaded */}</TabsContent>
+
+  <TabsContent value="analytics">
+    <Suspense fallback={<Loading />}>
+      <AnalyticsTab />
+    </Suspense>
+  </TabsContent>
+
+  <TabsContent value="reports">
+    <Suspense fallback={<Loading />}>
+      <ReportsTab />
+    </Suspense>
+  </TabsContent>
+</Tabs>
+```
+
+---
+
+## Responsive Design
+
+**Mobile:**
+
+- Horizontal scroll for many tabs
+- Stack vertically for wide tabs
+- Use dropdown menu for 5+ tabs
+
+```tsx
+// Automatic horizontal scroll on mobile
+<TabsList className='w-full overflow-x-auto'>{/* Many tabs */}</TabsList>
+```
+
+---
+
+## Related Components
+
+- [Breadcrumb](/docs/components/breadcrumbs) - Hierarchical navigation
+- Stepper - Sequential navigation
+- [ModernSidebar](/docs/components/modern-sidebar) - Primary navigation
+
+---
+
+## See Also
+
+- [Tabs UX Pattern](https://www.nngroup.com/articles/tabs-used-right/) - Nielsen Norman Group
+- [ARIA Tabs](https://www.w3.org/WAI/ARIA/apg/patterns/tabs/) - W3C specification
+
+---
+
+**Status:** ✅ Stable

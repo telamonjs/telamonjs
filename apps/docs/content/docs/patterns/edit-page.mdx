@@ -1,0 +1,331 @@
+---
+title: Standalone form pages
+description: When a module needs dedicated create/edit routes — EditPage and CreatePage with shared form sections, Zod validation and typed actions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+<Callout type='info' title='Dialogs are the default'>
+  A `CrudConfig` module creates and edits records in **dialogs** that `ListPage` renders from
+  `config.form`: no extra routes. That is what the CLI generates, and its `no-crud-pages` lint
+  rule reports `adicionar/page.tsx`, `[id]/page.tsx` and `[id]/editar/page.tsx` next to a
+  module's `config.tsx` as errors. Reach for a standalone page only when a form genuinely needs
+  its own URL or a full-page layout (a long multi-section form, a flow linked from outside the
+  list), and put `// telamonjs-lint-disable-file no-crud-pages` at the top of each such page.
+  See [Dialogs](/docs/patterns/dialogs).
+</Callout>
+
+How to build dedicated create and edit pages (`adicionar/` and `[id]/editar/` below) using the
+`EditPage` and `CreatePage` wrappers, sharing the `formSections` and Zod schema already defined in
+the module's `config.tsx`.
+
+---
+
+## EditPage vs CreatePage
+
+| Aspect        | `EditPage`                      | `CreatePage`                          |
+| ------------- | ------------------------------- | ------------------------------------- |
+| Semantics     | Edit an existing entity         | Create a new one                      |
+| Props         | `id`, `data`                    | `defaultValues` (no id)               |
+| CRUD fields   | Rendered                        | **Auto-filtered** (need a parent row) |
+| `editOnly` sections | Rendered                  | **Auto-filtered**                     |
+| `useTabs` default | `true`                      | `false`                               |
+
+Both wrap `PageContent` + the underlying form — use the bare
+`EditForm`/`CreateForm` only when you already have a custom page layout.
+
+<Callout type='info' title='Why CRUD fields are filtered on create'>
+  A `type: 'crud'` field manages child rows of the entity (e.g. addresses of a
+  client). Children can only exist after the parent does, so CreatePage strips
+  those fields — and whole sections marked `editOnly: true` — automatically.
+</Callout>
+
+---
+
+## File Structure
+
+```
+app/admin/usuarios/
+├── config.tsx            # formSections + validationSchema (shared)
+├── adicionar/
+│   └── page.tsx          # CreatePage
+└── [id]/
+    └── editar/
+        └── page.tsx      # EditPage
+```
+
+The form sections and the Zod schema are defined **once** in `config.tsx` and
+imported by both pages. See
+[Admin Module Structure](/docs/patterns/admin-module-structure) for the full
+config anatomy.
+
+---
+
+## Implementation (React Query)
+
+### Edit
+
+The page loads the entity through the module's API client, maps it to form
+default values, and submits through a typed action:
+
+```tsx title="app/admin/usuarios/[id]/editar/page.tsx"
+'use client'
+
+import { use } from 'react'
+import { useRouter } from 'next/navigation'
+import { useQuery } from '@tanstack/react-query'
+import { EditPage, type FormActionResult } from '@telamonjs/ui'
+import { formSections, validationSchema, type UsuarioFormData } from '../../config'
+import { usuariosApi } from '@/lib/api/usuarios-client'
+
+export default function UsuarioEditPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = use(params)
+  const router = useRouter()
+
+  const { data: usuario, isLoading } = useQuery({
+    queryKey: ['usuarios', id],
+    queryFn: () => usuariosApi.getById(id),
+  })
+
+  async function action(formData: FormData): Promise<FormActionResult<UsuarioFormData>> {
+    const data = validationSchema.parse(Object.fromEntries(formData.entries()))
+    // Blank password means "keep the current one" — don't send it.
+    if (!data.password) delete data.password
+    await usuariosApi.update(id, data)
+    router.push(`/admin/usuarios/${id}`)
+    return { success: true }
+  }
+
+  if (isLoading || !usuario) return null
+
+  const defaultValues: Partial<UsuarioFormData> = {
+    name: usuario.name ?? '',
+    email: usuario.email,
+    role: usuario.role,
+    ativo: usuario.ativo,
+  }
+
+  return (
+    <EditPage
+      id={id}
+      data={defaultValues}
+      sections={formSections}
+      validation={validationSchema}
+      action={action}
+      title={`Edit: ${usuario.name || usuario.email}`}
+    />
+  )
+}
+```
+
+**Key points:**
+
+1. **Explicit `defaultValues` mapping** — pick the editable fields from the
+   entity instead of spreading it; the entity carries fields the form doesn't
+   own (`id`, timestamps, computed data).
+2. **The action receives `FormData`** — parse it with the same Zod schema the
+   form validates with, then call the API client.
+3. **Sensitive optional fields** — the blank-password-keeps-current rule is
+   handled here (delete the key) and enforced again in the PATCH route.
+4. **Return `{ success: true }`** — `EditPage` toasts success/failure from the
+   `FormActionResult`; never call `toast` inside the action.
+
+### Create
+
+```tsx title="app/admin/usuarios/adicionar/page.tsx"
+'use client'
+
+import { useRouter } from 'next/navigation'
+import { CreatePage, type FormActionResult } from '@telamonjs/ui'
+import { formSections, validationSchema, type UsuarioFormData } from '../config'
+import { usuariosApi } from '@/lib/api/usuarios-client'
+
+export default function AdicionarUsuarioPage() {
+  const router = useRouter()
+
+  async function action(formData: FormData): Promise<FormActionResult<UsuarioFormData>> {
+    const data = validationSchema.parse(Object.fromEntries(formData.entries()))
+    await usuariosApi.create(data)
+    router.push('/admin/usuarios')
+    return { success: true }
+  }
+
+  return (
+    <CreatePage
+      sections={formSections}
+      validation={validationSchema}
+      action={action}
+      title='New User'
+      description='Register a new user in the system'
+      defaultValues={{ ativo: true, role: 'USER' }}
+    />
+  )
+}
+```
+
+No `id`, no data fetch — just `defaultValues` for the fields that should start
+non-empty.
+
+---
+
+## Alternative: Server Component + Server Action
+
+Modules on the Server Actions data layer fetch on the server and pass a
+`'use server'` action:
+
+```tsx title="[id]/editar/page.tsx (Server Component)"
+import { notFound } from 'next/navigation'
+import { EditPage } from '@telamonjs/ui'
+import { getUsuario } from '@/services/usuarios'
+import { updateUsuarioAction } from '../../actions'
+import { formSections, validationSchema } from '../../config'
+
+export default async function Page(props: { params: Promise<{ id: string }> }) {
+  const { id } = await props.params
+  const usuario = await getUsuario(id)
+  if (!usuario) notFound()
+
+  return (
+    <EditPage
+      id={usuario.id}
+      data={usuario}
+      sections={formSections}
+      action={updateUsuarioAction}
+      validation={validationSchema}
+      title={`Edit ${usuario.name}`}
+    />
+  )
+}
+
+export const dynamic = 'force-dynamic'
+```
+
+The Server Action validates again, updates via the service, and revalidates
+every affected path:
+
+```ts title="actions.ts"
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { z } from 'zod'
+import { validationSchema } from './config'
+import { updateUsuario } from '@/services/usuarios'
+
+const BASE_PATH = '/admin/usuarios'
+
+// Empty strings break Zod — normalize them to null first
+function processFormData(formData: FormData) {
+  const processed: Record<string, unknown> = {}
+  for (const [key, value] of Object.entries(Object.fromEntries(formData.entries()))) {
+    processed[key] = value === '' ? null : value
+  }
+  return processed
+}
+
+export async function updateUsuarioAction(formData: FormData) {
+  const id = formData.get('id') as string // EditPage injects a hidden id field
+  if (!id) throw new Error('ID is required for update')
+
+  try {
+    const data = validationSchema.parse(processFormData(formData))
+    await updateUsuario({ ...data, id })
+
+    revalidatePath(BASE_PATH, 'layout')          // list + all subroutes
+    revalidatePath(`${BASE_PATH}/${id}`, 'layout') // detail + subroutes
+
+    return { success: true, message: 'User updated successfully' }
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      const fields = error.errors.map((e) => `${e.path.join('.')}: ${e.message}`)
+      throw new Error('Invalid data: ' + fields.join(', '))
+    }
+    throw error
+  }
+}
+```
+
+Which variant to use is decided module-wide, not per page: React Query modules
+invalidate query keys; Server Action modules call `revalidatePath`.
+
+---
+
+## Rules That Apply to Both Variants
+
+### Validate twice
+
+```tsx
+// Client — instant field errors in the form
+<EditPage validation={validationSchema} ... />
+
+// Server — the route handler / server action parses again
+const parsed = schema.safeParse(body) // never trust the client
+```
+
+Client-side validation is UX; server-side validation is security.
+
+### Never spread untrusted input into Prisma
+
+```ts
+// ❌ data: { ...body }   — accepts any field the client sends
+// ✅ list the fields explicitly, or use a parsed Zod result whose schema
+//    only contains the editable fields
+```
+
+### Keep the schema shared
+
+One `validationSchema` in `config.tsx`, imported by the form (client) and the
+mutation path (action or route schema derived from it). Divergent schemas are
+how "the form accepts it but the server rejects it" bugs are born.
+
+---
+
+## Troubleshooting
+
+### "Cannot use 'use client' with async component"
+
+Pick one: full client page (`use(params)` + `useQuery`) or async Server
+Component without `'use client'`.
+
+### "id is required for update"
+
+`EditPage` injects the hidden `id` field only when it receives the `id` prop:
+
+```tsx
+<EditPage id={entity.id} data={entity} ... />
+```
+
+### Form submits but data doesn't refresh
+
+- React Query variant: the mutation didn't invalidate — call
+  `queryClient.invalidateQueries` for both `['usuarios']` and
+  `['usuarios', id]`, or navigate after `await`ing the update.
+- Server Action variant: missing `revalidatePath` for the affected routes.
+
+### "Expected string, received null" (Zod)
+
+Empty inputs arrive as `''` in `FormData`. Either normalize with a
+`processFormData` helper (Server Action variant) or make the schema accept the
+empty case, as the password field does:
+
+```ts
+password: z.string().min(5).optional().or(z.literal(''))
+```
+
+### Toast doesn't appear after submit
+
+`EditPage`/`CreatePage` toast the `FormActionResult` themselves. Return
+`{ success, message? }` from the action — calling `toast()` inside a Server
+Action does nothing.
+
+---
+
+## Related Links
+
+- [Admin Module Structure](/docs/patterns/admin-module-structure) — module anatomy
+- [Form Pattern](/docs/patterns/form-pattern) — field types, sections, validation
+- [Nested Data](/docs/patterns/nested-data) — editing nested relations
+- [Detail Page Pattern](/docs/patterns/detail-page) — the read-only sibling

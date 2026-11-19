@@ -1,0 +1,328 @@
+---
+title: ZustandForm
+description: Form with Zustand state management for wizards and complex forms
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Advanced form component backed by a shared Zustand store (`useFormStore`),
+for multi-section forms, tabbed wizards, live previews, and any scenario
+where you need programmatic access to form state from outside the form.
+
+<Callout type='success' title='When to Use'>
+  Use `ZustandForm` for tabbed/wizard-style forms, forms with state consumed
+  elsewhere on the page (live preview, external buttons), or fine-grained
+  state control. For standard CRUD forms use `Form`/`CreateForm`/`EditForm`.
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { ZustandForm } from '@telamonjs/ui'
+import { formSections } from './config'
+
+export default function SignUpWizard() {
+  return (
+    <ZustandForm
+      formId='signup'
+      sections={formSections}
+      onSubmit={async data => {
+        await usersApi.create(data)
+      }}
+      useTabs
+      submitText='Create Account'
+    />
+  )
+}
+```
+
+<Callout type='warn' title='Props to know'>
+  The wizard mode is `useTabs`, initial values are `data`, `formId` is **required**, validation is
+  required-field based (from `required` in the sections — no schema prop), and there is no built-in
+  localStorage persistence. External state access goes through the exported
+  `useForm`/`useFormStore` hooks.
+</Callout>
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    formId: {
+      description: 'Unique form ID for Zustand store isolation — every form instance needs its own',
+      type: 'string',
+      required: true,
+    },
+    sections: { description: 'Form sections with fields (supports nested row structure for grids)', type: 'FormSection[]', required: true },
+    data: { description: 'Initial form data (edit mode pre-population or defaults)', type: 'Record<string, unknown>' },
+    action: { description: 'Server Action receiving FormData. Mutually exclusive with onSubmit', type: '(formData: FormData) => Promise<FormActionResult | void> | void' },
+    onSubmit: { description: 'Client-side submit handler receiving the typed data object. Mutually exclusive with action', type: '(data: Record<string, unknown>) => Promise<void> | void' },
+    submitText: { description: 'Submit button text', type: 'string', default: 'localized "Save"' },
+    useTabs: { description: 'Tab navigation between sections — the multi-step wizard UI', type: 'boolean', default: 'false' },
+    id: { description: 'Entity ID for edit mode — enables CRUD fields and editOnly sections/fields', type: 'string' },
+    onSuccess: { description: 'Called after a successful Server Action with its result', type: '(result: FormActionResult) => void | Promise<void>' },
+    cancelAction: { description: 'Cancel button handler', type: '() => void', default: 'window.history.back()' },
+    hideButtons: { description: 'Hide submit/cancel buttons (for custom button layouts)', type: 'boolean', default: 'false' },
+    showDebug: { description: 'Debug panel with form state (data, meta, validation) — dev only', type: 'boolean', default: 'false' },
+    className: { description: 'Additional classes on the form container', type: 'string' },
+  }}
+/>
+
+<Callout type='info' title='Prefer onSubmit + React Query'>
+  `action` exists for Server Action integration, but the data pattern is
+  client-side: pass `onSubmit` and call your REST client / mutation there.
+</Callout>
+
+---
+
+## Examples
+
+### Tabbed Wizard
+
+```tsx
+import { ZustandForm } from '@telamonjs/ui'
+import type { FormSection } from '@telamonjs/ui'
+
+const sections: FormSection[] = [
+  {
+    label: 'Personal Information',
+    fields: [
+      { name: 'firstName', label: 'First Name', type: 'text', required: true },
+      { name: 'lastName', label: 'Last Name', type: 'text', required: true },
+      { name: 'email', label: 'Email', type: 'email', required: true },
+    ],
+  },
+  {
+    label: 'Account Details',
+    fields: [
+      { name: 'username', label: 'Username', type: 'text', required: true },
+      { name: 'password', label: 'Password', type: 'password', required: true },
+    ],
+  },
+  {
+    label: 'Preferences',
+    fields: [
+      { name: 'newsletter', label: 'Subscribe to Newsletter', type: 'checkbox' },
+      {
+        name: 'theme',
+        label: 'Theme',
+        type: 'relationship', // NOT 'select' — 'select' does not exist
+        // options come from `loadField` — there is no `options` prop
+        loadField: async () => [
+          { value: 'light', label: 'Light' },
+          { value: 'dark', label: 'Dark' },
+        ],
+      },
+    ],
+  },
+]
+
+export default function SignUpWizard() {
+  return (
+    <ZustandForm
+      formId='signup'
+      sections={sections}
+      onSubmit={createUser}
+      useTabs
+      submitText='Create Account'
+    />
+  )
+}
+```
+
+With `useTabs`, each section becomes a tab; state lives in the shared store,
+so values are preserved when switching tabs.
+
+### Edit Mode with Initial Data
+
+```tsx
+<ZustandForm
+  formId={`user-edit-${user.id}`}
+  id={user.id}
+  sections={sections}
+  data={user}
+  onSubmit={async data => usersApi.update(user.id, data)}
+/>
+```
+
+### Live Preview via the Store
+
+```tsx
+'use client'
+
+import { ZustandForm, useForm } from '@telamonjs/ui'
+
+function FormPreview() {
+  const form = useForm('signup')
+
+  return (
+    <div className='rounded border p-4'>
+      <h3>Live Preview</h3>
+      <pre>{JSON.stringify(form.data, null, 2)}</pre>
+    </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <div className='grid grid-cols-2 gap-6'>
+      <ZustandForm formId='signup' sections={sections} onSubmit={createUser} />
+      <FormPreview />
+    </div>
+  )
+}
+```
+
+`useForm(formId)` scopes the shared `useFormStore` to one form: read
+`data`/`meta`, or call `updateField`, `reset`, `getFieldValue`,
+`getFieldError` from any component.
+
+### External Buttons
+
+```tsx
+'use client'
+
+import { ZustandForm, useFormStore, Button } from '@telamonjs/ui'
+
+function FormActions() {
+  const updateField = useFormStore(s => s.updateField)
+  const resetForm = useFormStore(s => s.resetForm)
+
+  return (
+    <div className='flex gap-2'>
+      <Button onClick={() => updateField('signup', 'email', 'test@example.com')}>
+        Fill Email
+      </Button>
+      <Button variant='outline' onClick={() => resetForm('signup')}>
+        Reset Form
+      </Button>
+    </div>
+  )
+}
+```
+
+Store actions take the `formId` as the first argument — that is how multiple
+forms coexist in the single store.
+
+---
+
+## Validation
+
+There is no schema prop. Validation is required-field based: fields with
+`required: true` are checked on submit (and surfaced per field as they are
+touched). For schema-level rules, validate inside your `onSubmit`:
+
+```tsx
+onSubmit={async data => {
+  const parsed = signUpSchema.safeParse(data)
+  if (!parsed.success) {
+    toast.error(parsed.error.issues[0].message)
+    return
+  }
+  await usersApi.create(parsed.data)
+}}
+```
+
+---
+
+## Server Component pages: ZustandFormServer
+
+`ZustandFormServer` takes the same props as `ZustandForm` and forwards them. It
+loads the client form through `next/dynamic` and shows a skeleton while the
+chunk loads, so a Server Component page can fetch the record and render the
+form without becoming a Client Component.
+
+```tsx title="app/admin/products/[id]/edit/page.tsx"
+// Server Component: no 'use client'
+import { ZustandFormServer } from '@telamonjs/ui'
+import { formSections } from '../../config'
+import { updateProductAction } from '../../actions'
+import { getProduct } from '@/services/products'
+
+export default async function EditProductPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
+  const { id } = await params
+  const product = await getProduct(id)
+
+  return (
+    <ZustandFormServer
+      formId={`product-edit-${id}`}
+      id={id}
+      sections={formSections}
+      data={product}
+      action={updateProductAction}
+      submitText='Update Product'
+    />
+  )
+}
+```
+
+A Server Component can only pass serializable props, so submit through a Server
+Action (`action`) here; `onSubmit` needs a client parent. If the page is already a
+Client Component, use `ZustandForm` directly and skip the dynamic-import hop. Either way, re-validate on the server.
+
+---
+
+## When to Use
+
+Use `ZustandForm` when:
+
+- ✅ Building tabbed wizards (signup, checkout, onboarding) via `useTabs`
+- ✅ Need to access form state from outside the form (`useForm`/`useFormStore`)
+- ✅ Building forms with live previews
+- ✅ Need fine-grained control over form state
+
+**Don't use when:**
+
+- ❌ Simple forms → Use [Form](/docs/components/form)
+- ❌ Standard CRUD create → Use [CreateForm](/docs/components/create-form)
+- ❌ Standard CRUD edit → Use [EditForm](/docs/components/edit-form)
+
+---
+
+## ZustandForm vs Form
+
+| Feature                | ZustandForm                       | Form                       |
+| ---------------------- | --------------------------------- | -------------------------- |
+| **State Management**   | Zustand (shared external store)   | React Hook Form (internal) |
+| **Wizard/tabs**        | ✅ Built-in (`useTabs`)           | ❌ Manual                  |
+| **External Access**    | ✅ `useForm` / `useFormStore`     | ❌ Limited                 |
+| **Schema validation**  | ❌ Manual (in `onSubmit`)         | ✅ Zod via config          |
+| **Complexity**         | Higher                            | Lower                      |
+| **Use Case**           | Complex, multi-tab, live state    | Simple, standard           |
+
+---
+
+## Best Practices
+
+1. **Unique formId** - Store state is keyed by it; collisions mix form data
+2. **Reset after submit** - Call `resetForm(formId)` for forms with passwords/PII
+3. **Limit tabs** - Keep wizards to 3-5 sections for best UX
+4. **Validate in onSubmit** - Add schema rules there; the built-in check only covers `required`
+5. **showDebug in dev only** - It renders the full form state on screen
+
+---
+
+## Related Components
+
+- [Form](/docs/components/form) - Standard form (simpler alternative)
+- [ZustandFormServer](#server-component-pages-zustandformserver) - Server Component wrapper
+- [CreateForm](/docs/components/create-form) - Creation wrapper
+- [EditForm](/docs/components/edit-form) - Edit wrapper
+
+---
+
+## See Also
+
+- [Form Pattern](/docs/patterns/form-pattern) - Form best practices
+- [Module structure](/docs/patterns/admin-module-structure) - Where form config lives
+- [Zustand Documentation](https://zustand-demo.pmnd.rs/) - State management

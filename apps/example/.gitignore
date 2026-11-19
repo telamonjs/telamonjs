@@ -1,0 +1,115 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.js
+
+# testing
+/coverage
+/tests/e2e-results
+/test-results
+*playwright-report*
+/blob-report
+/playwright/.cache
+functional-results
+
+# next.js
+/.next/
+/out/
+/.swc/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# local env files
+.env
+.env*.local
+.env.test
+.env.development.local
+.env.production.local
+
+# vercel
+.vercel
+.react-email
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+
+.env
+.env.test
+.vscode
+.inngest
+
+# Docker volumes
+/docker/database/data/
+/docker/cache/data/
+
+# TypeScript scan reports
+/scripts/ts-scan/reports/*.txt
+/scripts/ts-scan/reports/*.log
+
+# Smoke test reports
+smoke-test-report.json
+
+# Turbo
+.turbo
+
+# Prisma
+# NOTE: Do NOT ignore migrations/ - they should be committed!
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+tmp/
+temp/
+.tmp/
+
+# Package manager
+.pnpm-store/
+.yarn/
+.yarnrc.yml
+
+# Security & Certificates
+*.key
+*.cert
+*.pem
+*.p12
+*.pfx
+
+# Database files (SQLite)
+*.db
+*.sqlite
+*.sqlite3
+*.db-shm
+*.db-wal
+
+# Backups & Dumps
+*.sql
+*.dump
+*.backup
+*.bak
+
+# OS specific
+desktop.ini

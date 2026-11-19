@@ -1,0 +1,357 @@
+---
+title: KanbanBoard
+description: Drag-and-drop kanban board for visual workflow management
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+Kanban board component with drag-and-drop support for visual workflow management and task tracking.
+
+<KanbanBoardPreview />
+
+<Callout type='success' title='Built on dnd-kit'>
+  `KanbanBoard` uses [@dnd-kit](https://dndkit.com/) for performant
+  drag-and-drop (pointer/touch — a keyboard sensor is not wired up).
+</Callout>
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { KanbanBoard } from '@telamonjs/ui'
+
+const columns = [
+  {
+    id: 'todo',
+    title: 'To Do',
+    cards: [
+      { id: '1', title: 'Design homepage', description: 'Create mockups' },
+      { id: '2', title: 'Setup database', description: 'PostgreSQL config' },
+    ],
+  },
+  {
+    id: 'in_progress',
+    title: 'In Progress',
+    cards: [
+      { id: '3', title: 'Implement auth', description: 'NextAuth setup' },
+    ],
+  },
+  {
+    id: 'done',
+    title: 'Done',
+    cards: [
+      { id: '4', title: 'Project setup', description: 'Next.js initialized' },
+    ],
+  },
+]
+
+export default function ProjectBoard() {
+  function handleCardMove(
+    cardId: string,
+    fromColumn: string,
+    toColumn: string
+  ) {
+    console.log(`Moved ${cardId} from ${fromColumn} to ${toColumn}`)
+    // Update backend
+  }
+
+  return <KanbanBoard columns={columns} onCardMove={handleCardMove} />
+}
+```
+
+---
+
+## Props
+
+```typescript
+interface KanbanBoardProps {
+  columns: KanbanColumn[] // Board columns (required)
+  onCardMove: (cardId: string, fromColumn: string, toColumn: string) => void
+  onCardClick?: (card: KanbanCard) => void // Card click handler
+  className?: string // Additional classes
+}
+```
+
+<TypeTable
+  type={{
+    columns: { description: 'Board columns with their cards', type: 'KanbanColumn[]', required: true },
+    onCardMove: {
+      description: 'Called after a drop on another column — update your state here (the board does not mutate columns itself)',
+      type: '(cardId: string, fromColumn: string, toColumn: string) => void',
+      required: true,
+    },
+    onCardClick: { description: 'Called when a card is clicked (not dragged)', type: '(card: KanbanCard) => void' },
+    className: { description: 'Additional classes', type: 'string' },
+  }}
+/>
+
+### KanbanColumn
+
+<TypeTable
+  type={{
+    id: { description: 'Unique column ID', type: 'string', required: true },
+    title: { description: 'Column title', type: 'string', required: true },
+    cards: { description: 'Cards in the column', type: 'KanbanCard[]', required: true },
+    color: { description: 'Accent dot color shown next to the title (any CSS color)', type: 'string' },
+    limit: {
+      description: 'WIP limit — display only ("3 / 5" in the header); it does not block moves',
+      type: 'number',
+    },
+  }}
+/>
+
+### KanbanCard
+
+<TypeTable
+  type={{
+    id: { description: 'Unique card ID', type: 'string', required: true },
+    title: { description: 'Card title', type: 'string', required: true },
+    description: { description: 'Card description', type: 'string' },
+    assignee: { description: 'Assigned user (avatar falls back to initials)', type: '{ name: string; avatar?: string }' },
+    priority: { description: 'Priority badge', type: "'low' | 'medium' | 'high'" },
+    dueDate: { description: 'Due date (a Date object, not a string)', type: 'Date' },
+    tags: { description: 'Tag labels', type: 'string[]' },
+  }}
+/>
+
+<Callout type='warn' title='Your page owns the columns'>
+  Column management and custom card rendering are up to your page; `KanbanColumn.limit` is
+  display-only.
+</Callout>
+
+---
+
+## Examples
+
+### Basic Board
+
+```tsx
+<KanbanBoard
+  columns={columns}
+  onCardMove={(cardId, from, to) => {
+    // Handle move
+  }}
+/>
+```
+
+### With Card Details
+
+```tsx
+const columns = [
+  {
+    id: 'backlog',
+    title: 'Backlog',
+    cards: [
+      {
+        id: '1',
+        title: 'Add user authentication',
+        description: 'Implement login and signup flows',
+        assignee: { name: 'John Doe', avatar: '/avatars/john.jpg' },
+        tags: ['feature', 'high-priority'],
+        priority: 'high',
+        dueDate: new Date('2026-01-25'),
+      },
+    ],
+  },
+]
+
+<KanbanBoard columns={columns} onCardMove={handleMove} />
+```
+
+### With Column Limits
+
+```tsx
+const columns = [
+  {
+    id: 'in_progress',
+    title: 'In Progress',
+    limit: 3,  // WIP limit — shown as "1 / 3" in the header
+    cards: [...],
+  },
+]
+
+<KanbanBoard columns={columns} onCardMove={handleMove} />
+```
+
+The limit is informational — enforce it in your `onCardMove` handler if you
+need a hard cap (skip the state update when the target column is full).
+
+### Click Handler
+
+```tsx
+<KanbanBoard
+  columns={columns}
+  onCardMove={handleMove}
+  onCardClick={card => {
+    router.push(`/tasks/${card.id}`)
+  }}
+/>
+```
+
+---
+
+## Complete Example
+
+```tsx title="app/projects/[id]/board/page.tsx"
+'use client'
+
+import { useState } from 'react'
+import { KanbanBoard, type KanbanColumn } from '@telamonjs/ui'
+import { useMutation } from '@tanstack/react-query'
+import { tasksApi } from '@/lib/api/tasks-client'
+
+export default function ProjectBoard({
+  initialData,
+}: {
+  initialData: KanbanColumn[]
+}) {
+  const [columns, setColumns] = useState(initialData)
+
+  const moveMutation = useMutation({
+    mutationFn: ({ cardId, toColumn }: { cardId: string; toColumn: string }) =>
+      tasksApi.updateStatus(cardId, toColumn),
+  })
+
+  function handleCardMove(cardId: string, fromColumn: string, toColumn: string) {
+    // Optimistic update
+    setColumns(cols => {
+      const card = cols
+        .find(c => c.id === fromColumn)
+        ?.cards.find(c => c.id === cardId)
+      if (!card) return cols
+      return cols.map(col => {
+        if (col.id === fromColumn)
+          return { ...col, cards: col.cards.filter(c => c.id !== cardId) }
+        if (col.id === toColumn) return { ...col, cards: [...col.cards, card] }
+        return col
+      })
+    })
+
+    // Persist to backend
+    moveMutation.mutate({ cardId, toColumn })
+  }
+
+  return (
+    <div className='container py-6'>
+      <div className='mb-6'>
+        <h1 className='text-3xl font-bold'>Project Board</h1>
+        <p className='text-muted-foreground'>
+          Drag and drop tasks to update their status
+        </p>
+      </div>
+
+      <KanbanBoard
+        columns={columns}
+        onCardMove={handleCardMove}
+        onCardClick={card => console.log('open task', card.id)}
+      />
+    </div>
+  )
+}
+```
+
+---
+
+## Use Cases
+
+- **Project management** - Task tracking, sprint boards
+- **Sales pipelines** - Lead stages, deal tracking
+- **Hiring workflows** - Candidate pipeline
+- **Support tickets** - Issue triage and resolution
+- **Content production** - Editorial workflow
+- **Order fulfillment** - Order status tracking
+
+---
+
+## State Management
+
+**Client-side state:**
+
+```tsx
+const [columns, setColumns] = useState(initialData)
+```
+
+**With optimistic updates:**
+
+```tsx
+async function handleCardMove(cardId, from, to) {
+  // 1. Update UI immediately
+  setColumns(optimisticUpdate)
+
+  // 2. Persist to backend
+  try {
+    await updateCard(cardId, { status: to })
+  } catch (error) {
+    // 3. Rollback on error
+    setColumns(previousState)
+    toast.error('Failed to update task')
+  }
+}
+```
+
+**With React Query (standard):**
+
+```tsx
+const moveMutation = useMutation({
+  mutationFn: ({ cardId, toColumn }: { cardId: string; toColumn: string }) =>
+    tasksApi.updateStatus(cardId, toColumn),
+  onError: () => {
+    setColumns(previousState)
+    toast.error('Failed to update task')
+  },
+})
+```
+
+---
+
+## Best Practices
+
+1. **Limit columns** - 3-6 columns for optimal UX
+2. **Set WIP limits** - Prevent bottlenecks (e.g., max 5 in "In Progress")
+3. **Add filters** - Filter by assignee, priority, tags
+4. **Optimistic updates** - Move the card in state immediately, persist async
+5. **Mobile-friendly** - Pointer sensor covers touch drag
+
+---
+
+## Accessibility
+
+- Drag-and-drop uses dnd-kit's `PointerSensor` (mouse + touch) with an
+  activation distance so plain clicks still fire `onCardClick`
+- Keyboard-driven dragging is **not** wired up (no `KeyboardSensor`) — if
+  card movement must be keyboard accessible, offer an alternative action
+  (e.g. a "move to column" menu via `onCardClick`)
+
+---
+
+## Performance
+
+**Optimization tips:**
+
+- Lazy load card details (fetch them in `onCardClick`)
+- Debounce backend updates
+- Use optimistic updates
+- Every card renders (no virtualization) — filter or paginate very large columns before passing them
+
+---
+
+## Related Components
+
+- [Timeline](/docs/components/timeline) - Linear event tracking
+- [DataTable](/docs/components/data-table) - Tabular view
+- [Calendar](/docs/components/calendar) - Time-based planning
+
+---
+
+## See Also
+
+- [dnd-kit Documentation](https://docs.dndkit.com/) - Drag-and-drop library
+- Kanban Best Practices - Workflow optimization
+
+---
+
+**Status:** ✅ Stable

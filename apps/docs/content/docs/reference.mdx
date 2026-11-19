@@ -1,0 +1,136 @@
+---
+title: Decision Trees
+description: Which page, form, detail component, layout, chart or field type fits your case
+---
+
+Short answers to "which one do I use?". Each tree ends at the page that documents
+the choice.
+
+## Create, edit and view
+
+```
+Where do create, edit and view happen?
+│
+├─ Default → dialogs on the list
+│  └─ config.dialogs.create / edit / view, data from mutations.getForEdit / getForView
+│
+├─ The view has 6+ sections → dialogs.view.portal (section launcher in the dialog)
+│
+└─ The form or the view outgrows a dialog (very long form, own URL, sub-resources)
+   └─ Standalone pages: CreatePage / EditPage, DetailLayout on an [id] page
+```
+
+See [Dialogs](/docs/patterns/dialogs), [Detail views](/docs/patterns/detail-page) and
+[Standalone form pages](/docs/patterns/edit-page). `telamonjs lint` flags standalone
+CRUD routes unless you opt out per file.
+
+## Form component
+
+```
+Need a form?
+│
+├─ Create/edit of a CrudConfig module → nothing to pick: the dialogs render config.form
+│
+├─ A standalone page → CreatePage / EditPage (BaseFormPage for full control)
+│
+├─ A form inside your own layout
+│  ├─ Creating → CreateForm
+│  ├─ Editing  → EditForm (requires id + data)
+│  └─ Neither  → Form
+│
+└─ A multi-step wizard, or form state read elsewhere on the page (live preview)
+   ├─ Rendered from a Server Component page → ZustandFormServer
+   └─ Otherwise → ZustandForm
+```
+
+Form sections live in `config.tsx`. Dropdowns are `type: 'relationship'`; there is
+no `'select'`. See [Forms & fields](/docs/patterns/form-pattern) and
+[ZustandForm](/docs/components/zustand-form).
+
+## Field type
+
+```
+What does the field hold?
+├─ One value from a list (dropdown) → 'relationship', options from loadField
+├─ Several values from a list → 'multiselect', options from loadField
+├─ A list of child records edited inline → 'crud'
+├─ Money → 'currency'
+├─ A date, with or without typing a mask → 'date' / 'masked-date'
+├─ Text with a fixed format (phone, document number) → 'masked'
+└─ Anything custom → 'component'
+```
+
+Every type, with its props: [Field types](/docs/reference/field-types). Nested
+records: [Nested data](/docs/patterns/nested-data) and [CRUD field](/docs/patterns/crud-field).
+
+## Detail component
+
+```
+Showing one record?
+├─ Page shell (dedicated page only) → DetailLayout
+├─ Grouping fields → DetailCard
+├─ Label + value → DetailField
+├─ Metrics in a grid → DetailStatsGrid
+├─ Status badge → DetailStatus
+├─ Warning or info block → DetailAlert
+├─ Avatar or photo → DetailAvatar
+├─ Action buttons → DetailActions
+└─ Sections inside the view dialog → ContentTabs
+```
+
+See [Detail views](/docs/patterns/detail-page).
+
+## List
+
+```
+Listing records?
+├─ A CrudConfig module → ListPage (search, sorting, filters, export, row actions, dialogs)
+├─ A list inside a tab of a hub page → ListPage with embedded
+└─ A table that is not a CRUD module and needs full control → DataTable
+```
+
+See [List pages](/docs/patterns/listpage-pattern) and [DataTable](/docs/components/data-table).
+
+## Data layer
+
+```
+Fetching or mutating data?
+├─ In a CrudConfig module → config.query.queryFn + config.mutations.*.mutationFn
+│  · queryFn resolves PaginatedResponse<T>
+│  · mutationFn resolves { success, data? }
+│  · only lib/api/<module>-client.ts calls fetch()
+└─ Outside a CrudConfig → your own React Query hook, imported from @tanstack/react-query
+```
+
+See [Data layer](/docs/patterns/react-query).
+
+## Layout
+
+```
+What are you laying out?
+│
+├─ The app shell (sidebar, header, breadcrumb, Cmd+K) → AdminShell
+│
+├─ A page with several views (hub)
+│  ├─ Up to 5 tabs → ShellPage + AdminHeader + AdminTabs + useTabUrlSync
+│  └─ 6+ sections → AdminPortal
+│
+├─ A page with one view → ShellPage + AdminHeader + ShellContent
+│
+└─ A shell AdminShell cannot express → AppShell (lower-level primitive)
+```
+
+See [App shell & providers](/docs/patterns/provider-setup), [AdminShell](/docs/components/admin-shell)
+and [ShellPage](/docs/components/shell-page).
+
+## Chart
+
+```
+Showing a chart?
+├─ In a dashboard card with title and actions → ChartWidget (line, bar, pie)
+├─ In your own layout → LineChart / BarChart / AreaChart / PieChart
+├─ A donut → PieChart with innerRadius > 0
+└─ Radar, bars + line, scatter, funnel... → Recharts directly
+```
+
+See [ChartWidget](/docs/components/chart-widget) and [Dashboards](/docs/patterns/dashboard).

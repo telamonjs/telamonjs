@@ -1,0 +1,119 @@
+{
+  "name": "@telamonjs/auth",
+  "version": "1.0.1",
+  "description": "NextAuth v5 <-> NestJS auth bridge: the JWE session-token contract, a Nest guard, Next callbacks and revocable impersonation",
+  "main": "dist/index.cjs",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./nest": {
+      "import": {
+        "types": "./dist/nest/index.d.ts",
+        "default": "./dist/nest/index.js"
+      },
+      "require": {
+        "types": "./dist/nest/index.d.cts",
+        "default": "./dist/nest/index.cjs"
+      }
+    },
+    "./next": {
+      "import": {
+        "types": "./dist/next/index.d.ts",
+        "default": "./dist/next/index.js"
+      },
+      "require": {
+        "types": "./dist/next/index.d.cts",
+        "default": "./dist/next/index.cjs"
+      }
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "nest": [
+        "./dist/nest/index.d.ts"
+      ],
+      "next": [
+        "./dist/next/index.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write src",
+    "type-check": "tsc --noEmit",
+    "verify": "pnpm lint && pnpm type-check && pnpm test && pnpm build"
+  },
+  "keywords": [
+    "auth",
+    "authentication",
+    "nextauth",
+    "nestjs",
+    "jwt",
+    "jwe",
+    "admin",
+    "telamonjs",
+    "typescript"
+  ],
+  "author": "Marcos Tullyo (https://github.com/mtullyoc)",
+  "license": "MIT",
+  "peerDependencies": {
+    "@auth/core": "^0.34.0",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "@nestjs/core": "^10.0.0 || ^11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs/common": {
+      "optional": true
+    },
+    "@nestjs/core": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@auth/core": "^0.34.3",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@types/node": "catalog:",
+    "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
+    "tsup": "^8.5.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telamonjs/telamonjs.git",
+    "directory": "packages/auth"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22"
+  },
+  "homepage": "https://github.com/telamonjs/telamonjs/tree/main/packages/auth#readme",
+  "bugs": "https://github.com/telamonjs/telamonjs/issues"
+}

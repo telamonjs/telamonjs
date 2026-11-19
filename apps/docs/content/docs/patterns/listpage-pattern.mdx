@@ -1,0 +1,513 @@
+---
+title: ListPage Pattern
+description: Config-driven list pages with React Query, infinite scroll or pagination, search, filters and row actions
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+A list page is one `CrudConfig` plus one `<ListPage config={config} />`. The config declares
+columns, form, data fetching (`query`) and mutations; `ListPage` renders the table (or the
+infinite list), search, filters, row actions and the create/view/edit dialogs from it.
+
+```
+app/admin/users/
+├── config.tsx   # 'use client' — CrudConfig (columns, form, query, mutations)
+└── page.tsx     # <ListPage config={config} />
+lib/api/
+└── users-client.ts  # REST client: the one hop from the browser to your API
+```
+
+<Callout type='warn' title="config.tsx must start with 'use client'">
+  `query` and `mutations` run through React Query hooks, which only exist on the client.
+</Callout>
+
+---
+
+## 1. The API Client
+
+The browser calls your API directly; React Query owns caching. The list call must resolve
+`PaginatedResponse<T>`:
+
+```tsx title="lib/api/users-client.ts"
+import type { PaginatedResponse, PaginationParams } from '@telamonjs/ui'
+
+export const usersApi = {
+  async list(params: PaginationParams): Promise<PaginatedResponse<User>> {
+    const qs = new URLSearchParams({
+      page: String(params.page),
+      pageSize: String(params.pageSize),
+      ...(params.search ? { search: params.search } : {}),
+      ...(typeof params.sortBy === 'string' ? { sortBy: params.sortBy, sortOrder: params.sortOrder ?? 'asc' } : {}),
+      ...params.filters, // toolbar/column/URL filters, keyed by filter key
+    })
+    const res = await fetch(`/api/users?${qs}`, { credentials: 'include' })
+    if (!res.ok) throw new Error('Failed to load users')
+    return res.json() // { data, total, page, pageSize, totalPages }
+  },
+  // create / update / delete / get return the raw entity (or nothing)
+}
+```
+
+Error messages, `asQueryFn` and the server-side helpers are in
+[Data Layer (React Query)](/docs/patterns/react-query).
+
+---
+
+## 2. config.tsx
+
+```tsx title="app/admin/users/config.tsx"
+'use client'
+
+import { z } from 'zod'
+import type { CrudColumnDef, CrudConfig, FormSection } from '@telamonjs/ui'
+import { usersApi } from '@/lib/api/users-client'
+
+export const validationSchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email'),
+  role: z.enum(['USER', 'ADMIN']),
+})
+export type UserFormData = z.infer<typeof validationSchema>
+
+const columns: CrudColumnDef<User>[] = [
+  { accessorKey: 'name', header: 'Name' },
+  { accessorKey: 'email', header: 'Email' },
+  { accessorKey: 'role', header: 'Role' },
+]
+
+const formSections: FormSection[] = [
+  {
+    label: 'User',
+    fields: [
+      { name: 'name', label: 'Name', type: 'text', required: true },
+      { name: 'email', label: 'Email', type: 'email', required: true },
+      {
+        name: 'role',
+        label: 'Role',
+        type: 'relationship', // there is no 'select' field type
+        required: true,
+        loadField: async () => [
+          { value: 'USER', label: 'User' },
+          { value: 'ADMIN', label: 'Admin' },
+        ],
+      },
+    ],
+  },
+]
+
+export const config: CrudConfig<User, UserFormData> = {
+  module: { name: 'users', title: 'Users', description: 'Manage system users', route: '/admin/users' },
+  list: { title: 'Users', description: 'Registered users', columns, searchPlaceholder: 'Search users...' },
+  form: { sections: formSections, validation: validationSchema },
+
+  // queryFn receives { page, pageSize, search, sortBy, sortOrder, filters }
+  // and must resolve PaginatedResponse<User>
+  query: { queryKey: ['users'], queryFn: usersApi.list },
+
+  mutations: {
+    // mutationFn must resolve { success, data? } — adapt the raw API response here
+    create: {
+      mutationFn: async data => ({ success: true, data: await usersApi.create(data) }),
+      invalidates: [['users']],
+    },
+    update: {
+      mutationFn: async ({ id, data }) => ({ success: true, data: await usersApi.update(id, data) }),
+      invalidates: [['users'], id => ['users', id]],
+    },
+    delete: {
+      mutationFn: async ({ id }) => {
+        await usersApi.delete(id)
+        return { success: true }
+      },
+      invalidates: [['users']],
+    },
+    getForEdit: usersApi.get,
+    getForView: usersApi.get,
+  },
+
+  actionsConfig: { standard: { view: true, edit: true, delete: true } },
+
+  dialogs: {
+    view: { title: 'User', urlParam: 'view', renderContent: user => <UserDetail user={user} /> },
+    edit: { title: 'Edit user', urlParam: 'edit' },
+    create: { title: 'New user', urlParam: 'create', defaultValues: { role: 'USER' } },
+  },
+}
+```
+
+`invalidates` must include the list's `query.queryKey`, or the list will not refresh after a
+mutation. Each mutation is optional: omit `create` for a read-only module and the create
+button is not wired. The full mutation contract (toasts, `onSuccess`/`onError`, invalidation
+rules) is in [Data Layer (React Query)](/docs/patterns/react-query).
+
+---
+
+## 3. page.tsx
+
+```tsx title="app/admin/users/page.tsx"
+import { ListPage } from '@telamonjs/ui'
+import { config } from './config'
+
+export default function UsersPage() {
+  return <ListPage config={config} />
+}
+```
+
+### ListPage props
+
+| Prop | Type | Purpose |
+| --- | --- | --- |
+| `config` | `CrudConfig<T, TFormData>` | **Required.** Everything about the module |
+| `tableId` | `string` | Key of the table state in the Zustand store. Default: `config.module.route` |
+| `urlSync` | `boolean` | Sync pagination with query params |
+| `urlFilters` | `Record<string, 'string' \| 'number'>` | Extra filters read from the URL (with `urlSync`) and passed to `queryFn` |
+| `filterOptions` / `loadFilterOptions` | `ColumnFilterConfig` / `() => Promise<ColumnFilterConfig>` | Column filter options, static or loaded on mount |
+| `enableBulkActions` / `bulkActions` | `boolean` / `BulkAction<T>[]` | Checkbox column and toolbar for selected rows |
+| `headerActions` | `{ label, icon?, onClick, variant?, loading? }[]` | Extra toolbar buttons |
+| `toolbarPrepend` / `toolbarContent` | `ReactNode` | Custom toolbar content before search / after filters |
+| `filtersPanel`, `activeFilters`, `onClearFilters`, `footerContent` | | Second toolbar level (see below) |
+| `cardComponent` | `ComponentType<{ data; onClick? }>` | Custom card for the mobile view of the paginated table (the infinite list has no mobile cards) |
+| `embedded` | `boolean` | Render inside a container that owns the toolbar (e.g. a tab) |
+| `dialogUrlSync` | `boolean` | Set `false` for a ListPage inside another ListPage's dialog (see [Dialogs](#dialogs)) |
+| `onRefreshAction` | `() => Promise<void \| { success }>` | Runs after every list refresh (see [Refreshing](#refreshing)) |
+| `disableAutoRefresh` | `boolean` | Default `true`. Set `false` to refetch when the window regains focus |
+| `errorBoundary`, `errorFallback`, `className` | | Error boundary (on by default) and styling |
+
+---
+
+## Infinite Scroll vs Pagination
+
+`ListPage` renders a virtualized infinite list by default. It stops fetching using `page`,
+`totalPages` and `total` from the `PaginatedResponse` — a `queryFn` resolving a bare array
+misbehaves silently. Set `list.infiniteScroll: false` for the classic paginated table.
+
+```tsx
+interface PaginationParams {
+  page: number
+  pageSize: number
+  search?: string
+  sortBy?: string | SortField[]
+  sortOrder?: 'asc' | 'desc'
+  filters?: Record<string, any>
+}
+
+interface PaginatedResponse<T> {
+  data: T[]
+  total: number
+  page: number
+  pageSize: number
+  totalPages: number
+}
+```
+
+`createPaginatedResponse(data, total, page, pageSize)` builds the response when you page a
+local array, and `asQueryFn(fn)` adapts a client function whose signature is narrower than
+`queryFn`'s.
+
+Keep the paginated table when the backend cannot return `page`/`totalPages` (cursor
+pagination, for example), when users need "jump to page N", or for short lists.
+
+The infinite list requests `list.defaultPageSize` rows per page (50 when unset). In a standalone
+page it fills its parent and scrolls inside itself, not the window, so the parent (normally the
+`AdminShell` main area) must give it a height.
+
+---
+
+## Dialogs
+
+With `dialogs.view`, `dialogs.edit` and `dialogs.create` set, every CRUD step happens in dialogs
+on top of the list: view and edit rows open their dialog, the toolbar's create button opens
+the create dialog, and the edit form submits through `mutations.update`. Dialog content, rich
+headers and sizes are covered in [Dialogs](/docs/patterns/dialogs).
+
+### Deep links (`urlParam`)
+
+Give a dialog a query-param name and it becomes linkable:
+
+```tsx
+dialogs: {
+  view: { title: 'User', urlParam: 'view', renderContent },  // ?view=<id>
+  edit: { title: 'Edit user', urlParam: 'edit' },             // ?edit=<id>
+  create: { title: 'New user', urlParam: 'create' },          // ?create=1 (no id)
+},
+```
+
+`ListPage` keeps the dialog and the URL in sync both ways:
+
+| Event | Effect |
+| --- | --- |
+| Page load, client navigation, browser Back/Forward | The dialog opens or closes to match the URL |
+| The user opens a dialog | `router.push`, so the browser's Back button closes it |
+| The user closes it (X, Esc) | `router.replace`, with no extra history entry |
+
+- Other params (`?tab`, `?page`, `?sort`, filters) are kept, so `/admin/registry?tab=assets&view=42`
+  works.
+- If several dialog params are present, only one dialog opens: `edit` wins over `view`, which
+  wins over `create`.
+- Several lists mounted on one route (keep-alive tabs) can share the same param name: only the
+  visible list opens its dialog from the URL.
+- A ListPage rendered **inside another ListPage's dialog** (for example, tabs of a record opened
+  with the parent's `?view=<id>`) must get `dialogUrlSync={false}`. Otherwise it reads the
+  parent's id as its own and opens a dialog for a record that does not exist.
+
+`urlParam` is optional; a dialog without it is not driven by the URL.
+
+---
+
+## Row Actions
+
+`actionsConfig.standard` turns on view/edit/delete (`true` or an `ActionConfig`); view and
+edit open the dialogs, delete asks for confirmation and runs `mutations.delete`. Pass an
+`ActionConfig` to change the icon, tooltip or confirmation text:
+
+```tsx
+actionsConfig: {
+  standard: {
+    view: true,
+    edit: true,
+    delete: {
+      tooltip: 'Deactivate user',
+      confirmDialog: {
+        title: row => `Deactivate ${row.name}?`,
+        description: 'This cannot be undone.',
+        confirmText: 'Deactivate',
+        variant: 'destructive',
+      },
+    },
+  },
+  custom: [
+    {
+      id: 'publish',
+      label: 'Publish',
+      icon: Upload,
+      handler: row => processesApi.publish(row.id),
+      confirmDialog: {
+        title: row => `Publish process ${row.number}?`,
+        confirmText: 'Publish',
+      },
+      visible: row => row.status === 'DRAFT',
+    },
+  ],
+},
+```
+
+`actionsConfig.custom` adds actions beyond CRUD. After a custom `handler` succeeds, the list
+refetches by itself; resolve `{ success: false }` to skip that. Set `actionsConfig: false` to
+hide the actions column.
+
+`ActionConfig` also takes `href`, `onClick`, `enabled`, `tooltip`, `variant`, `permission`,
+`successMessage` and `errorMessage`.
+
+---
+
+## Bulk Actions
+
+`enableBulkActions` adds a checkbox column and a toolbar for the selected rows, in both the
+infinite list and the paginated table:
+
+```tsx
+const bulkActions: BulkAction<Order>[] = [
+  {
+    id: 'approve',
+    label: 'Approve selected',
+    confirmDialog: {
+      title: rows => `Approve ${rows.length} orders?`,
+      description: 'Each order is approved individually.',
+    },
+    handler: async rows => {
+      await ordersApi.approveMany(rows.map(r => r.id))
+      return { success: true, message: `${rows.length} approved` }
+    },
+  },
+]
+
+<ListPage config={config} enableBulkActions bulkActions={bulkActions} />
+```
+
+- In the infinite list, the header checkbox selects every row **already loaded**. Rows not yet
+  fetched are never part of the selection, and the status bar says "N selected of M loaded".
+- Selection is kept by row `id`; it is cleared after a successful action, and the list refetches.
+- The ids `delete` and `export` render as direct buttons; other actions go into a "more" menu.
+
+---
+
+## Search and Filters
+
+### Global Search
+
+The search box value reaches `queryFn` as `params.search`; filter on the API side.
+`list.searchPlaceholder` sets the placeholder, and `list.toolbar.showSearch: false` hides it.
+
+### Toolbar Filters
+
+Declare filters in `list.toolbar.filters`. Each selection reaches `queryFn` as
+`params.filters[key]`; the values `'all'` and `''` mean "no filter" and are dropped.
+
+```tsx
+list: {
+  title: 'Users',
+  description: 'Registered users',
+  columns,
+  toolbar: {
+    filters: [
+      {
+        key: 'status',
+        label: 'Status',
+        options: [
+          { value: 'all', label: 'All' },
+          { value: 'ACTIVE', label: 'Active', dot: 'bg-green-500' },
+          { value: 'INACTIVE', label: 'Inactive', dot: 'bg-gray-400' },
+        ],
+        displayMode: 'buttons', // or 'select' for a compact dropdown
+      },
+    ],
+  },
+},
+```
+
+### Filters in the URL
+
+With `urlSync`, a toolbar filter whose `key` is also in `urlFilters` round-trips with the URL:
+
+```tsx
+<ListPage config={config} urlSync urlFilters={{ status: 'string' }} />
+```
+
+- Opening `?status=ACTIVE` filters the data **and** selects "Active" in the toolbar.
+- Changing the filter writes `?status=`; going back to "All" removes the param.
+- Toolbar filters not listed in `urlFilters` stay in memory only. Keys in `urlFilters` that are
+  not toolbar filters are read from the URL once and passed to `queryFn`.
+
+### Toolbar levels
+
+A crowded toolbar can move secondary controls into a second level. All of these are opt-in:
+
+| Option | Where | Effect |
+| --- | --- | --- |
+| `filtersPanel` | `ListPage` prop | Content of a "Filters" popover (selects of client, period...) |
+| `activeFilters` | `ListPage` prop | `ActiveFilterChip[]` (`key`, `label`, `onRemove`) shown as removable chips under the toolbar |
+| `onClearFilters` | `ListPage` prop | "Clear filters" next to the chips |
+| `more: true` | filter option | The option leaves the toolbar buttons and appears in the "Filters" panel, as a chip when active |
+| `toolbar.actionsMenu` | `list.toolbar` | Export and Refresh in one "⋯" menu instead of two buttons |
+
+`footerContent` adds content to the list status bar, after "N of M" (infinite scroll), such as the
+totals of the current filter.
+
+### Columns only in the export
+
+`meta.exportOnly` keeps a column out of the table and in the CSV/Excel/PDF export, so a table that
+merges fields into one cell does not lose data in the spreadsheet:
+
+```tsx
+columns: [
+  { accessorKey: 'client', header: 'Client', cell: ({ row }) => <ClientCell client={row.original} /> },
+  { accessorKey: 'taxId', header: 'Tax ID', meta: { exportOnly: true } },
+]
+```
+
+---
+
+## Lists Scoped to a Parent
+
+A child list inside a parent record (a customer's contacts tab, for example) reuses the child
+module's config through `withScope`:
+
+```tsx
+import { ListPage, withScope } from '@telamonjs/ui'
+
+const customerContacts = withScope(contactsConfig, {
+  filters: { customerId },           // merged into params.filters and the queryKey
+  locked: { customerId },            // hidden from form, columns and filters; injected on create
+  invalidates: [['customers', customerId]],
+})
+
+<ListPage config={customerContacts} embedded />
+```
+
+`defaults` adds editable create defaults. `withScope` returns a new config and never mutates the
+original. It replaces an inline [CRUD field](/docs/patterns/crud-field) when the child list is
+large or needs search, filters and paging.
+
+---
+
+## Refreshing
+
+React Query is the cache. Mutations refresh the list through `invalidates`; the toolbar's
+refresh button and successful row or bulk actions refetch the query. Two optional hooks:
+
+- **`AppProviders` `config.revalidateAction`** runs first, with the current pathname, to clear the
+  app's Server Component cache. Use `revalidatePathAction` from `@telamonjs/ui/server`.
+- **`onRefreshAction`** (`ListPage` prop) runs after the refetch, for example to invalidate other
+  modules that show the same data:
+
+```tsx
+'use client'
+import { useQueryClient } from '@tanstack/react-query'
+import { ListPage } from '@telamonjs/ui'
+
+export default function CustomersPage() {
+  const queryClient = useQueryClient()
+  return (
+    <ListPage
+      config={customersConfig}
+      onRefreshAction={async () => {
+        await queryClient.invalidateQueries({ queryKey: ['orders'] })
+      }}
+    />
+  )
+}
+```
+
+---
+
+## Checklist
+
+- [ ] `config.tsx` starts with `'use client'`
+- [ ] `query.queryFn` resolves `PaginatedResponse<T>` (`data`, `total`, `page`, `pageSize`, `totalPages`)
+- [ ] Every `mutationFn` resolves `{ success, data? }`
+- [ ] Every mutation's `invalidates` includes the list's `queryKey`
+- [ ] Columns are typed `CrudColumnDef<T>[]`, and the form-data type is inferred from the Zod schema
+- [ ] Dropdowns use `type: 'relationship'` with `loadField`
+- [ ] `page.tsx` renders `<ListPage config={config} />`
+
+---
+
+## Troubleshooting
+
+### The list never stops loading, or only shows the first page
+
+`queryFn` returns a bare array or a response without `page`/`totalPages`. Return
+`PaginatedResponse<T>`, or set `list.infiniteScroll: false`.
+
+### The record was saved, but the dialog stays open
+
+The `mutationFn` resolves the raw entity instead of `{ success, data? }`. Adapt inside the
+`mutationFn`: `async data => ({ success: true, data: await api.create(data) })`.
+
+### The list does not update after create/edit/delete
+
+The mutation's `invalidates` does not match `query.queryKey`.
+
+### "No QueryClient set"
+
+`config.tsx` is missing `'use client'`, the app has no `QueryClientProvider`, or two copies of
+`@tanstack/react-query` are installed. See [Provider Setup](/docs/patterns/provider-setup).
+
+### Search or filters do nothing
+
+The API ignores `params.search` / `params.filters`. Log the params your `queryFn` receives.
+
+### A list inside a dialog opens a dialog for the wrong record
+
+It reads the parent's `?view=<id>`. Pass `dialogUrlSync={false}` to the inner `ListPage`.
+
+---
+
+## Related Patterns
+
+- [CrudConfig](/docs/getting-started/crud-config) - The config object in detail
+- [Data Layer (React Query)](/docs/patterns/react-query) - API client, mutations and invalidation
+- [Admin Module Structure](/docs/patterns/admin-module-structure) - What goes in `config.tsx`
+- [Form Pattern](/docs/patterns/form-pattern) - Forms used by the dialogs
+- [Dialogs](/docs/patterns/dialogs) - View, edit and create dialogs
+- [Field Types](/docs/reference/field-types) - All field types
