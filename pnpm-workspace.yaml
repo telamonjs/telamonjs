@@ -3,8 +3,8 @@ packages:
   - 'apps/*'
 
 catalog:
-  react: ^19.2.4
-  react-dom: ^19.2.4
+  react: ^19.3.1
+  react-dom: ^19.3.1
   next: ^15.5.29
   typescript: ^5.9.3
   zod: ^3.25.76
@@ -14,7 +14,7 @@ catalog:
   jsdom: ^27.0.0
   '@testing-library/react': ^16.3.0
   '@testing-library/jest-dom': ^6.9.1
-  '@testing-library/user-event': ^14.6.1
-  '@types/react': ^19.2.13
-  '@types/react-dom': ^19.2.3
+  '@testing-library/user-event': ^14.6.12
+  '@types/react': ^19.3.0
+  '@types/react-dom': ^19.3.0
   '@types/node': ^20.19.21
