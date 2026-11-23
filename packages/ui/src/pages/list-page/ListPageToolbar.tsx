@@ -7,7 +7,11 @@ import { TabToolbar } from '../../components/toolbar/TabToolbar'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
 import { isMessageRef, msg } from '../../i18n/msg'
 import { usesCount } from '../../i18n/uses-count'
-import type { ListConfig, ToolbarConfig } from '../../types/crud'
+import type {
+  ListConfig,
+  ToolbarConfig,
+  ToolbarFilterConfig,
+} from '../../types/crud'
 import { ExportMenu } from '../../data/ExportMenu'
 import { Button } from '../../ui/button'
 import { Badge } from '../../ui/badge'
@@ -133,18 +137,19 @@ export function ListPageToolbar<TData>({
   const moreFilters = (list.toolbar?.filters ?? [])
     .map(f => ({ f, more: f.options.filter(o => o.more) }))
     .filter(x => x.more.length > 0)
-  const valueOf = (key: string, fallback?: string, first?: string) =>
-    toolbarFilters[key] || fallback || first || ''
+  // "No filter" choice: `allValue` when declared, else the first option
+  const resetOf = (f: ToolbarFilterConfig) =>
+    f.allValue ?? f.options[0]?.value ?? ''
+  const valueOf = (f: ToolbarFilterConfig) =>
+    toolbarFilters[f.key] || f.defaultValue || resetOf(f)
   const moreChips: ActiveFilterChip[] = moreFilters.flatMap(({ f, more }) => {
-    const active = more.find(
-      o => o.value === valueOf(f.key, f.defaultValue, f.options[0]?.value)
-    )
+    const active = more.find(o => o.value === valueOf(f))
     return active
       ? [
           {
             key: f.key,
             label: `${text(f.label)}: ${text(active.label)}`,
-            onRemove: () => onFilterChange(f.key, f.options[0]?.value ?? ''),
+            onRemove: () => onFilterChange(f.key, resetOf(f)),
           },
         ]
       : []
@@ -183,12 +188,7 @@ export function ListPageToolbar<TData>({
                   {filter.displayMode === 'select' ? (
                     <TabToolbar.FilterSelect
                       options={resolvedOptions}
-                      value={
-                        toolbarFilters[filter.key] ||
-                        filter.defaultValue ||
-                        filter.options[0]?.value ||
-                        ''
-                      }
+                      value={valueOf(filter)}
                       onChange={value => onFilterChange(filter.key, value)}
                       label={text(filter.label)}
                       className={filter.className}
@@ -197,14 +197,10 @@ export function ListPageToolbar<TData>({
                     // eslint-disable-next-line telamonjs-accessibility/button-accessibility -- FilterButtons renders its own per-option data-testid internally (TabToolbar.tsx)
                     <TabToolbar.FilterButtons
                       options={resolvedOptions.filter(o => !o.more)}
-                      value={
-                        toolbarFilters[filter.key] ||
-                        filter.defaultValue ||
-                        filter.options[0]?.value ||
-                        ''
-                      }
+                      value={valueOf(filter)}
                       onChange={value => onFilterChange(filter.key, value)}
                       className={filter.className}
+                      allValue={filter.allValue}
                     />
                   )}
                 </Fragment>
@@ -237,11 +233,7 @@ export function ListPageToolbar<TData>({
               {...filtersContentProps}
             >
               {moreFilters.map(({ f, more }) => {
-                const current = valueOf(
-                  f.key,
-                  f.defaultValue,
-                  f.options[0]?.value
-                )
+                const current = valueOf(f)
                 return (
                   <div key={f.key} className='space-y-1.5'>
                     <div className='text-xs font-medium text-muted-foreground'>
@@ -262,9 +254,7 @@ export function ListPageToolbar<TData>({
                           onClick={() =>
                             onFilterChange(
                               f.key,
-                              current === o.value
-                                ? (f.options[0]?.value ?? '')
-                                : o.value
+                              current === o.value ? resetOf(f) : o.value
                             )
                           }
                         >

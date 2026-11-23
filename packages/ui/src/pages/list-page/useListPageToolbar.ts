@@ -1,18 +1,42 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { ListConfig } from '../../types/crud'
+import type { ListConfig, ToolbarFilterConfig } from '../../types/crud'
 
-/** Toolbar filter values that mean "no filter" (the first option of the group) */
-export const isResetValue = (value: string | undefined): boolean =>
-  !value || value === 'todos' || value === 'all'
+type FilterRules = Pick<ToolbarFilterConfig, 'allValue' | 'defaultValue' | 'options'>
 
-/** Toolbar selection → query filters: drops the explicit resets */
+/**
+ * A value of this filter that means "no filter": `''`, or its `allValue` when
+ * declared, else the legacy magic values `'todos'` / `'all'`.
+ */
+export function isFilterReset(
+  filter: Pick<ToolbarFilterConfig, 'allValue'> | undefined,
+  value: string | undefined
+): boolean {
+  if (!value) return true
+  return filter?.allValue !== undefined
+    ? value === filter.allValue
+    : value === 'todos' || value === 'all'
+}
+
+/**
+ * The filter starts on (and returns to) its own `defaultValue`: one that is not
+ * the "no filter" choice — `allValue`, or the first option without it.
+ */
+const hasOwnDefault = (f: FilterRules | undefined): boolean =>
+  Boolean(f?.defaultValue) &&
+  f!.defaultValue !==
+    (f!.allValue !== undefined ? f!.allValue : f!.options[0]?.value)
+
+/** Toolbar selection → query filters: drops the "no filter" values */
 export function toolbarQueryFilters(
-  filters: Record<string, string>
+  filters: Record<string, string>,
+  configs: readonly ToolbarFilterConfig[] = []
 ): Record<string, string> {
   return Object.fromEntries(
-    Object.entries(filters).filter(([, v]) => !isResetValue(v))
+    Object.entries(filters).filter(
+      ([k, v]) => !isFilterReset(configs.find(f => f.key === k), v)
+    )
   )
 }
 
@@ -57,8 +81,8 @@ export function useListPageToolbar<TData>({
           const fromUrl = initialFilters?.[f.key]
           if (fromUrl) {
             initial[f.key] = fromUrl
-          } else if (f.defaultValue && f.defaultValue !== f.options[0]?.value) {
-            initial[f.key] = f.defaultValue
+          } else if (hasOwnDefault(f)) {
+            initial[f.key] = f.defaultValue!
           }
         }
       }
@@ -99,18 +123,13 @@ export function useListPageToolbar<TData>({
     (key: string, value: string) => {
       setToolbarFilters(prev => {
         const next = { ...prev }
-        // A filter with its own defaultValue keeps the explicit reset ("todos"),
-        // otherwise the default would show (and apply) again
-        const hasDefault = list.toolbar?.filters?.some(
-          f =>
-            f.key === key &&
-            f.defaultValue &&
-            f.defaultValue !== f.options[0]?.value
-        )
-        if (isResetValue(value) && !hasDefault) {
+        const filter = list.toolbar?.filters?.find(f => f.key === key)
+        // A filter with its own defaultValue keeps the explicit reset ("todos",
+        // or its allValue), otherwise the default would show (and apply) again
+        if (isFilterReset(filter, value) && !hasOwnDefault(filter)) {
           delete next[key]
         } else {
-          next[key] = value || 'todos'
+          next[key] = value || (filter?.allValue ?? 'todos')
         }
         return next
       })

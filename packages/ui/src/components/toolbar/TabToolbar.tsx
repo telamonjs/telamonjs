@@ -444,14 +444,24 @@ function TabToolbarFilterButtons({
   value,
   onChange,
   className,
+  allValue,
 }: {
   options: FilterButtonOption[]
   value: string
   onChange: (value: string) => void
   className?: string
+  /**
+   * Value meaning "no filter": its option is not rendered and an active button
+   * toggles back to it. Default: the first option's value.
+   */
+  allValue?: string
 }) {
-  // First option is the implicit "all" reset value — skip it in rendering
-  const toggleOptions = options.slice(1)
+  // The "all" reset value (the first option unless `allValue`) is not a button
+  const resetValue = allValue ?? options[0]?.value ?? ''
+  const toggleOptions =
+    allValue === undefined
+      ? options.slice(1)
+      : options.filter(o => o.value !== allValue)
   if (toggleOptions.length === 0) return null
 
   return (
@@ -469,7 +479,7 @@ function TabToolbarFilterButtons({
             key={opt.value}
             variant='outline'
             size='sm'
-            onClick={() => onChange(isActive ? options[0].value : opt.value)}
+            onClick={() => onChange(isActive ? resetValue : opt.value)}
             className={cn(
               'h-8 rounded-none gap-1.5',
               isFirst && 'rounded-l-md',

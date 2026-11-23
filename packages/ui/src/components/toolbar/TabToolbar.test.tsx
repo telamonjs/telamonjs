@@ -52,3 +52,31 @@ describe('TabToolbar.FilterSelect', () => {
     expect(screen.getByTestId('filter-select-option-online')).toHaveTextContent('1.015')
   })
 })
+
+describe('TabToolbar.FilterButtons', () => {
+  const options = [
+    { value: 'ACTIVE', label: 'Active' },
+    { value: 'INACTIVE', label: 'Inactive' },
+    { value: 'ANY', label: 'Any' },
+  ]
+
+  it('without allValue the first option is the hidden reset', () => {
+    const onChange = vi.fn()
+    render(<TabToolbar.FilterButtons options={options} value='INACTIVE' onChange={onChange} />)
+    expect(screen.queryByTestId('filter-button-ACTIVE')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('filter-button-INACTIVE'))
+    expect(onChange).toHaveBeenCalledWith('ACTIVE')
+  })
+
+  it('with allValue only that option is hidden and an active button toggles back to it', () => {
+    const onChange = vi.fn()
+    render(
+      <TabToolbar.FilterButtons options={options} value='ACTIVE' onChange={onChange} allValue='ANY' />
+    )
+    expect(screen.queryByTestId('filter-button-ANY')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByTestId('filter-button-ACTIVE'))
+    expect(onChange).toHaveBeenCalledWith('ANY')
+    fireEvent.click(screen.getByTestId('filter-button-INACTIVE'))
+    expect(onChange).toHaveBeenLastCalledWith('INACTIVE')
+  })
+})

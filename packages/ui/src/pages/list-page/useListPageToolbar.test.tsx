@@ -88,3 +88,74 @@ describe('useListPageToolbar — defaultValue other than the first option (7.14)
     expect(toolbarQueryFilters(result.current.toolbarFilters)).toEqual({})
   })
 })
+
+describe('useListPageToolbar — explicit allValue', () => {
+  const withAll = (defaultValue?: string) =>
+    ({
+      toolbar: {
+        filters: [
+          {
+            key: 'status',
+            label: 'Status',
+            allValue: 'ANY',
+            // first option is a real value: no implicit "all" meaning anymore
+            options: [
+              { value: 'ACTIVE', label: 'Active' },
+              { value: 'all', label: 'Literal all' },
+              { value: 'ANY', label: 'Any' },
+            ],
+            defaultValue,
+          },
+        ],
+      },
+    }) as unknown as ListConfig<unknown>
+
+  const renderWith = (l: ListConfig<unknown>) =>
+    renderHook(() =>
+      useListPageToolbar({
+        list: l,
+        search: '',
+        setStoreGlobalFilter: vi.fn(),
+        setStorePage: vi.fn(),
+      })
+    )
+  const configs = (l: ListConfig<unknown>) => l.toolbar!.filters!
+
+  it('applies defaultValue even when it is the first option', () => {
+    const l = withAll('ACTIVE')
+    const { result } = renderWith(l)
+    expect(result.current.toolbarFilters).toEqual({ status: 'ACTIVE' })
+    expect(toolbarQueryFilters(result.current.toolbarFilters, configs(l))).toEqual({
+      status: 'ACTIVE',
+    })
+  })
+
+  it('allValue is dropped from the query; "all" is an ordinary value', () => {
+    const l = withAll('ACTIVE')
+    const { result } = renderWith(l)
+    act(() => result.current.handleToolbarFilterChange('status', 'ANY'))
+    // kept explicitly, or the default would come back
+    expect(result.current.toolbarFilters).toEqual({ status: 'ANY' })
+    expect(toolbarQueryFilters(result.current.toolbarFilters, configs(l))).toEqual({})
+
+    act(() => result.current.handleToolbarFilterChange('status', 'all'))
+    expect(toolbarQueryFilters(result.current.toolbarFilters, configs(l))).toEqual({
+      status: 'all',
+    })
+  })
+
+  it('without a default, choosing allValue removes the key', () => {
+    const l = withAll()
+    const { result } = renderWith(l)
+    expect(result.current.toolbarFilters).toEqual({})
+    act(() => result.current.handleToolbarFilterChange('status', 'ACTIVE'))
+    act(() => result.current.handleToolbarFilterChange('status', 'ANY'))
+    expect(result.current.toolbarFilters).toEqual({})
+  })
+
+  it('legacy filters keep their rules next to an allValue one', () => {
+    expect(
+      toolbarQueryFilters({ status: 'ANY', legacy: 'todos', other: 'x' }, configs(withAll()))
+    ).toEqual({ other: 'x' })
+  })
+})

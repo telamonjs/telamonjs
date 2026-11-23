@@ -147,8 +147,18 @@ export interface ToolbarFilterConfig {
   label: I18nText
   /** Filter options */
   options: ToolbarFilterOption[]
-  /** Initial value (default: first option) */
+  /**
+   * Initial value (default: first option). With `allValue` set it applies even
+   * when it is the first option.
+   */
   defaultValue?: string
+  /**
+   * The option value that means "no filter" (dropped from the query, shown when
+   * nothing is selected). Set it and the first option is an ordinary option and
+   * `'todos'`/`'all'` are ordinary values. Without it, the first option is the
+   * "all" choice and `''`/`'todos'`/`'all'` mean "no filter".
+   */
+  allValue?: string
   /** Custom className */
   className?: string
   /** Display mode: 'buttons' (ButtonGroup) or 'select' (compact dropdown). Default: 'buttons' */

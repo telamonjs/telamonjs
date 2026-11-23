@@ -181,6 +181,34 @@ describe('ListPageToolbar levels (7.14)', () => {
     expect(onClearFilters).toHaveBeenCalled()
   })
 
+  it('allValue: the first option is a button and resets go to allValue', () => {
+    const allList = {
+      searchPlaceholder: 'Buscar',
+      toolbar: {
+        filters: [
+          {
+            key: 'status',
+            label: 'Status',
+            allValue: 'ANY',
+            options: [
+              { value: 'ABERTA', label: 'Em aberto' },
+              { value: 'PENDENTE', label: 'A vencer', more: true },
+              { value: 'ANY', label: 'Todas' },
+            ],
+          },
+        ],
+      },
+    } as unknown as ListConfig<unknown>
+    const onFilterChange = renderLevels({
+      list: allList,
+      toolbarFilters: { status: 'PENDENTE' },
+    })
+    expect(screen.getByTestId('filter-button-ABERTA')).toBeInTheDocument()
+    expect(screen.queryByTestId('filter-button-ANY')).toBeNull()
+    screen.getByRole('button', { name: /Limpar filtros$/ }).click()
+    expect(onFilterChange).toHaveBeenCalledWith('status', 'ANY')
+  })
+
   it('actionsMenu: one "⋯" button instead of export + refresh', () => {
     renderLevels({
       list: {

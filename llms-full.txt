@@ -2508,6 +2508,25 @@ list: {
 },
 ```
 
+By default the first option is the "all" choice: in `buttons` mode it is not rendered, and
+`defaultValue` only applies when it is not the first option. Set `allValue` to name the "no
+filter" value explicitly instead — the first option becomes an ordinary option, `defaultValue`
+always applies, and `'all'`/`'todos'` are ordinary values:
+
+```tsx
+{
+  key: 'status',
+  label: 'Status',
+  allValue: 'ANY',
+  defaultValue: 'ACTIVE', // applied on load even though it is the first option
+  options: [
+    { value: 'ACTIVE', label: 'Active' },
+    { value: 'INACTIVE', label: 'Inactive' },
+    { value: 'ANY', label: 'All' },
+  ],
+}
+```
+
 ### Filters in the URL
 
 With `urlSync`, a toolbar filter whose `key` is also in `urlFilters` round-trips with the URL:
@@ -7958,7 +7977,7 @@ import { TabToolbar } from '@telamonjs/ui'
 | `TabToolbar.Fullscreen` | Fullscreen toggle | `isFullscreen`, `onToggle` |
 | `TabToolbar.Spacer` | Flex spacer (pushes items right) | - |
 | `TabToolbar.LiveIndicator` | SSE/WebSocket status pill | `connected`, `onlineLabel?`, `offlineLabel?` |
-| `TabToolbar.FilterButtons` | Button-group filter; the first option is the implicit "all" value and is not rendered | `options: TabToolbarFilterButtonOption[]`, `value`, `onChange` |
+| `TabToolbar.FilterButtons` | Button-group filter; the "all" value (the first option, or `allValue`) is not rendered, and an active button toggles back to it | `options: TabToolbarFilterButtonOption[]`, `value`, `onChange`, `allValue?` |
 | `TabToolbar.FilterSelect` | Dropdown filter with optional dot and count per option | `options`, `value`, `onChange`, `label?` |
 | `TabToolbar.AddButton` | Primary "create" button | `onClick`, `label?`, `onPrefetch?` |
 | `TabToolbar.DateRange` | Date range picker (lazy-loaded) | `value: DateRange`, `onChange`, `maxDays?` (default `7`), `labels?` |

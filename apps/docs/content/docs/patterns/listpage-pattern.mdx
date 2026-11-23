@@ -375,6 +375,25 @@ list: {
 },
 ```
 
+By default the first option is the "all" choice: in `buttons` mode it is not rendered, and
+`defaultValue` only applies when it is not the first option. Set `allValue` to name the "no
+filter" value explicitly instead — the first option becomes an ordinary option, `defaultValue`
+always applies, and `'all'`/`'todos'` are ordinary values:
+
+```tsx
+{
+  key: 'status',
+  label: 'Status',
+  allValue: 'ANY',
+  defaultValue: 'ACTIVE', // applied on load even though it is the first option
+  options: [
+    { value: 'ACTIVE', label: 'Active' },
+    { value: 'INACTIVE', label: 'Inactive' },
+    { value: 'ANY', label: 'All' },
+  ],
+}
+```
+
 ### Filters in the URL
 
 With `urlSync`, a toolbar filter whose `key` is also in `urlFilters` round-trips with the URL:

@@ -32,7 +32,7 @@ import { TabToolbar } from '@telamonjs/ui'
 | `TabToolbar.Fullscreen` | Fullscreen toggle | `isFullscreen`, `onToggle` |
 | `TabToolbar.Spacer` | Flex spacer (pushes items right) | - |
 | `TabToolbar.LiveIndicator` | SSE/WebSocket status pill | `connected`, `onlineLabel?`, `offlineLabel?` |
-| `TabToolbar.FilterButtons` | Button-group filter; the first option is the implicit "all" value and is not rendered | `options: TabToolbarFilterButtonOption[]`, `value`, `onChange` |
+| `TabToolbar.FilterButtons` | Button-group filter; the "all" value (the first option, or `allValue`) is not rendered, and an active button toggles back to it | `options: TabToolbarFilterButtonOption[]`, `value`, `onChange`, `allValue?` |
 | `TabToolbar.FilterSelect` | Dropdown filter with optional dot and count per option | `options`, `value`, `onChange`, `label?` |
 | `TabToolbar.AddButton` | Primary "create" button | `onClick`, `label?`, `onPrefetch?` |
 | `TabToolbar.DateRange` | Date range picker (lazy-loaded) | `value: DateRange`, `onChange`, `maxDays?` (default `7`), `labels?` |

@@ -244,9 +244,9 @@ export function ListPage<TData>({
     () => ({
       ...customFilters,
       ...columnFilters,
-      ...toolbarQueryFilters(toolbarFilters),
+      ...toolbarQueryFilters(toolbarFilters, list.toolbar?.filters),
     }),
-    [customFilters, columnFilters, toolbarFilters]
+    [customFilters, columnFilters, toolbarFilters, list.toolbar?.filters]
   )
 
   // Default: infinite scroll (opt-out with list.infiniteScroll === false).
