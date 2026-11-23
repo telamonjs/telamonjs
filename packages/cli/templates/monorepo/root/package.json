@@ -21,11 +21,12 @@
     "db:migrate": "pnpm --filter {{scope}}/shared prisma:migrate",
     "db:studio": "pnpm --filter {{scope}}/shared prisma:studio",
     "db:seed": "pnpm --filter {{scope}}/shared prisma:seed",
-    "telamonjs:link": "node scripts/telamonjs-mode.mjs link && pnpm install",
-    "telamonjs:unlink": "node scripts/telamonjs-mode.mjs unlink && pnpm install",
+    "telamonjs:link": "telamonjs link && pnpm install",
+    "telamonjs:unlink": "telamonjs unlink && pnpm install",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@telamonjs/cli": "{{cliVersion}}",
     "@types/node": "22.18.10",
     "tsx": "4.8.1",
     "typescript": "5.9.3",

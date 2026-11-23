@@ -6,12 +6,13 @@ import createNextIntlPlugin from 'next-intl/plugin'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
-// Auto-detect telamonjs-ui link mode via package.json (link: protocol = linked)
+// Auto-detect telamonjs-ui link mode via package.json (file: or link: = linked,
+// see `telamonjs link`)
 const pkg = JSON.parse(
   readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')
 )
 const isTelamonjsLinked =
-  pkg.dependencies?.['@telamonjs/ui']?.startsWith('link:')
+  /^(file|link):/.test(pkg.dependencies?.['@telamonjs/ui'] ?? '')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

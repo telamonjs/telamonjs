@@ -543,6 +543,7 @@ pnpm type-check       # TypeScript check
 pnpm lint:telamonjs     # telamonjs lint src/app/admin (conventions above)
 pnpm telamonjs generate crud <module> --model <Model>  # new module in this same pattern, from prisma/schema.prisma
 pnpm db:seed          # seed: admin@example.com / 12345
+pnpm telamonjs link   # @telamonjs/ui from a local checkout (../telamonjs); `pnpm telamonjs unlink` before committing
 docker compose up -d  # database only, for pnpm dev
 docker compose -f docker-compose.prod.yml up --build  # database + app (production build)
 ```

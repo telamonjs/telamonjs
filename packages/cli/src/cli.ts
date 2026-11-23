@@ -9,6 +9,7 @@ import { generateCommand } from './commands/generate/index.js'
 import { dbCommand } from './commands/db/index.js'
 import { analyzeCommand } from './commands/analyze/index.js'
 import { lintCommand } from './commands/lint/index.js'
+import { runLink, runUnlink } from './commands/link.js'
 import { readFileSync } from 'fs'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
@@ -64,6 +65,20 @@ program.addCommand(analyzeCommand)
 
 // Convention lint (CrudConfig / dialogs / hubs)
 program.addCommand(lintCommand)
+
+// Link mode: @telamonjs/ui from a local TelamonJS checkout
+program
+  .command('link')
+  .description('Point @telamonjs/ui at a local TelamonJS checkout (injected file: + logger override)')
+  .option('--ui <path>', 'The checkout\'s packages/ui (default: $TELAMONJS_UI, else ../telamonjs/packages/ui from the workspace root)')
+  .option('--package <path>', 'The package.json to edit (default: apps/web/package.json, else package.json)')
+  .action(runLink)
+
+program
+  .command('unlink')
+  .description('Restore the published @telamonjs/ui range and remove the link-mode entries')
+  .option('--package <path>', 'The package.json to edit (default: apps/web/package.json, else package.json)')
+  .action(runUnlink)
 
 // Git repository statistics
 program

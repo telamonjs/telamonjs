@@ -109,11 +109,14 @@ Keep these rules in mind:
   }
   ```
 
+  `telamonjs link` writes exactly these entries and `telamonjs unlink` removes them (see
+  [CLI › link / unlink](/docs/packages/cli#link--unlink)).
+
   Re-run `pnpm install` after rebuilding the package so the injected copy picks up the new `dist/`.
   The `@telamonjs/logger` override is required, not optional: in the checkout, `@telamonjs/ui`
-  declares the logger as `workspace:^`, which only resolves through the override. Remove the
-  override and the `file:` entry before committing or building against the registry (a small
-  script run by a git hook can switch the two modes).
+  declares the logger as `workspace:^`, which only resolves through the override. Run
+  `telamonjs unlink` before committing or building against the registry; monorepos generated
+  by the CLI do it in a pre-commit hook.
 - **One copy of each peer.** Expect the two-copy problems above. Keep the
   `optimizePackageImports` setting, pass the app's client to `AppProviders`, and keep the outer
   `QueryClientProvider`.

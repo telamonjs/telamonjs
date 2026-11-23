@@ -62,6 +62,25 @@ Checks admin modules against the list/dialog/hub conventions. `--json` prints
 the report as JSON. Exits 1 on errors. The rules live in
 [`rules.ts`](https://github.com/telamonjs/telamonjs/blob/main/packages/cli/src/commands/lint/rules.ts).
 
+## Link a local TelamonJS checkout
+
+```bash
+telamonjs link [--ui <path>] [--package <path>]   # @telamonjs/ui from the checkout
+telamonjs unlink [--package <path>]               # back to the published range
+pnpm install                                      # neither command installs
+```
+
+`link` points `@telamonjs/ui` at a checkout's `packages/ui` as an injected `file:`
+dependency and adds the required `pnpm.overrides["@telamonjs/logger"]` (a `link:`
+to the checkout's `packages/logger`) to the workspace root's `package.json`.
+`unlink` removes both and restores the range committed at `HEAD`, else `^` plus the
+latest published version, never the checkout's own version. The edited
+`package.json` is `apps/web/package.json` when it exists, else `./package.json`;
+`--ui` defaults to `$TELAMONJS_UI`, else `../telamonjs/packages/ui` next to the
+workspace root. Monorepo apps wrap both in `pnpm telamonjs:link` /
+`pnpm telamonjs:unlink`, and their husky hooks unlink before each commit and
+relink after it.
+
 ## Other commands
 
 | Command | What it does |

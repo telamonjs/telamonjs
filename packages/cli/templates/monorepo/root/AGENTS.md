@@ -46,6 +46,8 @@ pnpm test             # shared + api (jobs has no tests of its own yet)
 pnpm lint:telamonjs   # CrudConfig/dialogs conventions, apps/web only
 pnpm db:push          # prisma db push (packages/shared)
 pnpm db:seed          # admin@example.com / 12345
+pnpm telamonjs:link   # @telamonjs/ui from ../telamonjs (hooks unlink around commits)
+pnpm telamonjs:unlink # back to the published range
 docker compose up -d  # postgres + redis, dev-only ports
 ```
 
