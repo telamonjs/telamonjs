@@ -10,6 +10,7 @@ import {
   MutationCache,
   QueryClient,
   QueryClientProvider,
+  useQuery,
 } from '@tanstack/react-query'
 import { z } from 'zod'
 import type { ReactNode } from 'react'
@@ -159,6 +160,84 @@ describe('useCrudMutations - invalidation does not block the mutation (7.3.1)', 
     expect(queryClient.invalidateQueries).toHaveBeenCalledWith({
       queryKey: ['users'],
     })
+  })
+})
+
+describe('useCrudMutations - resolves after the list refetch', () => {
+  function deferred<T>() {
+    let resolve!: (value: T) => void
+    let reject!: (reason: unknown) => void
+    const promise = new Promise<T>((res, rej) => {
+      resolve = res
+      reject = rej
+    })
+    return { promise, resolve, reject }
+  }
+
+  // An active ['users'] list (useQuery mounted) + the mutations, one client.
+  function setup(queryFn: () => Promise<unknown>, retry: number | false) {
+    const queryClient = new QueryClient({
+      defaultOptions: {
+        queries: { retry, retryDelay: 60_000 },
+        mutations: { retry: false },
+      },
+    })
+    const wrapper = ({ children }: { children: ReactNode }) => (
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    )
+    const config = makeConfig({
+      create: {
+        mutationFn: async () => ({ success: true }),
+        invalidates: [['users']],
+      },
+    })
+    const hook = renderHook(
+      () => {
+        const list = useQuery({ queryKey: ['users'], queryFn })
+        return { list, ...useCrudMutations({ config }) }
+      },
+      { wrapper }
+    )
+    return { ...hook, queryClient }
+  }
+
+  it('create resolves only once the invalidated list has refetched', async () => {
+    const refetch = deferred<string[]>()
+    let calls = 0
+    const queryFn = () => (++calls === 1 ? Promise.resolve(['a']) : refetch.promise)
+    const { result, queryClient } = setup(queryFn, false)
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    let settled = false
+    const done = result.current.createMutation
+      .mutateAsync({ name: 'B', email: 'b@b' })
+      .then(r => {
+        settled = true
+        return r
+      })
+    await waitFor(() => expect(calls).toBe(2))
+    await new Promise(r => setTimeout(r, 20))
+    expect(settled).toBe(false)
+
+    refetch.resolve(['a', 'b'])
+    await expect(done).resolves.toEqual({ success: true })
+    // the cache already holds the fresh list when the dialog would close
+    expect(queryClient.getQueryData(['users'])).toEqual(['a', 'b'])
+  })
+
+  it('a failing refetch settles the mutation on its first failure, without waiting for retries', async () => {
+    let calls = 0
+    const queryFn = () =>
+      ++calls === 1 ? Promise.resolve(['a']) : Promise.reject(new Error('list 500'))
+    const { result } = setup(queryFn, 3)
+    await waitFor(() => expect(result.current.list.isSuccess).toBe(true))
+
+    // retryDelay is 60s: resolving at all proves no retry is awaited
+    await expect(
+      result.current.createMutation.mutateAsync({ name: 'B', email: 'b@b' })
+    ).resolves.toEqual({ success: true })
+    expect(calls).toBe(2)
+    expect(toastError).not.toHaveBeenCalled()
   })
 })
 

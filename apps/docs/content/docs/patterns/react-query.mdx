@@ -155,7 +155,8 @@ mutations: {
 What the library does around each mutation:
 
 - **On success** it invalidates every key in `invalidates`, calls your `onSuccess(result, variables)`,
-  and shows a success toast when the result has a `message`.
+  shows a success toast when the result has a `message`, and waits for the list's first refetch
+  attempt before resolving (see [Cache Invalidation](#cache-invalidation)).
 - **On error** (the `mutationFn` throws) it calls your `onError(error, variables)` and shows an error
   toast with the error's message.
 - A result with `success: false` keeps the form open and shows its `message` as a toast and an
@@ -179,8 +180,11 @@ key (`update` and `delete` pass the id; `create` passes `undefined`).
 - **Use hierarchical keys** for everything about one entity: `['orders']` for lists,
   `['orders', id]` for a detail, `['orders', 'stats']` for aggregates. Invalidating `['orders']`
   then reaches all of them.
-- **Invalidation does not block the dialog.** The dialog closes as soon as the API confirms; the
-  refetch runs after, and a failing refetch does not turn the save into an error.
+- **The dialog closes over a fresh list.** The mutation resolves once each invalidated query that
+  is on screen finished its first refetch attempt, so the saved row is already in the list when
+  the dialog closes. A failing refetch never turns the save into an error and never holds the
+  dialog through its retries: the mutation resolves on the first failure and React Query keeps
+  retrying in the background.
 
 The list also refreshes on its own after a successful custom row action (`actionsConfig.custom`)
 or bulk action; return `{ success: false }` from the handler to skip that. Other queries (a

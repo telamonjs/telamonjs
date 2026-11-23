@@ -92,19 +92,45 @@ export function useCrudMutations<T, TFormData = T>({
     )
   }
 
-  // Helper to invalidate queries (parallel). Fire-and-forget: the mutation —
-  // and the dialog awaiting it — settles as soon as the server confirmed. Awaiting
-  // the list refetch here kept "Salvando…" on screen while a failing refetch
-  // retried (create 201 + list 500, consumer QA).
+  // Invalidates (and so refetches) the keys, resolving once every query under
+  // them finished its FIRST refetch attempt — success or failure. onSuccess
+  // awaits it, so the dialog awaiting mutateAsync closes over a fresh list.
+  // Never rejects and never waits for retries: a failing list (create 201 +
+  // list 500, consumer QA) settles on its first failure and keeps retrying in
+  // the background instead of holding "Saving…" on screen.
   const invalidateQueries = (
     invalidates: (QueryKey | ((id?: string) => QueryKey))[],
     id?: string
-  ): void => {
-    const invalidationPromises = invalidates.map(keyOrFn => {
-      const key = typeof keyOrFn === 'function' ? keyOrFn(id) : keyOrFn
-      return queryClient.invalidateQueries({ queryKey: key })
+  ): Promise<void> => {
+    const keys = invalidates.map(keyOrFn =>
+      typeof keyOrFn === 'function' ? keyOrFn(id) : keyOrFn
+    )
+    for (const key of keys) {
+      void queryClient
+        .invalidateQueries({ queryKey: key })
+        .catch(() => undefined)
+    }
+    const cache = queryClient.getQueryCache()
+    // invalidateQueries dispatches the refetch synchronously, so a first
+    // attempt in flight is visible right here.
+    const firstAttemptPending = () =>
+      keys.some(key =>
+        cache
+          .findAll({ queryKey: key })
+          .some(
+            q =>
+              q.state.fetchStatus === 'fetching' &&
+              q.state.fetchFailureCount === 0
+          )
+      )
+    if (!firstAttemptPending()) return Promise.resolve()
+    return new Promise(resolve => {
+      const unsubscribe = cache.subscribe(() => {
+        if (firstAttemptPending()) return
+        unsubscribe()
+        resolve()
+      })
     })
-    void Promise.all(invalidationPromises).catch(() => undefined)
   }
 
   // CREATE MUTATION
@@ -119,11 +145,11 @@ export function useCrudMutations<T, TFormData = T>({
       }
       return await mutations.create.mutationFn(data)
     },
-    onSuccess: (result, variables) => {
+    onSuccess: async (result, variables) => {
       // Automatic cache invalidation
-      if (mutations.create?.invalidates) {
-        invalidateQueries(mutations.create.invalidates)
-      }
+      const listRefetched = mutations.create?.invalidates
+        ? invalidateQueries(mutations.create.invalidates)
+        : undefined
 
       // Call custom onSuccess
       mutations.create?.onSuccess?.(result, variables)
@@ -132,6 +158,9 @@ export function useCrudMutations<T, TFormData = T>({
       if (result?.success && result?.message) {
         toast.success(result.message)
       }
+
+      // mutateAsync resolves only after this — see invalidateQueries
+      await listRefetched
     },
     onError: (error: Error, variables) => {
       // Call custom onError
@@ -153,11 +182,11 @@ export function useCrudMutations<T, TFormData = T>({
       }
       return await mutations.update.mutationFn(variables)
     },
-    onSuccess: (result, variables) => {
+    onSuccess: async (result, variables) => {
       // Automatic cache invalidation
-      if (mutations.update?.invalidates) {
-        invalidateQueries(mutations.update.invalidates, variables.id)
-      }
+      const listRefetched = mutations.update?.invalidates
+        ? invalidateQueries(mutations.update.invalidates, variables.id)
+        : undefined
 
       // Call custom onSuccess
       mutations.update?.onSuccess?.(result, variables)
@@ -166,6 +195,9 @@ export function useCrudMutations<T, TFormData = T>({
       if (result?.success && result?.message) {
         toast.success(result.message)
       }
+
+      // mutateAsync resolves only after this — see invalidateQueries
+      await listRefetched
     },
     onError: (error: Error, variables) => {
       // Call custom onError
@@ -187,11 +219,11 @@ export function useCrudMutations<T, TFormData = T>({
       }
       return await mutations.delete.mutationFn(variables)
     },
-    onSuccess: (result, variables) => {
+    onSuccess: async (result, variables) => {
       // Automatic cache invalidation
-      if (mutations.delete?.invalidates) {
-        invalidateQueries(mutations.delete.invalidates, variables.id)
-      }
+      const listRefetched = mutations.delete?.invalidates
+        ? invalidateQueries(mutations.delete.invalidates, variables.id)
+        : undefined
 
       // Call custom onSuccess
       mutations.delete?.onSuccess?.(result, variables)
@@ -200,6 +232,9 @@ export function useCrudMutations<T, TFormData = T>({
       if (result?.success && result?.message) {
         toast.success(result.message)
       }
+
+      // mutateAsync resolves only after this — see invalidateQueries
+      await listRefetched
     },
     onError: (error: Error, variables) => {
       // Call custom onError
