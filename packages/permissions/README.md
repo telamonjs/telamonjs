@@ -75,6 +75,25 @@ export const PermissionsGuard = createPermissionsGuard({ failClosed: true })
 health() {}
 ```
 
+Two more options:
+
+- `onDenied({ user, required, request })` is called right before every 403
+  (log the denial there). The client still gets the generic message.
+- `createException(status, message)` builds the 401/403. Set it while the
+  package is linked (`link:`/`file:`), so the guard throws the host's
+  `@nestjs/common` classes instead of its own copy's, which the host's filters
+  would turn into a 500:
+
+```ts
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
+
+export const PermissionsGuard = createPermissionsGuard({
+  onDenied: ({ user, required }) => logger.warn('permission denied', { userId: user?.id, required }),
+  createException: (status, message) =>
+    status === 401 ? new UnauthorizedException(message) : new ForbiddenException(message),
+})
+```
+
 ## Role helpers
 
 ```ts

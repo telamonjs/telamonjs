@@ -11,6 +11,16 @@ import { createPermissionChecker } from '../checker'
 import type { PermissionClause, UserWithPermissions } from '../types'
 import { IS_PUBLIC_KEY, PERMISSIONS_KEY } from './permissions.decorator'
 
+/** What `onDenied` receives. */
+export interface PermissionDeniedContext {
+  /** `request.user`; undefined only on a `failClosed` denial without a user. */
+  user: UserWithPermissions | undefined
+  /** The route's `@Permissions` clauses; `[]` on a `failClosed` denial. */
+  required: PermissionClause[]
+  /** The raw HTTP request (Express/Fastify). */
+  request: unknown
+}
+
 export interface PermissionsGuardOptions {
   /** Roles with full bypass. Default: ['superadmin'] */
   bypassRoles?: readonly string[]
@@ -20,6 +30,29 @@ export interface PermissionsGuardOptions {
    * Default: false (a route without the decorator is open).
    */
   failClosed?: boolean
+  /**
+   * Builds the 401/403 the guard throws. Default: Nest's
+   * `UnauthorizedException`/`ForbiddenException` from the package's own
+   * `@nestjs/common`. While the package is linked (`link:`/`file:`), that copy
+   * differs from the host's and its filters (`instanceof HttpException`) turn
+   * the error into a 500 — pass the host's classes:
+   *
+   * ```ts
+   * import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
+   *
+   * createPermissionsGuard({
+   *   createException: (status, message) =>
+   *     status === 401 ? new UnauthorizedException(message) : new ForbiddenException(message),
+   * })
+   * ```
+   */
+  createException?: (status: 401 | 403, message: string) => Error
+  /**
+   * Called right before every 403 (e.g. to log the denial). The client still
+   * gets the generic `Insufficient permissions`. Synchronous: a returned
+   * promise is not awaited, and an error thrown here replaces the 403.
+   */
+  onDenied?: (context: PermissionDeniedContext) => void
 }
 
 /**
@@ -36,6 +69,16 @@ export function createPermissionsGuard(
   const checker = createPermissionChecker({
     bypassRoles: options?.bypassRoles ?? ['superadmin']
   })
+  const exception = (status: 401 | 403, message: string): Error =>
+    options?.createException?.(status, message) ??
+    (status === 401
+      ? new UnauthorizedException(message)
+      : new ForbiddenException(message))
+  // Generic on purpose: the required codes are not the client's business
+  const deny = (context: PermissionDeniedContext): Error => {
+    options?.onDenied?.(context)
+    return exception(403, 'Insufficient permissions')
+  }
 
   @Injectable()
   class PermissionsGuard implements CanActivate {
@@ -52,21 +95,21 @@ export function createPermissionsGuard(
         PermissionClause[] | undefined
       >(PERMISSIONS_KEY, targets)
 
+      const request = context
+        .switchToHttp()
+        .getRequest<{ user?: UserWithPermissions }>()
+      const user = request.user
+
       // No decorator = open route, unless failClosed (then only @Public() passes)
       if (!clauses || clauses.length === 0) {
         if (!options?.failClosed) return true
         if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, targets)) {
           return true
         }
-        throw new ForbiddenException('Insufficient permissions')
+        throw deny({ user, required: [], request })
       }
 
-      const request = context.switchToHttp().getRequest()
-      const user: UserWithPermissions | undefined = request.user
-
-      if (!user) {
-        throw new UnauthorizedException('User not authenticated')
-      }
+      if (!user) throw exception(401, 'User not authenticated')
 
       if (checker.hasBypassRole(user)) return true
 
@@ -78,8 +121,7 @@ export function createPermissionsGuard(
           : checker.can(user, clause)
       )
 
-      // Generic on purpose: the required codes are not the client's business
-      if (!allowed) throw new ForbiddenException('Insufficient permissions')
+      if (!allowed) throw deny({ user, required: clauses, request })
 
       return true
     }

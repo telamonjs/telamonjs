@@ -5,22 +5,29 @@ import {
   type ExecutionContext
 } from '@nestjs/common'
 import type { Reflector } from '@nestjs/core'
-import { createPermissionsGuard } from './permissions.guard'
+import {
+  createPermissionsGuard,
+  type PermissionDeniedContext,
+  type PermissionsGuardOptions
+} from './permissions.guard'
 import { Reflector as RealReflector } from '@nestjs/core'
 import { IS_PUBLIC_KEY, PERMISSIONS_KEY, Public } from './permissions.decorator'
 import type { PermissionClause, UserWithPermissions } from '../types'
 
-function ctx(user?: UserWithPermissions): ExecutionContext {
+function ctx(
+  user?: UserWithPermissions,
+  request: Record<string, unknown> = { user }
+): ExecutionContext {
   return {
     getHandler: () => () => undefined,
     getClass: () => class {},
-    switchToHttp: () => ({ getRequest: () => ({ user }) })
+    switchToHttp: () => ({ getRequest: () => request })
   } as unknown as ExecutionContext
 }
 
 function guardWith(
   clauses: PermissionClause[] | undefined,
-  options?: { bypassRoles?: readonly string[]; failClosed?: boolean },
+  options?: PermissionsGuardOptions,
   isPublic?: boolean
 ) {
   const Guard = createPermissionsGuard(options)
@@ -172,5 +179,94 @@ describe('createPermissionsGuard', () => {
     } as unknown as Reflector
     new Guard(reflector).canActivate(ctx())
     expect(calls).toHaveLength(2)
+  })
+
+  describe('createException (linked package)', () => {
+    // Stands in for the host's own HttpException subclasses
+    class HostException extends Error {
+      constructor(
+        readonly status: number,
+        message: string
+      ) {
+        super(message)
+      }
+    }
+    const createException = (status: 401 | 403, message: string) =>
+      new HostException(status, message)
+
+    it('403 (insufficient permissions) uses the host exception', () => {
+      expect(() =>
+        guardWith(['usuarios.write'], { createException }).canActivate(
+          ctx(semPermissao)
+        )
+      ).toThrowError(new HostException(403, 'Insufficient permissions'))
+    })
+
+    it('403 (failClosed, no decorator) uses the host exception', () => {
+      expect(() =>
+        guardWith(undefined, { failClosed: true, createException }).canActivate(
+          ctx(gestor)
+        )
+      ).toThrow(HostException)
+    })
+
+    it('401 (no user) uses the host exception', () => {
+      let thrown: unknown
+      try {
+        guardWith(['usuarios.write'], { createException }).canActivate(ctx())
+      } catch (e) {
+        thrown = e
+      }
+      expect(thrown).toBeInstanceOf(HostException)
+      expect(thrown).toMatchObject({
+        status: 401,
+        message: 'User not authenticated'
+      })
+    })
+  })
+
+  describe('onDenied', () => {
+    function recorder() {
+      const calls: PermissionDeniedContext[] = []
+      return { calls, onDenied: (c: PermissionDeniedContext) => calls.push(c) }
+    }
+
+    it('is called before the 403 with user, required clauses and request', () => {
+      const { calls, onDenied } = recorder()
+      const request = { user: semPermissao, url: '/admin' }
+      const clauses: PermissionClause[] = ['usuarios.write', ['a', 'b']]
+      expect(() =>
+        guardWith(clauses, { onDenied }).canActivate(ctx(semPermissao, request))
+      ).toThrowError(new ForbiddenException('Insufficient permissions'))
+      expect(calls).toEqual([
+        { user: semPermissao, required: clauses, request }
+      ])
+    })
+
+    it('is called on a failClosed denial with required = []', () => {
+      const { calls, onDenied } = recorder()
+      expect(() =>
+        guardWith(undefined, { failClosed: true, onDenied }).canActivate(
+          ctx(gestor)
+        )
+      ).toThrow(ForbiddenException)
+      expect(calls).toHaveLength(1)
+      expect(calls[0]?.required).toEqual([])
+      expect(calls[0]?.user).toBe(gestor)
+    })
+
+    it('is not called when access is allowed, nor on a 401', () => {
+      const { calls, onDenied } = recorder()
+      expect(
+        guardWith(['processos.read'], { onDenied }).canActivate(ctx(gestor))
+      ).toBe(true)
+      expect(
+        guardWith(['x'], { onDenied }).canActivate(ctx(superadmin))
+      ).toBe(true)
+      expect(() =>
+        guardWith(['x'], { onDenied }).canActivate(ctx())
+      ).toThrow(UnauthorizedException)
+      expect(calls).toHaveLength(0)
+    })
   })
 })

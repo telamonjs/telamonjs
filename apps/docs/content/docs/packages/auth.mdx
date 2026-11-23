@@ -56,7 +56,8 @@ const payload = await decodeSessionToken(token)
 
 `TokenConfig` (`secret`, `salt`, `maxAge`) is accepted by every function and
 by the Nest guard; secret defaults to the env vars, salt to the v5 default,
-maxAge to 24h.
+maxAge to 24h. The guard also accepts `secret` as a function resolved per
+request (see [Secret resolved per request](#secret-resolved-per-request)).
 
 ### Known trap: which salt does your project use?
 
@@ -232,6 +233,31 @@ failure is a single `UnauthorizedException('Invalid or expired token')`.
 To keep session tokens out of URLs (and access logs) outside your SSE routes,
 subclass the guard and override `allowQueryToken(request)` — `request.path` /
 `request.url` are available; return `false` and `?token=` is ignored.
+
+### Secret resolved per request
+
+`createJwtAuthGuard()` runs when its module is imported, before Nest DI and
+before your env is loaded. Instead of a static string, `secret` takes a
+function (sync or async) that the guard calls on every request:
+
+```ts
+export const JwtAuthGuard = createJwtAuthGuard({
+  secret: () => process.env.AUTH_SECRET,
+})
+```
+
+Returning `undefined` falls back to `AUTH_SECRET` / `NEXTAUTH_SECRET`, as with
+a static value. Subclasses inherit it unchanged.
+
+### Throwing the host's exceptions (`createException`)
+
+`createException?: (status: 401 | 403, message: string) => Error` builds every
+401 the guard throws (this guard only passes 401). Leave it out and the guard
+throws `UnauthorizedException` from the package's `@nestjs/common`; set it when
+the package is linked and that copy is not the host's — see
+[NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
+It has the same signature as the option of `createPermissionsGuard`, so one
+function serves both guards.
 
 Downstream, pair it with the permissions guard from
 [@telamonjs/permissions](/docs/packages/permissions), which reads
@@ -437,7 +463,8 @@ there, the problem is at login time, not in the guard.
 ### 500 instead of 401 in development
 
 The package is linked instead of installed, so the guard throws an
-`UnauthorizedException` from a second copy of `@nestjs/common`. See
+`UnauthorizedException` from a second copy of `@nestjs/common`. Pass
+`createException` so it throws the host's class; see
 [NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
 
 ---

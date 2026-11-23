@@ -939,6 +939,7 @@ Runtime:
 Types:
 
 - `PermissionClause` (type)
+- `PermissionDeniedContext` (type)
 - `PermissionsGuardOptions` (type)
 - `UserWithPermissions` (type)
 

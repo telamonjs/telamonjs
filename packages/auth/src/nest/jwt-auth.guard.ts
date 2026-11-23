@@ -24,7 +24,39 @@ export interface RequestLike {
   url?: string
 }
 
-export interface JwtAuthGuardOptions extends TokenConfig {
+export interface JwtAuthGuardOptions extends Omit<TokenConfig, 'secret'> {
+  /**
+   * The JWE secret, or a function resolved on every request (sync or async).
+   * The guard class is built when its module is imported, before Nest DI and
+   * env loading, so pass a function to read the value late:
+   *
+   * ```ts
+   * createJwtAuthGuard({ secret: () => process.env.AUTH_SECRET })
+   * ```
+   *
+   * `undefined` (static or returned) falls back to
+   * `process.env.AUTH_SECRET || process.env.NEXTAUTH_SECRET`.
+   */
+  secret?: string | (() => string | undefined | Promise<string | undefined>)
+  /**
+   * Builds the 401 the guard throws. Default: Nest's `UnauthorizedException`
+   * from the package's own `@nestjs/common`. While the package is linked
+   * (`link:`/`file:`), that copy differs from the host's and its filters
+   * (`instanceof HttpException`) turn the 401 into a 500 — pass the host's class:
+   *
+   * ```ts
+   * import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
+   *
+   * createJwtAuthGuard({
+   *   createException: (status, message) =>
+   *     status === 401 ? new UnauthorizedException(message) : new ForbiddenException(message),
+   * })
+   * ```
+   *
+   * Same signature as the option of `createPermissionsGuard`, so one function
+   * serves both guards (this guard only ever passes 401).
+   */
+  createException?: (status: 401 | 403, message: string) => Error
   /**
    * Cookie names to look for the session token in.
    * Default: [salt, `__Secure-${salt}`]. Projects that decode with the v5
@@ -132,6 +164,9 @@ export function createJwtAuthGuard<TUser = AuthUser>(
   const cookieNames = options?.cookieNames ?? [salt, `__Secure-${salt}`]
   // Bearer/query arrive without a cookie name — we try every possible salt
   const headerSalts = [...new Set([salt, ...cookieNames])]
+  const unauthorized = (message: string): Error =>
+    options?.createException?.(401, message) ??
+    new UnauthorizedException(message)
 
   @Injectable()
   class JwtAuthGuard extends JwtAuthGuardBase<TUser> {
@@ -151,11 +186,16 @@ export function createJwtAuthGuard<TUser = AuthUser>(
       if (isPublic) return true
 
       const request = context.switchToHttp().getRequest<RequestLike>()
+      // Resolved here, per request: a function reads values loaded after import
+      const secret =
+        typeof options?.secret === 'function'
+          ? await options.secret()
+          : options?.secret
 
       for (const candidate of this.extractTokenCandidates(request)) {
         for (const candidateSalt of candidate.salts) {
           const payload = await decodeSessionToken(candidate.token, {
-            ...options,
+            secret,
             salt: candidateSalt,
           })
           if (payload) {
@@ -167,14 +207,12 @@ export function createJwtAuthGuard<TUser = AuthUser>(
                   context
                 ))
               if (!active) {
-                throw new UnauthorizedException(
-                  'Impersonation session is no longer active'
-                )
+                throw unauthorized('Impersonation session is no longer active')
               }
             }
             const user = await this.resolveUser(payload, context)
             if (user == null) {
-              throw new UnauthorizedException('Session is no longer valid')
+              throw unauthorized('Session is no longer valid')
             }
             request.user = user
             return true
@@ -182,7 +220,7 @@ export function createJwtAuthGuard<TUser = AuthUser>(
         }
       }
 
-      throw new UnauthorizedException('Invalid or expired token')
+      throw unauthorized('Invalid or expired token')
     }
 
     private extractTokenCandidates(request: RequestLike): TokenCandidate[] {

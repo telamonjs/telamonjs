@@ -7,6 +7,7 @@ export {
 } from './permissions.decorator'
 export {
   createPermissionsGuard,
+  type PermissionDeniedContext,
   type PermissionsGuardOptions
 } from './permissions.guard'
 export type { PermissionClause, UserWithPermissions } from '../types'

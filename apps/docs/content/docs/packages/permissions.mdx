@@ -239,6 +239,34 @@ health() {}
 `@telamonjs/auth/nest`, so either decorator marks a route public for both
 guards. Default: `false` — routes without the decorator stay open.
 
+### `onDenied` — observe denials
+
+`onDenied` is called right before every 403 with
+`{ user, required, request }`: the route's clauses (`[]` on a `failClosed`
+denial, where `user` may be `undefined`) and the raw HTTP request. The client
+still gets the generic `Insufficient permissions`.
+
+```ts
+export const PermissionsGuard = createPermissionsGuard({
+  onDenied: ({ user, required }) =>
+    logger.warn('permission denied', { userId: user?.id, required }),
+})
+```
+
+It runs synchronously: a returned promise is not awaited, and an error thrown
+inside it replaces the 403. It is not called on a 401.
+
+### `createException` — throw the host's exceptions
+
+`createException?: (status: 401 | 403, message: string) => Error` builds the
+401 and 403 the guard throws. Leave it out and the guard throws
+`UnauthorizedException`/`ForbiddenException` from the package's
+`@nestjs/common`; set it when the package is linked and that copy is not the
+host's — see
+[NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
+The JWT guard of [@telamonjs/auth](/docs/packages/auth) takes the same option,
+so one function serves both.
+
 ---
 
 ## Advanced Grants (database-side)

@@ -492,3 +492,133 @@ describe('createJwtAuthGuard — exported subclass (declaration: true consumer)'
     ).toBe(true)
   })
 })
+
+describe('createJwtAuthGuard — secret resolved per request', () => {
+  it('a sync function is called per request, so a value set after module load is used', async () => {
+    let current: string | undefined
+    const g = guard({ secret: () => current })
+    current = SECRET // e.g. env loaded by Nest after the guard module was imported
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: FakeRequest = {
+      headers: { authorization: `Bearer ${token}` },
+    }
+    expect(await g.canActivate(ctx(request))).toBe(true)
+    expect(request.user?.id).toBe('u1')
+
+    // rotated secret: the next request decodes with the new value
+    current = 'another-secret-with-at-least-32-characters'
+    await expect(g.canActivate(ctx(request))).rejects.toThrowError(
+      new UnauthorizedException('Invalid or expired token')
+    )
+  })
+
+  it('an async function is awaited', async () => {
+    const g = guard({ secret: async () => SECRET })
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    expect(
+      await g.canActivate(ctx({ headers: { authorization: `Bearer ${token}` } }))
+    ).toBe(true)
+  })
+
+  it('is resolved once per request, not once per candidate/salt', async () => {
+    let calls = 0
+    const g = guard({
+      secret: () => {
+        calls++
+        return SECRET
+      },
+    })
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    // two invalid candidates before the valid cookie
+    expect(
+      await g.canActivate(
+        ctx({
+          headers: { authorization: 'Bearer lixo' },
+          query: { token: 'lixo' },
+          cookies: { 'authjs.session-token': token },
+        })
+      )
+    ).toBe(true)
+    expect(calls).toBe(1)
+  })
+
+  it('works through a subclass (resolveUser override)', async () => {
+    const reflector = { getAllAndOverride: () => false } as unknown as Reflector
+    class AppGuard extends createJwtAuthGuard({ secret: () => SECRET }) {
+      protected override resolveUser(p: MfJwtPayload): AuthUser {
+        return { ...payloadToAuthUser(p), name: 'from-subclass' }
+      }
+    }
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: FakeRequest = {
+      headers: { authorization: `Bearer ${token}` },
+    }
+    expect(await new AppGuard(reflector).canActivate(ctx(request))).toBe(true)
+    expect(request.user?.name).toBe('from-subclass')
+  })
+})
+
+describe('createJwtAuthGuard — createException (linked package)', () => {
+  // Stands in for the host's own UnauthorizedException class
+  class HostException extends Error {
+    constructor(
+      readonly status: number,
+      message: string
+    ) {
+      super(message)
+    }
+  }
+  const createException = (status: 401 | 403, message: string) =>
+    new HostException(status, message)
+  const reflector = { getAllAndOverride: () => false } as unknown as Reflector
+
+  it('no/invalid token → the host exception', async () => {
+    const rejected = guard({ secret: SECRET, createException }).canActivate(
+      ctx({ headers: {} })
+    )
+    await expect(rejected).rejects.toBeInstanceOf(HostException)
+    await expect(rejected).rejects.toMatchObject({
+      status: 401,
+      message: 'Invalid or expired token',
+    })
+  })
+
+  it('resolveUser → null → the host exception', async () => {
+    class NullGuard extends createJwtAuthGuard({
+      secret: SECRET,
+      createException,
+    }) {
+      protected override resolveUser(): null {
+        return null
+      }
+    }
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    await expect(
+      new NullGuard(reflector).canActivate(
+        ctx({ headers: { authorization: `Bearer ${token}` } })
+      )
+    ).rejects.toMatchObject({
+      constructor: HostException,
+      status: 401,
+      message: 'Session is no longer valid',
+    })
+  })
+
+  it('revoked impersonation → the host exception', async () => {
+    const token = await encodeSessionToken(
+      { ...payload, impersonatedUserId: 'u1', originalUserId: 'admin-1' },
+      { secret: SECRET }
+    )
+    await expect(
+      guard({
+        secret: SECRET,
+        createException,
+        isImpersonationActive: () => true,
+      }).canActivate(ctx({ headers: { authorization: `Bearer ${token}` } }))
+    ).rejects.toMatchObject({
+      constructor: HostException,
+      status: 401,
+      message: 'Impersonation session is no longer active',
+    })
+  })
+})

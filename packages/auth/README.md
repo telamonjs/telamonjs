@@ -58,6 +58,28 @@ EventSource/SSE, which can't send headers), then the NextAuth cookies. Cookie
 decoding is salt-aware (`__Secure-` names under HTTPS) and reassembles chunked
 cookies. Opt a route out with `@Public()`.
 
+The guard is built when its module is imported, before Nest DI and env
+loading. To read the secret late, pass a function (sync or async), called on
+every request; `undefined` falls back to the env vars:
+
+```ts
+createJwtAuthGuard({ secret: () => process.env.AUTH_SECRET })
+```
+
+While the package is linked (`link:`/`file:`), its `@nestjs/common` is not the
+host's, and the host's filters turn the guard's 401 into a 500. Pass
+`createException` so the guard throws the host's class (same signature as the
+option of `createPermissionsGuard`):
+
+```ts
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common'
+
+const createException = (status: 401 | 403, message: string) =>
+  status === 401 ? new UnauthorizedException(message) : new ForbiddenException(message)
+
+createJwtAuthGuard({ createException })
+```
+
 ## Impersonation
 
 ```ts

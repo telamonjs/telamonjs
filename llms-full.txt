@@ -19286,7 +19286,8 @@ const payload = await decodeSessionToken(token)
 
 `TokenConfig` (`secret`, `salt`, `maxAge`) is accepted by every function and
 by the Nest guard; secret defaults to the env vars, salt to the v5 default,
-maxAge to 24h.
+maxAge to 24h. The guard also accepts `secret` as a function resolved per
+request (see [Secret resolved per request](#secret-resolved-per-request)).
 
 ### Known trap: which salt does your project use?
 
@@ -19462,6 +19463,31 @@ failure is a single `UnauthorizedException('Invalid or expired token')`.
 To keep session tokens out of URLs (and access logs) outside your SSE routes,
 subclass the guard and override `allowQueryToken(request)` — `request.path` /
 `request.url` are available; return `false` and `?token=` is ignored.
+
+### Secret resolved per request
+
+`createJwtAuthGuard()` runs when its module is imported, before Nest DI and
+before your env is loaded. Instead of a static string, `secret` takes a
+function (sync or async) that the guard calls on every request:
+
+```ts
+export const JwtAuthGuard = createJwtAuthGuard({
+  secret: () => process.env.AUTH_SECRET,
+})
+```
+
+Returning `undefined` falls back to `AUTH_SECRET` / `NEXTAUTH_SECRET`, as with
+a static value. Subclasses inherit it unchanged.
+
+### Throwing the host's exceptions (`createException`)
+
+`createException?: (status: 401 | 403, message: string) => Error` builds every
+401 the guard throws (this guard only passes 401). Leave it out and the guard
+throws `UnauthorizedException` from the package's `@nestjs/common`; set it when
+the package is linked and that copy is not the host's — see
+[NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
+It has the same signature as the option of `createPermissionsGuard`, so one
+function serves both guards.
 
 Downstream, pair it with the permissions guard from
 [@telamonjs/permissions](/docs/packages/permissions), which reads
@@ -19667,7 +19693,8 @@ there, the problem is at login time, not in the guard.
 ### 500 instead of 401 in development
 
 The package is linked instead of installed, so the guard throws an
-`UnauthorizedException` from a second copy of `@nestjs/common`. See
+`UnauthorizedException` from a second copy of `@nestjs/common`. Pass
+`createException` so it throws the host's class; see
 [NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
 
 ---
@@ -19918,6 +19945,34 @@ health() {}
 `Public()` uses the metadata key `'isPublic'`, the same as `Public()` from
 `@telamonjs/auth/nest`, so either decorator marks a route public for both
 guards. Default: `false` — routes without the decorator stay open.
+
+### `onDenied` — observe denials
+
+`onDenied` is called right before every 403 with
+`{ user, required, request }`: the route's clauses (`[]` on a `failClosed`
+denial, where `user` may be `undefined`) and the raw HTTP request. The client
+still gets the generic `Insufficient permissions`.
+
+```ts
+export const PermissionsGuard = createPermissionsGuard({
+  onDenied: ({ user, required }) =>
+    logger.warn('permission denied', { userId: user?.id, required }),
+})
+```
+
+It runs synchronously: a returned promise is not awaited, and an error thrown
+inside it replaces the 403. It is not called on a 401.
+
+### `createException` — throw the host's exceptions
+
+`createException?: (status: 401 | 403, message: string) => Error` builds the
+401 and 403 the guard throws. Leave it out and the guard throws
+`UnauthorizedException`/`ForbiddenException` from the package's
+`@nestjs/common`; set it when the package is linked and that copy is not the
+host's — see
+[NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
+The JWT guard of [@telamonjs/auth](/docs/packages/auth) takes the same option,
+so one function serves both.
 
 ---
 
@@ -21108,33 +21163,36 @@ Keep these rules in mind:
 
 ## NestJS guard exceptions across package instances
 
-**Symptom:** a request with a missing or invalid token gets a **500** instead of a **401**, but only
-in development.
+**Symptom:** a request with a missing or invalid token (or without the permission) gets a **500**
+instead of a **401** (or **403**), but only in development.
 
-**Cause:** with `@telamonjs/auth` linked, the guard from `@telamonjs/auth/nest` and the host API
+**Cause:** with `@telamonjs/auth` or `@telamonjs/permissions` linked, the guard and the host API
 resolve `@nestjs/common` from different `node_modules`, so there are two `UnauthorizedException`
-classes. Nest's exception filters use `instanceof`, so the exception thrown by the package's copy is
-not recognized by the host's filters and surfaces as a generic 500.
+(and `ForbiddenException`) classes. Nest's exception filters use `instanceof`, so the exception
+thrown by the package's copy is not recognized by the host's filters and surfaces as a generic 500.
 
 **Fix:** with a registry install there is nothing to do: `@nestjs/common` is a peer dependency and
-resolves to the host's single copy. While the package is linked, catch the exception in the host
-and re-throw it with the host's own class:
+resolves to the host's single copy. While the package is linked, pass `createException` to both
+guards so they throw the host's own classes. Both options share one signature, so one function
+serves both:
 
-```ts
-import { UnauthorizedException } from '@nestjs/common' // the host's copy
+```ts title="src/common/guards/http-exception.ts"
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common' // the host's copy
 
-try {
-  return await guardLogic()
-} catch (e) {
-  if (e instanceof Error && e.name === 'UnauthorizedException') {
-    throw new UnauthorizedException(e.message)
-  }
-  throw e
-}
+export const createException = (status: 401 | 403, message: string) =>
+  status === 401 ? new UnauthorizedException(message) : new ForbiddenException(message)
 ```
 
-The same applies to `@telamonjs/permissions/nest` and `@telamonjs/queue/nestjs`, which also take
-`@nestjs/common` as a peer.
+```ts
+export const JwtAuthGuard = createJwtAuthGuard({ createException })
+export const PermissionsGuard = createPermissionsGuard({ createException })
+```
+
+Without the option, the guards keep throwing the package's own Nest exceptions.
+
+`@telamonjs/queue/nestjs` also takes `@nestjs/common` as a peer and has no such option: while it is
+linked, catch its exceptions in the host and re-throw them with the host's classes (match on
+`e.name`, since `instanceof` is what fails).
 
 ---
 
