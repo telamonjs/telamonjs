@@ -14,7 +14,7 @@ import { ErrorBoundary } from '../components/utilities/ErrorBoundary'
 import type { FormSection } from '../components/forms/AdminForm'
 import { useCrudMutations } from '../hooks/useCrudMutations'
 import { ColumnFilterConfig } from '../types/filters'
-import type { ListPageProps } from './list-page/types'
+import type { ListPageProps, ListQueryState } from './list-page/types'
 import { useUrlSync } from '../hooks/useUrlSync'
 import { useListPageUrlSync } from './list-page/useListPageUrlSync'
 import { useListPageToolbar, toolbarQueryFilters } from './list-page/useListPageToolbar'
@@ -268,6 +268,7 @@ export function ListPage<TData>({
     effectiveLoading,
     effectiveIsFetching,
     handleRefresh,
+    paginationParams,
   } = useListPageData({
     config,
     page,
@@ -279,6 +280,17 @@ export function ListPage<TData>({
     disableAutoRefresh,
     onRefreshAction,
   })
+
+  // `toolbarContent` as a function gets the list's current query (export
+  // buttons that must fetch exactly what the list shows)
+  const listQuery = useMemo<ListQueryState>(
+    () => ({ search, filters: allFilters, sorting, params: paginationParams }),
+    [search, allFilters, sorting, paginationParams]
+  )
+  const resolvedToolbarContent =
+    typeof toolbarContent === 'function'
+      ? toolbarContent(listQuery)
+      : toolbarContent
 
   // Root element ref — lets useDialogUrlSync gate URL→state opening by visibility
   // (keep-alive tab dashboards co-mount several ListPages sharing one param).
@@ -387,7 +399,7 @@ export function ListPage<TData>({
           <ListPageToolbar<TData>
             list={list}
             toolbarPrepend={toolbarPrepend}
-            toolbarContent={toolbarContent}
+            toolbarContent={resolvedToolbarContent}
             filtersPanel={filtersPanel}
             activeFilters={activeFilters}
             onClearFilters={onClearFilters}

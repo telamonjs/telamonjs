@@ -500,6 +500,7 @@ Types:
 - `KanbanColumn` (type)
 - `LineChartProps` (type)
 - `ListConfig` (type)
+- `ListQueryState` (type)
 - `LoadingSkeletonProps` (type)
 - `LocaleSwitcherProps` (type)
 - `MenuItem` (type)

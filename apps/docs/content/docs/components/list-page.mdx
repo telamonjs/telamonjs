@@ -119,7 +119,7 @@ interface ListPageProps<TData> {
   errorBoundary?: boolean
   errorFallback?: ReactNode
   toolbarPrepend?: ReactNode
-  toolbarContent?: ReactNode
+  toolbarContent?: ReactNode | ((state: ListQueryState) => ReactNode)
   filtersPanel?: ReactNode
   activeFilters?: Array<{ key: string; label: string; onRemove: () => void }>
   onClearFilters?: () => void

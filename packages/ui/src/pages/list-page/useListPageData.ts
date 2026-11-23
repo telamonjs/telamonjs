@@ -48,6 +48,8 @@ interface UseListPageDataReturn<TData> {
   effectiveIsFetching: boolean
   /** Refresh handler with cache revalidation */
   handleRefresh: () => Promise<void>
+  /** The params passed to `query.queryFn` (debounced search) */
+  paginationParams: PaginationParams
 }
 
 /**
@@ -230,5 +232,6 @@ export function useListPageData<TData>({
     effectiveLoading,
     effectiveIsFetching,
     handleRefresh,
+    paginationParams,
   }
 }

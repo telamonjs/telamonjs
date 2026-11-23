@@ -2,6 +2,7 @@
 
 import type { ComponentType, ReactNode } from 'react'
 import type { CrudConfigWithAnyForm } from '../../types/crud'
+import type { PaginationParams, SortField } from '../../types/pagination'
 import type { ColumnFilterConfig } from '../../types/filters'
 import type { BulkAction } from '../../data/BulkActionsToolbar'
 
@@ -87,8 +88,12 @@ export interface ListPageProps<TData> {
   /** Custom React content to render BEFORE search in the embedded TabToolbar (e.g. DateRange picker) */
   toolbarPrepend?: ReactNode
 
-  /** Custom React content to render inside the embedded TabToolbar (after filters, before Spacer) */
-  toolbarContent?: ReactNode
+  /**
+   * Custom React content to render inside the embedded TabToolbar (after filters, before Spacer).
+   * Pass a function to receive the list's current query (`ListQueryState`) — e.g. an export/PDF
+   * button that must fetch exactly what the list shows.
+   */
+  toolbarContent?: ReactNode | ((state: ListQueryState) => ReactNode)
 
   /**
    * Second level of the toolbar: content of the "Filters" popover
@@ -125,4 +130,19 @@ export interface ActiveFilterChip {
   /** e.g. "Customer: ACME" */
   label: string
   onRemove: () => void
+}
+
+/** Current query of a ListPage, handed to `toolbarContent` when it is a function */
+export interface ListQueryState {
+  /** Search box value, as typed */
+  search: string
+  /** Every active filter: toolbar filters (resets dropped), column filters and `urlFilters` */
+  filters: Record<string, unknown>
+  /** Current sort */
+  sorting: SortField[]
+  /**
+   * The params the list passes to `query.queryFn` (debounced search). `page`/`pageSize` are the
+   * paginated view's; set your own when fetching everything for an export.
+   */
+  params: PaginationParams
 }

@@ -2536,6 +2536,36 @@ A crowded toolbar can move secondary controls into a second level. All of these 
 `footerContent` adds content to the list status bar, after "N of M" (infinite scroll), such as the
 totals of the current filter.
 
+### Your own button with the list's query
+
+`toolbarContent` also takes a function. It receives the list's current query
+(`ListQueryState`) and re-renders when it changes, so an export or PDF button fetches exactly
+what the list shows:
+
+```tsx
+<ListPage
+  config={ordersConfig}
+  toolbarContent={({ params }) => (
+    <Button
+      variant='outline'
+      size='sm'
+      onClick={() => ordersApi.downloadPdf({ ...params, page: 1, pageSize: 10_000 })}
+    >
+      PDF
+    </Button>
+  )}
+/>
+```
+
+| Field | Content |
+| --- | --- |
+| `search` | the search box value, as typed |
+| `filters` | every active filter: toolbar filters (resets dropped), column filters, `urlFilters` |
+| `sorting` | the current sort (`SortField[]`) |
+| `params` | the `PaginationParams` the list passes to `query.queryFn` (debounced search, current page) |
+
+`toolbarContent` renders in the list toolbar: infinite scroll (the default) and `embedded`.
+
 ### Columns only in the export
 
 `meta.exportOnly` keeps a column out of the table and in the CSV/Excel/PDF export, so a table that
@@ -8111,7 +8141,7 @@ interface ListPageProps<TData> {
   errorBoundary?: boolean
   errorFallback?: ReactNode
   toolbarPrepend?: ReactNode
-  toolbarContent?: ReactNode
+  toolbarContent?: ReactNode | ((state: ListQueryState) => ReactNode)
   filtersPanel?: ReactNode
   activeFilters?: Array<{ key: string; label: string; onRemove: () => void }>
   onClearFilters?: () => void
