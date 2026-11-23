@@ -1963,7 +1963,8 @@ mutations: {
 What the library does around each mutation:
 
 - **On success** it invalidates every key in `invalidates`, calls your `onSuccess(result, variables)`,
-  and shows a success toast when the result has a `message`.
+  shows a success toast when the result has a `message`, and waits for the list's first refetch
+  attempt before resolving (see [Cache Invalidation](#cache-invalidation)).
 - **On error** (the `mutationFn` throws) it calls your `onError(error, variables)` and shows an error
   toast with the error's message.
 - A result with `success: false` keeps the form open and shows its `message` as a toast and an
@@ -1987,8 +1988,11 @@ key (`update` and `delete` pass the id; `create` passes `undefined`).
 - **Use hierarchical keys** for everything about one entity: `['orders']` for lists,
   `['orders', id]` for a detail, `['orders', 'stats']` for aggregates. Invalidating `['orders']`
   then reaches all of them.
-- **Invalidation does not block the dialog.** The dialog closes as soon as the API confirms; the
-  refetch runs after, and a failing refetch does not turn the save into an error.
+- **The dialog closes over a fresh list.** The mutation resolves once each invalidated query that
+  is on screen finished its first refetch attempt, so the saved row is already in the list when
+  the dialog closes. A failing refetch never turns the save into an error and never holds the
+  dialog through its retries: the mutation resolves on the first failure and React Query keeps
+  retrying in the background.
 
 The list also refreshes on its own after a successful custom row action (`actionsConfig.custom`)
 or bulk action; return `{ success: false }` from the handler to skip that. Other queries (a
@@ -3306,6 +3310,12 @@ const sections: FormSection[] = [
 
 Rule of thumb: a full-width field sets `span` to the section's `grid` value. `fields` also
 accepts rows (`FormField[][]`) when you need explicit line breaks.
+
+Below Tailwind's `sm` breakpoint (640px) every section grid (and every row of up to six fields;
+longer rows already wrap) collapses to a single column and
+`span` is ignored, so fields stack on phones; from `sm` up the grid and spans apply as
+declared. `grid` and `span` take `'1'`–`'12'` (and `span: 'full'`); every value is shipped as a
+static class, so no Tailwind safelist is needed.
 
 ### Labels and help text
 
@@ -5006,7 +5016,7 @@ relations (`person.name`) the same way as in any form — see the
 [Nested Data Pattern](/docs/patterns/nested-data).
 
 Child fields support `name`, `label`, `type`, `required`, `placeholder`, `readOnly`, `focus`,
-`default`, `span`, `description`, `loadField`/`dependsOn`, `mask`/`maskType`, `uploadFn`/`path`
+`default`, `span`, `description`, `loadField`/`dependsOn`, `mask`/`maskType`, `rows`, `uploadFn`/`path`
 and `Component`. Other field props (such as `visibleWhen` or date limits) are not applied inside
 a CRUD field.
 
@@ -6208,6 +6218,7 @@ Not sure which one fits? See the [decision trees](/docs/reference).
 | --- | --- |
 | [ListPage](/docs/components/list-page) | The list of a module, rendered from its `CrudConfig`, with its dialogs |
 | [DataTable](/docs/components/data-table) | Table with sorting, filtering, pagination and row selection |
+| [ReportTable](/docs/components/report-table) | Read-only report table with "load more" pagination |
 | [MobileCard](/docs/components/mobile-card) | Card rendering of table rows on small screens |
 
 ## Standalone Pages
@@ -8606,6 +8617,94 @@ const columns = useMemo<ColumnDef<User>[]>(
 ---
 
 **Status:** ✅ Stable
+
+---
+
+# ReportTable
+
+> Read-only table with progressive "load more" pagination for reports and dashboards
+
+Source: apps/docs/content/docs/components/report-table.mdx
+
+A plain, read-only table for report sections and dashboard cards: it renders the first
+`pageSize` rows, a "load more" button for the rest and a "Showing X of Y records" line. It
+has no sorting, filtering or row actions — for CRUD lists use [ListPage](/docs/components/list-page)
+or [DataTable](/docs/components/data-table). Also exported as `SimpleTable`.
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { ReportTable } from '@telamonjs/ui'
+
+const columns = [
+  { key: 'month', header: 'Month' },
+  { key: 'customer.name', header: 'Customer' }, // dot paths read nested values
+  {
+    key: 'total',
+    header: 'Total',
+    className: 'text-right',
+    render: (row: Revenue) => row.total.toFixed(2),
+  },
+]
+
+export function RevenueTable({ rows }: { rows: Revenue[] }) {
+  return <ReportTable data={rows} columns={columns} pageSize={20} />
+}
+```
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    data: { description: 'Rows to show (all of them — pagination is client-side)', type: 'T[]', required: true },
+    columns: { description: 'Columns: `key` (dot paths allowed), `header`, optional `render(item, index)` and `className`', type: 'ReportTableColumn<T>[]', required: true },
+    pageSize: { description: 'Rows shown first and added by each "load more"', type: 'number', default: '50' },
+    maxHeight: { description: 'Max height of the scroll box', type: 'string', default: "'400px'" },
+    stickyHeader: { description: 'Keep the header row visible while scrolling', type: 'boolean', default: 'true' },
+    showFooter: { description: 'Show the "Showing X of Y records" line under the table', type: 'boolean', default: 'true' },
+    emptyMessage: { description: 'Text shown when `data` is empty', type: 'string' },
+    labels: { description: 'Override the built-in texts (`empty`, `loadMore`, `showing`, `of`, `records`, `remaining`)', type: 'Partial<ReportTableLabels>' },
+    scrollProps: { description: "Attributes for the scroll box — pass `{ tabIndex: 0, role: 'region', 'aria-label': '…' }` so keyboard users can scroll it", type: 'object' },
+    className: { description: 'Additional classes on the wrapper', type: 'string' },
+  }}
+/>
+
+---
+
+## Examples
+
+### Without the Footer
+
+```tsx
+<ReportTable data={topProducts} columns={columns} pageSize={10} showFooter={false} />
+```
+
+Hide the count line when the surrounding card already states the total, or when the table
+is short enough that the count adds nothing.
+
+### Keyboard-Scrollable Region
+
+```tsx
+<ReportTable
+  data={rows}
+  columns={columns}
+  maxHeight='300px'
+  scrollProps={{ tabIndex: 0, role: 'region', 'aria-label': 'Revenue by month' }}
+/>
+```
+
+---
+
+## Related Components
+
+- [DataTable](/docs/components/data-table) - Sorting, filtering, selection and row actions
+- [ExportButtons](/docs/components/export-button) - Export the same rows to CSV, Excel or PDF
 
 ---
 
@@ -14169,6 +14268,10 @@ export function RevenueCard() {
   }}
 />
 
+Text that truncates — the label (unless `wrapLabel`), the subtitle and the `tinted` value —
+carries its full content in a native `title` tooltip, so a clipped value is still readable on
+hover.
+
 There is no `title`, `change`, `trend`, `description` or `footer` prop. Put a delta in
 `badge` (formatting the sign yourself) and the comparison period in `subtitle`. For a card
 with a trend arrow and a target, use [KPICard](/docs/components/kpi-card).
@@ -14847,6 +14950,8 @@ export default function SalesByCategory() {
     showLegend: { description: 'Show the legend', type: 'boolean', default: 'true' },
     xAxisLabel: { description: 'X axis label', type: 'string' },
     yAxisLabel: { description: 'Y axis label', type: 'string' },
+    allowDecimals: { description: 'Whether the value axis may show fractional ticks — pass `false` for counts', type: 'boolean', default: 'true' },
+    categoryAxisWidth: { description: "Width in px of the category axis (the `name` labels) in `layout='vertical'`; ignored in `'horizontal'`", type: 'number', default: '60' },
     className: { description: 'Additional classes on the wrapper', type: 'string' },
   }}
 />
@@ -14884,6 +14989,21 @@ const data = [
 
 Horizontal bars (`layout='vertical'`) work well for long category labels and
 rankings.
+
+### Counts and Long Labels
+
+```tsx
+<BarChart
+  data={ticketsByTeam}
+  dataKeys={['open']}
+  layout='vertical'
+  allowDecimals={false}
+  categoryAxisWidth={160}
+/>
+```
+
+`allowDecimals={false}` keeps the value axis on whole numbers (no `0.5` ticks for a
+count); `categoryAxisWidth` widens the label column so long names are not clipped.
 
 ### With React Query
 
@@ -16111,6 +16231,7 @@ interface CalendarWithEventsProps {
   onDateClick?: (date: Date) => void // A day cell was clicked
   onEventClick?: (event: CalendarEvent) => void // An event chip was clicked
   defaultDate?: Date // Month shown first (default: today)
+  onMonthChange?: (month: Date) => void // User navigated; gets the 1st day of the new month
   className?: string // Additional classes
 }
 
@@ -16200,6 +16321,31 @@ const events = [
 ```
 
 Shows events on calendar dates.
+
+### Loading Events Per Month
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import { startOfMonth } from 'date-fns'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarWithEvents } from '@telamonjs/ui'
+
+export function AgendaCalendar() {
+  const [month, setMonth] = useState(() => startOfMonth(new Date()))
+  const { data: events = [] } = useQuery({
+    queryKey: ['agenda', month.toISOString()],
+    queryFn: () => agendaApi.listByMonth(month),
+  })
+
+  return <CalendarWithEvents events={events} onMonthChange={setMonth} />
+}
+```
+
+`onMonthChange` fires when the user moves to another month (previous, next, or Today while
+another month is shown) with the first day of that month. It does not fire on mount — start
+your state at the month you pass as `defaultDate` (today by default).
 
 ### Disabled Dates
 
@@ -20848,7 +20994,7 @@ options when another field changes.
 | `'text'` | Simple text | `placeholder` |
 | `'email'` | Validated email | `placeholder` |
 | `'password'` | Password | `placeholder` |
-| `'textarea'` | Long text | `placeholder` |
+| `'textarea'` | Long text | `placeholder`, `rows` (default 4) |
 | `'number'` | Integer | `placeholder` |
 | `'float'` | Decimal number | `placeholder` |
 | `'boolean'` | On/off switch | `default` |
@@ -20860,7 +21006,7 @@ options when another field changes.
 | `'multiselect'` | Multiple select | `loadField`, `dependsOn` |
 | `'image'` | Image upload | `uploadFn`, `path` |
 | `'file'` | File upload | `uploadFn`, `path`, `resolveUrl` |
-| `'masked'` | Masked input (CPF, phone) | `mask`, `maskType` |
+| `'masked'` | Masked input (CPF, phone) | `mask`, `maskType` — see [Masks](#masks) |
 | `'component'` | Custom component | `Component` |
 | `'crud'` | Nested data 1:N | See [CRUD Field Pattern](/docs/patterns/crud-field) |
 | `'hidden'` | Hidden field | - |
@@ -20889,6 +21035,28 @@ Every field also accepts `name`, `label`, `type`, `required`, `description`, `pl
 | `'wizard'` | Advanced | Multi-step flow inside the form |
 | `'svg'` | Special | SVG upload/preview |
 | `'space'` | Special | Layout spacer (renders no input) |
+
+---
+
+## Masks
+
+A `'masked'` field formats digits as they are typed. Give it a `maskType` preset, or your own
+`mask` where each `_` is one digit:
+
+| `maskType` | Mask |
+| --- | --- |
+| `'tel'` | `(__) ____-____`, switching to `(__) _____-____` at the 11th digit |
+| `'cpf'` | `___.___.___-__` |
+| `'cnpj'` | `__.___.___/____-__` (digits only) |
+| `'cep'` | `_____-___` |
+
+```typescript
+{ name: 'document', label: 'CPF', type: 'masked', maskType: 'cpf' }
+{ name: 'code', label: 'Code', type: 'masked', mask: '___-____' } // custom mask
+```
+
+A preset wins over `mask`; any other `maskType` value falls back to `mask`. The stored value is
+the formatted text.
 
 ---
 
