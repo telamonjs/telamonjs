@@ -128,7 +128,7 @@ describe('BaseForm', () => {
 
       const form = container.querySelector('form')
       expect(form).toBeInTheDocument()
-      const gridContainer = form!.querySelector('.grid-cols-3')
+      const gridContainer = form!.querySelector('.grid-cols-1.sm\\:grid-cols-3')
       expect(gridContainer).toBeInTheDocument()
     })
 
@@ -657,7 +657,7 @@ describe('BaseForm', () => {
 
       const form = container.querySelector('form')
       expect(form).toBeInTheDocument()
-      const spanElement = form!.querySelector('.col-span-2')
+      const spanElement = form!.querySelector('.sm\\:col-span-2')
       expect(spanElement).toBeInTheDocument()
     })
   })

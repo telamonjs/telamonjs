@@ -21,6 +21,7 @@ import {
 import { getFieldRenderer } from '../../field-system/field-registry'
 import { Button } from '../../ui/button'
 import { cn } from '../../utils'
+import { colSpanClass, gridColsClass } from './grid-classes'
 import { ValidationErrors } from './ValidationErrors'
 import { ChevronLeft, ChevronRight, Loader2, Save, X } from 'lucide-react'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
@@ -305,7 +306,7 @@ const FieldRenderer = memo<FieldRendererProps>(({ field, form, id }) => {
   return (
     <div
       key={field.name}
-      className={cn('space-y-2', field.span && `col-span-${field.span}`)}
+      className={cn('space-y-2', field.span && colSpanClass(field.span))}
     >
       <Controller
         name={field.name}
@@ -619,7 +620,7 @@ export function BaseForm<T extends Record<string, unknown>>({
                 <div
                   className={cn(
                     'grid gap-4',
-                    `grid-cols-${currentSection.grid || grid}`
+                    gridColsClass(currentSection.grid || grid)
                   )}
                   role='group'
                   aria-label={currentSection.label || undefined}
@@ -666,7 +667,7 @@ export function BaseForm<T extends Record<string, unknown>>({
                 <div
                   className={cn(
                     'grid gap-4',
-                    `grid-cols-${currentSection.grid || grid}`
+                    gridColsClass(currentSection.grid || grid)
                   )}
                   role='group'
                   aria-label={currentSection.label || undefined}

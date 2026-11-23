@@ -5,6 +5,7 @@ import { useForm } from '../../stores/form-store'
 import { Button } from '../../ui/button'
 import { Label } from '../../ui/label'
 import { cn } from '../../utils'
+import { colSpanClass, gridColsClass } from './grid-classes'
 import {
   Save,
   X,
@@ -196,7 +197,7 @@ const SectionRenderer: React.FC<{
           const useFlexbox = filteredRow.length > 6
           const gridCols = useFlexbox
             ? ''
-            : `grid-cols-${Math.min(filteredRow.length, 6)}`
+            : gridColsClass(Math.min(filteredRow.length, 6))
           const containerClass = useFlexbox
             ? 'flex flex-wrap gap-3'
             : cn('grid gap-3', gridCols)
@@ -205,11 +206,11 @@ const SectionRenderer: React.FC<{
             <div key={rowIndex} className={containerClass}>
               {filteredRow.map(field => {
                 const spanClass = field.span
-                  ? `col-span-${field.span}`
+                  ? colSpanClass(field.span)
                   : field.type === 'space' || field.type === 'crud'
                     ? useFlexbox
                       ? 'w-full'
-                      : `col-span-${row.length}`
+                      : colSpanClass(row.length)
                     : useFlexbox
                       ? 'flex-1 min-w-0'
                       : ''
@@ -236,15 +237,15 @@ const SectionRenderer: React.FC<{
   if (fields.length === 0) return null
 
   const gridValue = section.grid || '2'
-  const gridCols = `grid-cols-${gridValue}`
+  const gridCols = gridColsClass(gridValue)
 
   return (
     <div className={cn('grid gap-4', gridCols)}>
       {fields.map(field => {
         const spanClass = field.span
-          ? `col-span-${field.span}`
+          ? colSpanClass(field.span)
           : field.type === 'space' || field.type === 'crud'
-            ? `col-span-${gridValue}`
+            ? colSpanClass(gridValue)
             : ''
 
         return (

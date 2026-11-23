@@ -110,6 +110,12 @@ const sections: FormSection[] = [
 Rule of thumb: a full-width field sets `span` to the section's `grid` value. `fields` also
 accepts rows (`FormField[][]`) when you need explicit line breaks.
 
+Below Tailwind's `sm` breakpoint (640px) every section grid (and every row of up to six fields;
+longer rows already wrap) collapses to a single column and
+`span` is ignored, so fields stack on phones; from `sm` up the grid and spans apply as
+declared. `grid` and `span` take `'1'`–`'12'` (and `span: 'full'`); every value is shipped as a
+static class, so no Tailwind safelist is needed.
+
 ### Labels and help text
 
 Fields use `label` and `description` (not `title` or `helperText`). `description` renders as help

@@ -1,6 +1,7 @@
 'use client'
 
 import { cn } from '../../../utils'
+import { colSpanClass, gridColsClass } from '../grid-classes'
 import { Label } from '../../../ui/label'
 import { TEST_IDS } from '../../../utils/test-ids'
 import type { ResolvedFormField, ResolvedFormSection } from '../i18n-fields'
@@ -106,7 +107,7 @@ export function renderFieldGroup<T extends Record<string, unknown>>(
           const useFlexbox = filteredRow.length > 6
           const gridCols = useFlexbox
             ? ''
-            : `grid-cols-${Math.min(filteredRow.length, 6)}`
+            : gridColsClass(Math.min(filteredRow.length, 6))
           const containerClass = useFlexbox
             ? 'flex flex-wrap gap-3'
             : cn('grid gap-3', gridCols)
@@ -116,11 +117,11 @@ export function renderFieldGroup<T extends Record<string, unknown>>(
               {filteredRow.map(field => {
                 const hasError = !!getFieldError(field.name)
                 const spanClass = field.span
-                  ? `col-span-${field.span}`
+                  ? colSpanClass(field.span)
                   : field.type === 'space' || field.type === 'crud'
                     ? useFlexbox
                       ? 'w-full'
-                      : `col-span-${row.length}`
+                      : colSpanClass(row.length)
                     : useFlexbox
                       ? 'flex-1 min-w-0'
                       : ''
@@ -225,7 +226,7 @@ export function renderFieldGroup<T extends Record<string, unknown>>(
   }
 
   const gridValue = section?.grid || ctx.grid || '2'
-  const gridCols = `grid-cols-${gridValue}`
+  const gridCols = gridColsClass(gridValue)
 
   return (
     <div
@@ -236,9 +237,9 @@ export function renderFieldGroup<T extends Record<string, unknown>>(
       {fields.map(field => {
         const hasError = !!getFieldError(field.name)
         const spanClass = field.span
-          ? `col-span-${field.span}`
+          ? colSpanClass(field.span)
           : field.type === 'space' || field.type === 'crud'
-            ? `col-span-${gridValue}`
+            ? colSpanClass(gridValue)
             : ''
 
         return gate(

@@ -6,6 +6,7 @@ import { useForm, FormProvider } from 'react-hook-form'
 import { Button } from '../../ui/button'
 import { Label } from '../../ui/label'
 import { cn } from '../../utils'
+import { colSpanClass, gridColsClass } from './grid-classes'
 import { ChevronLeft, ChevronRight, Loader2, CheckCircle2 } from 'lucide-react'
 import { Stepper, StepConfig } from './Stepper'
 import { ReviewStep, WizardStep } from './ReviewStep'
@@ -54,7 +55,7 @@ function WizardStepFields({
     : (fields as FormField[])
 
   return (
-    <div className={cn('grid gap-4', `grid-cols-${grid}`)} role='group'>
+    <div className={cn('grid gap-4', gridColsClass(grid))} role='group'>
       {flatFields.map(field => {
         const error = form.formState.errors[field.name] as
           | { message?: string }
@@ -63,7 +64,7 @@ function WizardStepFields({
         return (
           <div
             key={field.name}
-            className={cn('space-y-2', field.span && `col-span-${field.span}`)}
+            className={cn('space-y-2', field.span && colSpanClass(field.span))}
           >
             {field.type !== 'space' && (
               <Label htmlFor={field.name}>
