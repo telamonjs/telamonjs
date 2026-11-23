@@ -178,7 +178,7 @@ for (const rel of files) {
     if (versionNoteRe.test(line)) fail(`[version-note] ${loc}: ${line.trim()}`)
     if (/\bSprint \d+/i.test(line)) fail(`[sprint-speak] ${loc}: ${line.trim()}`)
     if (/previous version|verified against|rewritten against|corrected against/i.test(line)) fail(`[page-history] ${loc}: ${line.trim()}`)
-    if (line.includes('storybook.example.com')) fail(`[dead-host] ${loc}: ${line.trim()}`)
+    if (/storybook\.example\.com/.test(line)) fail(`[dead-host] ${loc}: ${line.trim()}`)
   })
 }
 
