@@ -101,4 +101,31 @@ describe('DialogHeaderContent i18n', () => {
       expect(screen.getByText('Active')).toBeInTheDocument()
     })
   })
+
+  it('badge.getLabel may return a MessageRef', () => {
+    render(
+      <DialogHeaderContent<User>
+        item={user}
+        config={{
+          ...config,
+          badge: { field: 'ativo', variants: { true: 'default' }, getLabel: () => msg('dialog.active') },
+        }}
+        mode='view'
+      />,
+      { wrapper: withAppMessages(appMessages) },
+    )
+    expect(screen.getByText('Active')).toBeInTheDocument()
+  })
+
+  it('badge.getLabel returning a string keeps working', () => {
+    render(
+      <DialogHeaderContent<User>
+        item={user}
+        config={{ ...config, badge: { field: 'ativo', variants: { true: 'default' }, getLabel: u => u.code } }}
+        mode='view'
+      />,
+      { wrapper: withAppMessages(appMessages) },
+    )
+    expect(screen.getByText('A1')).toBeInTheDocument()
+  })
 })

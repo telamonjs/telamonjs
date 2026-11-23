@@ -122,7 +122,7 @@ export function DialogHeaderContent<T extends Record<string, unknown>>({
 
     // Get label
     const label = getLabel
-      ? getLabel(item)
+      ? text(getLabel(item))
       : text(labels?.[fieldKey]) || fieldKey
 
     return (

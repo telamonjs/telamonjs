@@ -91,8 +91,8 @@ export interface HeaderBadgeConfig<T = any> {
   labels?: Record<string, I18nText>
   /** Optional: Custom function to determine badge variant */
   getVariant?: (item: T) => BadgeVariant
-  /** Optional: Custom function to determine badge label */
-  getLabel?: (item: T) => string
+  /** Optional: Custom function to determine badge label (a `msg()` is resolved) */
+  getLabel?: (item: T) => I18nText
 }
 
 /**
