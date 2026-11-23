@@ -1,19 +1,17 @@
 import { SortField } from '../types/pagination'
 
 /**
- * Converts a sortBy string in accessorKey format (e.g. "campo.subcampo")
+ * Converts a sortBy string from accessorKey format (e.g. "campo.subcampo" or "campo_subcampo")
  * to Prisma orderBy format { campo: { subcampo: sortOrder } }
  *
- * Only dots split the path: underscores belong to the column name
- * (`created_at` stays a scalar field). `ListPage`/`InfiniteList` send the
- * column's dotted `accessorKey`, not TanStack's underscored column id.
+ * TanStack Table converts dots to underscores in column IDs, so we handle both formats.
  *
  * @example
  * buildPrismaOrderBy("categoria.nome", "asc")
  * // Returns: { categoria: { nome: "asc" } }
  *
- * buildPrismaOrderBy("created_at", "asc")
- * // Returns: { created_at: "asc" }
+ * buildPrismaOrderBy("categoria_nome", "asc")  // TanStack Table format
+ * // Returns: { categoria: { nome: "asc" } }
  *
  * buildPrismaOrderBy("createdAt", "desc")
  * // Returns: { createdAt: "desc" }
@@ -22,19 +20,24 @@ export function buildPrismaOrderBy(
   sortBy: string,
   sortOrder: 'asc' | 'desc' = 'desc'
 ) {
-  if (!sortBy.includes('.')) {
-    return { [sortBy]: sortOrder }
+  // TanStack Table converts dots to underscores, so we normalize back to dots
+  const normalizedSortBy = sortBy.replace(/_/g, '.')
+
+  if (!normalizedSortBy.includes('.')) {
+    return { [normalizedSortBy]: sortOrder }
   }
 
   // Convert "campo.subcampo" to { campo: { subcampo: sortOrder } }
   // `any` kept intentionally: recursive accumulator builds an arbitrarily
   // nested object; callers (buildOrderByClause) declare the real return type
   // (PrismaWhereClause), `unknown` here breaks that inferred assignability.
-  return sortBy.split('.').reduceRight(
-    (acc, key) => ({ [key]: acc }),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    sortOrder as any
-  )
+  return normalizedSortBy
+    .split('.')
+    .reduceRight(
+      (acc, key) => ({ [key]: acc }),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sortOrder as any
+    )
 }
 
 /**
@@ -52,16 +55,21 @@ export function buildPrismaOrderBy(
  */
 export function buildPrismaOrderByMulti(sorting: SortField[]) {
   return sorting.map(sort => {
-    if (!sort.field.includes('.')) {
-      return { [sort.field]: sort.order }
+    // Normalize underscores to dots (TanStack Table format)
+    const normalizedField = sort.field.replace(/_/g, '.')
+
+    if (!normalizedField.includes('.')) {
+      return { [normalizedField]: sort.order }
     }
 
     // Convert "campo.subcampo" to { campo: { subcampo: order } }
     // `any` kept intentionally: see buildPrismaOrderBy above
-    return sort.field.split('.').reduceRight(
-      (acc, key) => ({ [key]: acc }),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      sort.order as any
-    )
+    return normalizedField
+      .split('.')
+      .reduceRight(
+        (acc, key) => ({ [key]: acc }),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        sort.order as any
+      )
   })
 }

@@ -194,7 +194,9 @@ export function buildWhereClause(
     (part): part is PrismaWhereClause => !!part && Object.keys(part).length > 0
   )
 
-  return parts.length > 0 ? { AND: parts } : {}
+  // A single part keeps the pre-1.0.4 shape (e.g. `{ AND: [search, ...filters] }`)
+  if (parts.length === 0) return {}
+  return parts.length === 1 ? parts[0] : { AND: parts }
 }
 
 const isSortOrder = (value: unknown): value is 'asc' | 'desc' =>

@@ -37,8 +37,7 @@ describe('buildWhereClause', () => {
   })
 
   it('skips empty baseWhere and visibility objects', () => {
-    expect(buildWhereClause(search, [], {}, {})).toEqual({
-      AND: [{ AND: [search] }],
-    })
+    // a single part keeps the previous shape, without an extra AND level
+    expect(buildWhereClause(search, [], {}, {})).toEqual({ AND: [search] })
   })
 })
