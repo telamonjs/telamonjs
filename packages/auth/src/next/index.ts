@@ -1,4 +1,5 @@
 import { decodeSessionToken, type TokenConfig } from '../jwt'
+import { stampSessionTimes } from '../session'
 import type { MfJwtPayload, RoleInfo } from '../types'
 
 /**
@@ -17,6 +18,10 @@ export interface SessionClaims {
   refreshToken?: string
   /** Stable per-login session id, kept across cookie renewals */
   sid?: string
+  /** Login time, epoch ms. Stamped by `jwt` at login — authorize() need not return it */
+  authTime?: number
+  /** When roles/permissions were computed, epoch ms. Stamped by `jwt` at login */
+  accessAt?: number
 }
 
 /** Impersonation cookies read by the app (the package does not import next/headers). */
@@ -182,6 +187,8 @@ export function createAuthCallbacks(options: AuthCallbacksOptions = {}) {
         token.refreshToken = u.refreshToken
         // stable across renewals (NextAuth rotates jti on every encode)
         if (u.sid) token.sid = u.sid
+        // only at a real login — renewals and impersonation swaps keep the times
+        stampSessionTimes(token)
       }
       if (options.getImpersonationCookies) {
         await applyImpersonation(token, options)

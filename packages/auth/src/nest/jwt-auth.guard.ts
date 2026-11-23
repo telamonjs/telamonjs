@@ -3,7 +3,6 @@ import {
   UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
-  type Type,
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
 import {
@@ -12,14 +11,17 @@ import {
   DEFAULT_SALT,
   type TokenConfig,
 } from '../jwt'
+import type { AuthUser, MfJwtPayload } from '../types'
 import { IS_PUBLIC_KEY } from './public.decorator'
 
 /** Minimal request shape (Express/Fastify) — avoids depending on @types/express */
-interface RequestLike {
+export interface RequestLike {
   headers: Record<string, string | string[] | undefined>
   query?: Record<string, unknown>
   cookies?: Record<string, string | undefined>
   user?: unknown
+  path?: string
+  url?: string
 }
 
 export interface JwtAuthGuardOptions extends TokenConfig {
@@ -58,6 +60,50 @@ interface TokenCandidate {
 }
 
 /**
+ * What `createJwtAuthGuard` returns: subclass it to override the protected
+ * hooks. Not abstract on purpose — an abstract `canActivate` would force every
+ * subclass to implement it. Exported so that apps compiled with
+ * `declaration: true` can `export class AppGuard extends createJwtAuthGuard()`
+ * (otherwise TS4094/TS4020); instantiate it only through the factory.
+ */
+export class JwtAuthGuardBase<TUser> implements CanActivate {
+  /** Overridden by the class `createJwtAuthGuard` builds (it owns the options). */
+  canActivate(_context: ExecutionContext): Promise<boolean> {
+    throw new Error('Build the guard with createJwtAuthGuard()')
+  }
+
+  /**
+   * Per-request user resolution, called after the token is decoded and the
+   * impersonation check passed. The return value becomes `request.user`;
+   * `null` → 401 'Session is no longer valid'. Errors thrown here propagate
+   * as-is (a database outage is not an "invalid token").
+   *
+   * Default: `payloadToAuthUser(payload)`. With a custom `TUser`, override it.
+   */
+  protected resolveUser(
+    payload: MfJwtPayload,
+    _context: ExecutionContext
+  ): TUser | null | Promise<TUser | null> {
+    // Correct for the default TUser = AuthUser; a custom TUser must override this
+    return payloadToAuthUser(payload) as unknown as TUser
+  }
+
+  /**
+   * Whether `?token=` (SSE) is read for this request. Default: `true`.
+   * Return `false` (e.g. outside your SSE routes, by `request.path`) to keep
+   * session tokens out of URLs and access logs.
+   */
+  protected allowQueryToken(_request: RequestLike): boolean {
+    return true
+  }
+}
+
+/** Constructor type returned by `createJwtAuthGuard` (subclassable, DI-friendly). */
+export type JwtAuthGuardClass<TUser> = new (
+  reflector?: Reflector
+) => JwtAuthGuardBase<TUser>
+
+/**
  * Creates the authentication guard: decodes the NextAuth session JWE
  * (Bearer → ?token= for SSE → cookies) and attaches `request.user` (AuthUser).
  *
@@ -68,26 +114,36 @@ interface TokenCandidate {
  *
  * ```ts
  * export const JwtAuthGuard = createJwtAuthGuard()
+ *
+ * // per-request checks (session freshness, revocation): subclass it
+ * @Injectable()
+ * export class AppGuard extends createJwtAuthGuard<MyUser>() {
+ *   constructor(reflector: Reflector, private readonly users: UsersService) {
+ *     super(reflector)
+ *   }
+ *   protected override async resolveUser(payload: MfJwtPayload) { ... }
+ * }
  * ```
  */
-export function createJwtAuthGuard(
+export function createJwtAuthGuard<TUser = AuthUser>(
   options?: JwtAuthGuardOptions
-): Type<CanActivate> {
+): JwtAuthGuardClass<TUser> {
   const salt = options?.salt ?? DEFAULT_SALT
   const cookieNames = options?.cookieNames ?? [salt, `__Secure-${salt}`]
   // Bearer/query arrive without a cookie name — we try every possible salt
   const headerSalts = [...new Set([salt, ...cookieNames])]
 
   @Injectable()
-  class JwtAuthGuard implements CanActivate {
+  class JwtAuthGuard extends JwtAuthGuardBase<TUser> {
     private readonly reflector: Reflector
 
     // Reflector is stateless; the default covers instantiation outside DI (tests, @UseGuards)
     constructor(reflector?: Reflector) {
+      super()
       this.reflector = reflector ?? new Reflector()
     }
 
-    async canActivate(context: ExecutionContext): Promise<boolean> {
+    override async canActivate(context: ExecutionContext): Promise<boolean> {
       const isPublic = this.reflector.getAllAndOverride<boolean>(
         IS_PUBLIC_KEY,
         [context.getHandler(), context.getClass()]
@@ -103,12 +159,11 @@ export function createJwtAuthGuard(
             salt: candidateSalt,
           })
           if (payload) {
-            const user = payloadToAuthUser(payload)
-            if (user.isImpersonating && options?.isImpersonationActive) {
+            if (payload.impersonatedUserId && options?.isImpersonationActive) {
               const active =
-                !!user.impersonationLogId &&
+                !!payload.impersonationLogId &&
                 (await options.isImpersonationActive(
-                  user.impersonationLogId,
+                  payload.impersonationLogId,
                   context
                 ))
               if (!active) {
@@ -116,6 +171,10 @@ export function createJwtAuthGuard(
                   'Impersonation session is no longer active'
                 )
               }
+            }
+            const user = await this.resolveUser(payload, context)
+            if (user == null) {
+              throw new UnauthorizedException('Session is no longer valid')
             }
             request.user = user
             return true
@@ -137,7 +196,11 @@ export function createJwtAuthGuard(
 
       // Priority 2: query param (SSE/EventSource cannot send custom headers)
       const queryToken = request.query?.['token']
-      if (typeof queryToken === 'string' && queryToken) {
+      if (
+        typeof queryToken === 'string' &&
+        queryToken &&
+        this.allowQueryToken(request)
+      ) {
         candidates.push({ token: queryToken, salts: headerSalts })
       }
 

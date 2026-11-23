@@ -14,8 +14,9 @@ per request — no second login, no token exchange.
 The package owns the **token contract**, not the login flow:
 
 - **Isomorphic core** — the `JwtPayload` / `AuthUser` types plus
-  `encodeSessionToken` / `decodeSessionToken` / `payloadToAuthUser` and
-  `createImpersonationToken`
+  `encodeSessionToken` / `decodeSessionToken` / `payloadToAuthUser`,
+  `createImpersonationToken` and the session-freshness helpers
+  `stampSessionTimes` / `sessionState`
 - **`/next` subpath** — `createAuthCallbacks()` with the canonical claim-copy
   for the NextAuth `jwt`/`session` callbacks
 - **`/nest` subpath** — `createJwtAuthGuard()` and the `@Public()` decorator
@@ -94,6 +95,8 @@ interface JwtPayload {
   clienteIds?: string[]     // optional data-scope claim (app domain)
 
   sid?: string              // stable per login; copied from `user.sid` by the jwt callback
+  authTime?: number         // login time (epoch ms), stamped by the jwt callback
+  accessAt?: number         // when role/roles/permissions were computed (epoch ms)
 
   // NextAuth claims: sub, iat, exp, jti
 
@@ -154,7 +157,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 `createAuthCallbacks()` returns `{ jwt, session }`:
 
 - **`jwt`** copies the claims from `user` into the token on login (id, role,
-  roles, permissions, accessToken/refreshToken).
+  roles, permissions, accessToken/refreshToken) and stamps `authTime` /
+  `accessAt` (see [Session freshness & revocation](#session-freshness--revocation)).
 - **`session`** projects the token back into `session.user` and exposes
   `isImpersonating` / `originalUser` at the session root.
 
@@ -225,6 +229,10 @@ The guard looks for the session token in three places, in priority order:
 On success the guard attaches the decoded `AuthUser` to `request.user`; any
 failure is a single `UnauthorizedException('Invalid or expired token')`.
 
+To keep session tokens out of URLs (and access logs) outside your SSE routes,
+subclass the guard and override `allowQueryToken(request)` — `request.path` /
+`request.url` are available; return `false` and `?token=` is ignored.
+
 Downstream, pair it with the permissions guard from
 [@telamonjs/permissions](/docs/packages/permissions), which reads
 `request.user.permissions`.
@@ -254,6 +262,142 @@ original user's identity preserved in dedicated claims
 
 Who may impersonate whom is app policy (typically superadmin-only, and never
 impersonating another superadmin) — the package only carries the state.
+
+---
+
+## Session freshness & revocation
+
+Roles and permissions live **in the token**, which keeps every check a lookup
+— but a role change in the database only reaches the token at the next login,
+and there is no way to end every session of a user. The package gives you the
+building blocks; the app keeps the state:
+
+- The `jwt` callback stamps two claims at login: `authTime` (login time) and
+  `accessAt` (when roles/permissions were computed), both epoch ms. `iat` can't
+  serve: NextAuth re-signs the token on every renewal, so `iat` keeps moving.
+- `sessionState(token, { revokedAt, accessChangedAt })` compares them with two
+  per-user marks and returns `'revoked'` (revocation newer than the login),
+  `'stale'` (access changed after the claims were computed) or `'fresh'`.
+  Revoked wins; a missing claim counts as 0, so tokens issued before you
+  adopted this are caught by the next mark; `null` marks mean nothing changed.
+
+<Steps>
+<Step>
+
+**Two per-user columns, stamped by the app.** For example `accessChangedAt`
+and `sessionsRevokedAt` on the user table. Set `accessChangedAt = now()` when
+the user's roles change, or the permissions of a role they hold change (for
+every holder of that role); set `sessionsRevokedAt = now()` when an admin
+revokes the user's sessions (or on password change).
+
+</Step>
+<Step>
+
+**Nest: one lookup by primary key per request.** Subclass the guard and
+override `resolveUser` — its return value becomes `request.user`, `null` is a
+401. It runs after the token is decoded and the impersonation check passed.
+
+```ts title="src/common/guards/jwt-auth.guard.ts"
+import { Injectable } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
+import { payloadToAuthUser, sessionState } from '@telamonjs/auth'
+import { createJwtAuthGuard, type MfJwtPayload } from '@telamonjs/auth/nest'
+
+@Injectable()
+export class JwtAuthGuard extends createJwtAuthGuard() {
+  constructor(
+    reflector: Reflector,
+    private readonly prisma: PrismaService
+  ) {
+    super(reflector)
+  }
+
+  protected override async resolveUser(payload: MfJwtPayload) {
+    const marks = await this.prisma.user.findUnique({
+      where: { id: payload.id },
+      select: { accessChangedAt: true, sessionsRevokedAt: true },
+    })
+    if (!marks) return null
+    const user = payloadToAuthUser(payload)
+    switch (
+      sessionState(payload, {
+        revokedAt: marks.sessionsRevokedAt,
+        accessChangedAt: marks.accessChangedAt,
+      })
+    ) {
+      case 'revoked':
+        return null
+      case 'stale': // recompute role/roles/permissions for this request only
+        return { ...user, ...(await loadAccess(this.prisma, payload.id)) }
+      default:
+        return user
+    }
+  }
+}
+```
+
+Errors thrown inside `resolveUser` propagate unchanged: a database outage is
+a 500, not a misleading 401. With a custom user type, pass it as
+`createJwtAuthGuard<MyUser>()` and return it from `resolveUser`.
+
+The base class (`JwtAuthGuardBase`), the constructor type (`JwtAuthGuardClass`)
+and `RequestLike` (the `allowQueryToken` parameter) are exported from
+`@telamonjs/auth/nest`, so `export class … extends createJwtAuthGuard()` also
+compiles in projects with `declaration: true`.
+
+</Step>
+<Step>
+
+**Next: refresh the token on renewal.** Compose over `createAuthCallbacks()`;
+on non-login calls read the marks, sign out a revoked session by returning
+`null`, and rewrite the claims (plus `accessAt`) of a stale one. `auth()` runs
+the `jwt` callback on every call, so wrap the lookup in a per-request cache
+such as React `cache` to avoid repeating it within one render.
+
+```ts title="auth.ts"
+import { cache } from 'react'
+import { sessionState } from '@telamonjs/auth'
+import { createAuthCallbacks } from '@telamonjs/auth/next'
+
+const base = createAuthCallbacks()
+const loadMarks = cache((userId: string) =>
+  prisma.user.findUnique({
+    where: { id: userId },
+    select: { accessChangedAt: true, sessionsRevokedAt: true },
+  })
+)
+
+callbacks: {
+  jwt: async args => {
+    const token = await base.jwt(args)
+    if (args.user) return token // fresh login: claims and times just stamped
+    const marks = await loadMarks(token.id as string)
+    if (!marks) return null
+    const state = sessionState(token, {
+      revokedAt: marks.sessionsRevokedAt,
+      accessChangedAt: marks.accessChangedAt,
+    })
+    if (state === 'revoked') return null // signs the user out
+    if (state === 'stale') {
+      // role, roles, permissions — same source as authorize()
+      Object.assign(token, await loadAccess(token.id as string), {
+        accessAt: Date.now(),
+      })
+    }
+    return token
+  },
+  session: base.session,
+}
+```
+
+</Step>
+</Steps>
+
+<Callout title='Impersonation'>
+  While impersonating, `id` is the target's. Decide which user's marks apply —
+  typically the actor's (`originalUserId`) for revocation — and skip the stale
+  refresh: the impersonation token carries the target's claims.
+</Callout>
 
 ---
 

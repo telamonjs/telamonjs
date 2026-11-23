@@ -114,6 +114,39 @@ describe('createAuthCallbacks — backwards compatibility', () => {
   })
 })
 
+describe('createAuthCallbacks — session times', () => {
+  const user = {
+    id: 'u',
+    email: 'u@b.c',
+    role: actorRole,
+    permissions: [],
+  }
+
+  it('login stamps authTime and accessAt with the same instant', async () => {
+    const before = Date.now()
+    const token = await createAuthCallbacks().jwt({ token: {}, user })
+    expect(token.authTime).toBeGreaterThanOrEqual(before)
+    expect(token.accessAt).toBe(token.authTime)
+  })
+
+  it('a renewal (no user) does not restamp', async () => {
+    const base = createAuthCallbacks()
+    const token = await base.jwt({
+      token: { ...actorToken(), authTime: 1, accessAt: 2 },
+    })
+    expect(token.authTime).toBe(1)
+    expect(token.accessAt).toBe(2)
+  })
+
+  it('starting impersonation does not restamp', async () => {
+    const { jwt } = setup({ token: await impersonationToken(), logId: 'log-1' })
+    const token = await jwt({ ...actorToken(), authTime: 1, accessAt: 2 })
+    expect(token.isImpersonating).toBe(true)
+    expect(token.authTime).toBe(1)
+    expect(token.accessAt).toBe(2)
+  })
+})
+
 describe('createAuthCallbacks — impersonation', () => {
   it('swaps identity AND accessToken; refreshToken remains the actor one', async () => {
     const impToken = await impersonationToken()

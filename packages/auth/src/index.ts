@@ -26,4 +26,12 @@ export {
   type CreateImpersonationTokenInput,
 } from './impersonation'
 
+export {
+  stampSessionTimes,
+  sessionState,
+  type SessionState,
+  type SessionMarks,
+  type SessionTimes,
+} from './session'
+
 export type { RoleInfo, AuthUser, MfJwtPayload, JwtPayload } from './types'

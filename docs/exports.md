@@ -855,6 +855,8 @@ Runtime:
 - `encodeSessionToken`
 - `payloadToAuthUser`
 - `resolveTokenConfig`
+- `sessionState`
+- `stampSessionTimes`
 
 Types:
 
@@ -864,6 +866,9 @@ Types:
 - `JwtPayload` (type)
 - `MfJwtPayload` (type)
 - `RoleInfo` (type)
+- `SessionMarks` (type)
+- `SessionState` (type)
+- `SessionTimes` (type)
 - `TokenConfig` (type)
 
 ### `@telamonjs/auth/nest`
@@ -871,15 +876,18 @@ Types:
 Runtime:
 
 - `IS_PUBLIC_KEY`
+- `JwtAuthGuardBase`
 - `Public`
 - `createJwtAuthGuard`
 
 Types:
 
 - `AuthUser` (type)
+- `JwtAuthGuardClass` (type)
 - `JwtAuthGuardOptions` (type)
 - `JwtPayload` (type)
 - `MfJwtPayload` (type)
+- `RequestLike` (type)
 - `RoleInfo` (type)
 
 ### `@telamonjs/auth/next`

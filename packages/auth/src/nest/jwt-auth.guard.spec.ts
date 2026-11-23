@@ -1,8 +1,15 @@
 import { describe, it, expect } from 'vitest'
-import { UnauthorizedException, type ExecutionContext } from '@nestjs/common'
+import {
+  UnauthorizedException,
+  type CanActivate,
+  type ExecutionContext,
+  type Type,
+} from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import type { Reflector } from '@nestjs/core'
 import { createJwtAuthGuard } from './jwt-auth.guard'
-import { encodeSessionToken } from '../jwt'
+import { createJwtAuthGuard as createFromBarrel, type RequestLike } from './index'
+import { encodeSessionToken, payloadToAuthUser } from '../jwt'
 import { createImpersonationToken } from '../impersonation'
 import type { AuthUser, MfJwtPayload } from '../types'
 
@@ -23,7 +30,10 @@ interface FakeRequest {
   user?: AuthUser
 }
 
-function ctx(request: FakeRequest, isPublic = false): ExecutionContext {
+function ctx(
+  request: FakeRequest | Record<string, unknown>,
+  isPublic = false
+): ExecutionContext {
   return {
     getHandler: () => () => undefined,
     getClass: () => class {},
@@ -263,5 +273,222 @@ describe('createJwtAuthGuard — impersonation revocation', () => {
     await expect(
       g.canActivate(ctx({ headers: { authorization: `Bearer ${token}` } }))
     ).rejects.toThrow(UnauthorizedException)
+  })
+})
+
+describe('createJwtAuthGuard — subclass hooks', () => {
+  const reflector = { getAllAndOverride: () => false } as unknown as Reflector
+
+  interface AppUser {
+    id: string
+    source: string
+  }
+
+  it('resolveUser override replaces request.user and receives the payload', async () => {
+    const seen: MfJwtPayload[] = []
+    class AppGuard extends createJwtAuthGuard<AppUser>({ secret: SECRET }) {
+      constructor(
+        r: Reflector,
+        private readonly source: string
+      ) {
+        super(r)
+      }
+      protected override async resolveUser(
+        p: MfJwtPayload,
+        _context: ExecutionContext
+      ): Promise<AppUser | null> {
+        seen.push(p)
+        return { id: p.id, source: this.source }
+      }
+    }
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: { headers: Record<string, string>; user?: unknown } = {
+      headers: { authorization: `Bearer ${token}` },
+    }
+    expect(
+      await new AppGuard(reflector, 'db').canActivate(ctx(request))
+    ).toBe(true)
+    expect(request.user).toEqual({ id: 'u1', source: 'db' })
+    expect(seen[0]?.permissions).toEqual(['produtos.read'])
+  })
+
+  it('resolveUser returning null → 401 and no request.user', async () => {
+    class AppGuard extends createJwtAuthGuard({ secret: SECRET }) {
+      protected override resolveUser(): null {
+        return null
+      }
+    }
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: FakeRequest = {
+      headers: { authorization: `Bearer ${token}` },
+    }
+    await expect(
+      new AppGuard(reflector).canActivate(ctx(request))
+    ).rejects.toThrowError(
+      new UnauthorizedException('Session is no longer valid')
+    )
+    expect(request.user).toBeUndefined()
+  })
+
+  it('errors thrown by resolveUser propagate unchanged (not masked as an invalid token)', async () => {
+    const boom = new Error('db down')
+    class AppGuard extends createJwtAuthGuard({ secret: SECRET }) {
+      protected override resolveUser(): never {
+        throw boom
+      }
+    }
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    await expect(
+      new AppGuard(reflector).canActivate(
+        ctx({ headers: { authorization: `Bearer ${token}` } })
+      )
+    ).rejects.toBe(boom)
+  })
+
+  it('runs after the impersonation check: a revoked impersonation is 401 before resolveUser', async () => {
+    let called = false
+    class AppGuard extends createJwtAuthGuard({
+      secret: SECRET,
+      isImpersonationActive: () => false,
+    }) {
+      protected override resolveUser(p: MfJwtPayload): AuthUser {
+        called = true
+        return payloadToAuthUser(p)
+      }
+    }
+    const token = await encodeSessionToken(
+      {
+        ...payload,
+        impersonatedUserId: 'u1',
+        impersonationLogId: 'log-1',
+        originalUserId: 'admin-1',
+      },
+      { secret: SECRET }
+    )
+    await expect(
+      new AppGuard(reflector).canActivate(
+        ctx({ headers: { authorization: `Bearer ${token}` } })
+      )
+    ).rejects.toThrowError(
+      new UnauthorizedException('Impersonation session is no longer active')
+    )
+    expect(called).toBe(false)
+  })
+
+  it('allowQueryToken=false ignores ?token= but the cookie still authenticates', async () => {
+    const seen: (string | undefined)[] = []
+    class NoQueryGuard extends createJwtAuthGuard({ secret: SECRET }) {
+      protected override allowQueryToken(request: { path?: string }): boolean {
+        seen.push(request.path)
+        return false
+      }
+    }
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const g = new NoQueryGuard(reflector)
+
+    await expect(
+      g.canActivate(ctx({ headers: {}, path: '/v1/x', query: { token } }))
+    ).rejects.toThrow(UnauthorizedException)
+    expect(seen).toEqual(['/v1/x'])
+
+    const request: FakeRequest = {
+      headers: {},
+      query: { token },
+      cookies: { 'authjs.session-token': token },
+    }
+    expect(await g.canActivate(ctx(request))).toBe(true)
+    expect(request.user?.id).toBe('u1')
+  })
+
+  it('the default factory keeps working as a plain Type<CanActivate>', async () => {
+    const Guard: Type<CanActivate> = createJwtAuthGuard({ secret: SECRET })
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: FakeRequest = { headers: {}, query: { token } }
+    expect(await new Guard(reflector).canActivate(ctx(request))).toBe(true)
+    expect(request.user).toMatchObject({
+      id: 'u1',
+      email: 'a@b.c',
+      permissions: ['produtos.read'],
+    })
+  })
+})
+
+// Consumer scenario: an EXPORTED subclass in a project compiled with
+// `declaration: true` (this package's tsconfig). Before JwtAuthGuardBase,
+// JwtAuthGuardClass and RequestLike were exported, this declaration failed
+// `pnpm type-check` with TS4094/TS4020 — keep it at module level and exported.
+interface SessionUser {
+  id: string
+  version: number
+}
+
+class UsersStore {
+  version(id: string): number | null {
+    return id === 'u1' ? 7 : null
+  }
+}
+
+@Injectable()
+export class ConsumerAppGuard extends createFromBarrel<SessionUser>({
+  secret: SECRET,
+}) {
+  constructor(
+    reflector: Reflector,
+    private readonly users: UsersStore
+  ) {
+    super(reflector)
+  }
+
+  protected override allowQueryToken(request: RequestLike): boolean {
+    return request.path?.startsWith('/sse/') ?? false
+  }
+
+  protected override async resolveUser(
+    p: MfJwtPayload
+  ): Promise<SessionUser | null> {
+    const version = this.users.version(p.id)
+    return version === null ? null : { id: p.id, version }
+  }
+}
+
+describe('createJwtAuthGuard — exported subclass (declaration: true consumer)', () => {
+  const reflector = { getAllAndOverride: () => false } as unknown as Reflector
+  const appGuard = () => new ConsumerAppGuard(reflector, new UsersStore())
+
+  it('resolveUser uses the injected dependency to build request.user', async () => {
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: Record<string, unknown> = {
+      headers: { authorization: `Bearer ${token}` },
+    }
+    expect(await appGuard().canActivate(ctx(request))).toBe(true)
+    expect(request.user).toEqual({ id: 'u1', version: 7 })
+  })
+
+  it('resolveUser returning null (unknown user) → 401', async () => {
+    const token = await encodeSessionToken(
+      { ...payload, id: 'gone' },
+      { secret: SECRET }
+    )
+    await expect(
+      appGuard().canActivate(
+        ctx({ headers: { authorization: `Bearer ${token}` } })
+      )
+    ).rejects.toThrowError(
+      new UnauthorizedException('Session is no longer valid')
+    )
+  })
+
+  it('allowQueryToken: ?token= works only on the SSE routes', async () => {
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    await expect(
+      appGuard().canActivate(
+        ctx({ headers: {}, path: '/v1/users', query: { token } })
+      )
+    ).rejects.toThrow(UnauthorizedException)
+    expect(
+      await appGuard().canActivate(
+        ctx({ headers: {}, path: '/sse/events', query: { token } })
+      )
+    ).toBe(true)
   })
 })

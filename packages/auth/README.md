@@ -81,6 +81,24 @@ createJwtAuthGuard({
 
 `ImpersonationBanner` and `ImpersonationDialog` in `@telamonjs/ui` are the UI side.
 
+## Session freshness & revocation
+
+Permissions live in the token, so DB changes apply at the next login. To
+apply them sooner, or to revoke every session of a user, the `jwt` callback
+stamps `authTime`/`accessAt` at login and `sessionState(token, marks)` compares
+them with two per-user timestamps your app keeps:
+
+```ts
+import { sessionState } from '@telamonjs/auth'
+
+sessionState(payload, { revokedAt: user.sessionsRevokedAt, accessChangedAt: user.accessChangedAt })
+// → 'revoked' | 'stale' | 'fresh'
+```
+
+On the Nest side, subclass the guard and override `resolveUser` (its return
+becomes `request.user`, `null` is a 401); `allowQueryToken` turns `?token=` off
+outside SSE routes. Full recipe on the docs site.
+
 ## Core (isomorphic)
 
 ```ts

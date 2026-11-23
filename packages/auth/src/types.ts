@@ -55,6 +55,13 @@ export interface MfJwtPayload {
   /** Stable per-login session id — survives cookie/token renewal */
   sid?: string
 
+  // Session freshness (see `sessionState`). `iat` can't serve: NextAuth
+  // re-signs the token on every renewal, so `iat` keeps moving forward.
+  /** Login time, epoch ms — stamped once, at login */
+  authTime?: number
+  /** When `role`/`roles`/`permissions` were computed, epoch ms */
+  accessAt?: number
+
   // Impersonation
   impersonatedUserId?: string
   impersonationLogId?: string
