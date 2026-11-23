@@ -1,6 +1,6 @@
 {
   "name": "@telamonjs/logger",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Structured logging with one ILogger across browser, server and worker: audit and perf extensions, child loggers, request IDs and timers",
   "main": "dist/index.js",
   "module": "dist/index.js",
