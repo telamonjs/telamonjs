@@ -43,6 +43,8 @@ export interface ReportTableProps<T> {
   className?: string
   stickyHeader?: boolean
   labels?: Partial<ReportTableLabels>
+  /** Show the "Showing X of Y records" line under the table. Default: `true` */
+  showFooter?: boolean
   /**
    * Attributes for the scroll box (the `maxHeight` container). Pass
    * `{ tabIndex: 0, role: 'region', 'aria-label': '…' }` so keyboard users
@@ -77,6 +79,7 @@ export function ReportTable<T extends Record<string, unknown>>({
   className,
   stickyHeader = true,
   labels: labelOverrides,
+  showFooter = true,
   scrollProps,
 }: ReportTableProps<T>) {
   const t = useTelamonjsT()
@@ -176,9 +179,11 @@ export function ReportTable<T extends Record<string, unknown>>({
         </div>
       )}
 
-      <div className="mt-2 text-center text-xs text-muted-foreground">
-        {labels.showing} {displayedData.length} {labels.of} {data.length} {labels.records}
-      </div>
+      {showFooter && (
+        <div className="mt-2 text-center text-xs text-muted-foreground">
+          {labels.showing} {displayedData.length} {labels.of} {data.length} {labels.records}
+        </div>
+      )}
     </div>
   )
 }

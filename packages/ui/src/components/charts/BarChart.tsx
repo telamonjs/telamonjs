@@ -27,6 +27,17 @@ export interface BarChartProps {
   xAxisLabel?: string
   yAxisLabel?: string
   layout?: 'horizontal' | 'vertical'
+  /**
+   * Whether the value axis may show fractional ticks (recharts
+   * `allowDecimals`). Pass `false` for counts. Default: `true`
+   */
+  allowDecimals?: boolean
+  /**
+   * Width in px of the category axis (the `name` labels) in `vertical`
+   * layout — widen it for long labels. In `horizontal` layout the category
+   * axis is the X axis and this is ignored. Default: recharts' 60
+   */
+  categoryAxisWidth?: number
 }
 
 const DEFAULT_COLORS = [
@@ -64,6 +75,8 @@ export function BarChart({
   xAxisLabel,
   yAxisLabel,
   layout = 'horizontal',
+  allowDecimals = true,
+  categoryAxisWidth,
 }: BarChartProps) {
   return (
     <div className={cn('w-full', className)}>
@@ -94,6 +107,7 @@ export function BarChart({
                 }
               />
               <YAxis
+                allowDecimals={allowDecimals}
                 label={
                   yAxisLabel
                     ? { value: yAxisLabel, angle: -90, position: 'insideLeft' }
@@ -105,6 +119,7 @@ export function BarChart({
             <>
               <XAxis
                 type='number'
+                allowDecimals={allowDecimals}
                 label={
                   xAxisLabel
                     ? {
@@ -118,6 +133,7 @@ export function BarChart({
               <YAxis
                 dataKey='name'
                 type='category'
+                width={categoryAxisWidth}
                 label={
                   yAxisLabel
                     ? { value: yAxisLabel, angle: -90, position: 'insideLeft' }

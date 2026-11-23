@@ -43,6 +43,12 @@ export interface CalendarWithEventsProps {
   onEventClick?: (event: CalendarEvent) => void
   className?: string
   defaultDate?: Date
+  /**
+   * Called with the first day of the newly shown month whenever the user
+   * navigates (previous/next/today) — fetch that month's events here. Not
+   * called on mount: load the `defaultDate` month yourself
+   */
+  onMonthChange?: (month: Date) => void
 }
 
 /**
@@ -69,6 +75,7 @@ export function CalendarWithEvents({
   onEventClick,
   className,
   defaultDate = new Date(),
+  onMonthChange,
 }: CalendarWithEventsProps) {
   const t = useTelamonjsT()
   const dateFnsLocale = useDateFnsLocale()
@@ -101,17 +108,17 @@ export function CalendarWithEvents({
     return events.filter(event => isSameDay(event.date, date))
   }
 
-  const handlePrevMonth = () => {
-    setCurrentMonth(subMonths(currentMonth, 1))
+  const goToMonth = (month: Date) => {
+    setCurrentMonth(month)
+    // "Today" while already on this month changes nothing — no refetch.
+    if (!isSameMonth(month, currentMonth)) onMonthChange?.(startOfMonth(month))
   }
 
-  const handleNextMonth = () => {
-    setCurrentMonth(addMonths(currentMonth, 1))
-  }
+  const handlePrevMonth = () => goToMonth(subMonths(currentMonth, 1))
 
-  const handleToday = () => {
-    setCurrentMonth(new Date())
-  }
+  const handleNextMonth = () => goToMonth(addMonths(currentMonth, 1))
+
+  const handleToday = () => goToMonth(new Date())
 
   return (
     <Card className={className}>

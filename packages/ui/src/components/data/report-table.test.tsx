@@ -31,3 +31,18 @@ describe('ReportTable scrollProps', () => {
     expect(region.querySelector('table')).not.toBeNull()
   })
 })
+
+describe('ReportTable showFooter', () => {
+  const labels = { records: 'footer-records' }
+
+  it('shows the "Showing X of Y" footer by default', () => {
+    render(<ReportTable data={data} columns={columns} labels={labels} />)
+    expect(screen.getByText(/footer-records/)).toHaveTextContent('1')
+  })
+
+  it('showFooter={false} hides it and keeps the table', () => {
+    render(<ReportTable data={data} columns={columns} labels={labels} showFooter={false} />)
+    expect(screen.queryByText(/footer-records/)).toBeNull()
+    expect(screen.getByRole('table')).toBeInTheDocument()
+  })
+})

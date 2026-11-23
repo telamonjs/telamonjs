@@ -72,3 +72,29 @@ describe('StatCard — contrast and wrapLabel', () => {
     })
   }
 })
+
+describe('StatCard — full text on truncated elements', () => {
+  for (const variant of ['outlined', 'accent'] as const) {
+    it(`${variant}: a truncated label carries its full text as title`, () => {
+      render(<StatCard {...baseProps} value={1} variant={variant} />)
+      expect(screen.getByText('Produtos')).toHaveAttribute('title', 'Produtos')
+    })
+
+    it(`${variant}: a wrapping label has no title`, () => {
+      render(<StatCard {...baseProps} value={1} variant={variant} wrapLabel />)
+      expect(screen.getByText('Produtos')).not.toHaveAttribute('title')
+    })
+  }
+
+  for (const variant of ['tinted', 'outlined', 'accent'] as const) {
+    it(`${variant}: the truncated subtitle carries its full text as title`, () => {
+      render(<StatCard {...baseProps} value={1} variant={variant} subtitle='Last 30 days' />)
+      expect(screen.getByText('Last 30 days')).toHaveAttribute('title', 'Last 30 days')
+    })
+  }
+
+  it('tinted: the truncated value carries the formatted value as title', () => {
+    render(<StatCard {...baseProps} value='R$ 1.234.567,89' variant='tinted' />)
+    expect(screen.getByText('R$ 1.234.567,89')).toHaveAttribute('title', 'R$ 1.234.567,89')
+  })
+})

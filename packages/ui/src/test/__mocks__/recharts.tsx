@@ -67,17 +67,20 @@ export const Pie = ({ data, dataKey, nameKey, innerRadius }: any) =>
 export const Cell = ({ fill }: any) =>
   React.createElement('div', { 'data-testid': 'cell', 'data-fill': fill })
 
-export const XAxis = ({ dataKey, label }: any) =>
+export const XAxis = ({ dataKey, label, allowDecimals }: any) =>
   React.createElement('div', {
     'data-testid': 'x-axis',
     'data-key': dataKey,
     'data-label': label?.value,
+    'data-allow-decimals': allowDecimals,
   })
 
-export const YAxis = ({ label }: any) =>
+export const YAxis = ({ label, allowDecimals, width }: any) =>
   React.createElement('div', {
     'data-testid': 'y-axis',
     'data-label': label?.value,
+    'data-allow-decimals': allowDecimals,
+    'data-width': width,
   })
 
 export const CartesianGrid = () =>

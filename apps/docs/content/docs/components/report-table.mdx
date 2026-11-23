@@ -1,0 +1,86 @@
+---
+title: ReportTable
+description: Read-only table with progressive "load more" pagination for reports and dashboards
+---
+
+import { TypeTable } from 'fumadocs-ui/components/type-table'
+
+A plain, read-only table for report sections and dashboard cards: it renders the first
+`pageSize` rows, a "load more" button for the rest and a "Showing X of Y records" line. It
+has no sorting, filtering or row actions — for CRUD lists use [ListPage](/docs/components/list-page)
+or [DataTable](/docs/components/data-table). Also exported as `SimpleTable`.
+
+---
+
+## Basic Usage
+
+```tsx
+'use client'
+
+import { ReportTable } from '@telamonjs/ui'
+
+const columns = [
+  { key: 'month', header: 'Month' },
+  { key: 'customer.name', header: 'Customer' }, // dot paths read nested values
+  {
+    key: 'total',
+    header: 'Total',
+    className: 'text-right',
+    render: (row: Revenue) => row.total.toFixed(2),
+  },
+]
+
+export function RevenueTable({ rows }: { rows: Revenue[] }) {
+  return <ReportTable data={rows} columns={columns} pageSize={20} />
+}
+```
+
+---
+
+## Props
+
+<TypeTable
+  type={{
+    data: { description: 'Rows to show (all of them — pagination is client-side)', type: 'T[]', required: true },
+    columns: { description: 'Columns: `key` (dot paths allowed), `header`, optional `render(item, index)` and `className`', type: 'ReportTableColumn<T>[]', required: true },
+    pageSize: { description: 'Rows shown first and added by each "load more"', type: 'number', default: '50' },
+    maxHeight: { description: 'Max height of the scroll box', type: 'string', default: "'400px'" },
+    stickyHeader: { description: 'Keep the header row visible while scrolling', type: 'boolean', default: 'true' },
+    showFooter: { description: 'Show the "Showing X of Y records" line under the table', type: 'boolean', default: 'true' },
+    emptyMessage: { description: 'Text shown when `data` is empty', type: 'string' },
+    labels: { description: 'Override the built-in texts (`empty`, `loadMore`, `showing`, `of`, `records`, `remaining`)', type: 'Partial<ReportTableLabels>' },
+    scrollProps: { description: "Attributes for the scroll box — pass `{ tabIndex: 0, role: 'region', 'aria-label': '…' }` so keyboard users can scroll it", type: 'object' },
+    className: { description: 'Additional classes on the wrapper', type: 'string' },
+  }}
+/>
+
+---
+
+## Examples
+
+### Without the Footer
+
+```tsx
+<ReportTable data={topProducts} columns={columns} pageSize={10} showFooter={false} />
+```
+
+Hide the count line when the surrounding card already states the total, or when the table
+is short enough that the count adds nothing.
+
+### Keyboard-Scrollable Region
+
+```tsx
+<ReportTable
+  data={rows}
+  columns={columns}
+  maxHeight='300px'
+  scrollProps={{ tabIndex: 0, role: 'region', 'aria-label': 'Revenue by month' }}
+/>
+```
+
+---
+
+## Related Components
+
+- [DataTable](/docs/components/data-table) - Sorting, filtering, selection and row actions
+- [ExportButtons](/docs/components/export-button) - Export the same rows to CSV, Excel or PDF

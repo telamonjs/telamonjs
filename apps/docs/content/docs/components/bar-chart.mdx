@@ -60,6 +60,8 @@ export default function SalesByCategory() {
     showLegend: { description: 'Show the legend', type: 'boolean', default: 'true' },
     xAxisLabel: { description: 'X axis label', type: 'string' },
     yAxisLabel: { description: 'Y axis label', type: 'string' },
+    allowDecimals: { description: 'Whether the value axis may show fractional ticks — pass `false` for counts', type: 'boolean', default: 'true' },
+    categoryAxisWidth: { description: "Width in px of the category axis (the `name` labels) in `layout='vertical'`; ignored in `'horizontal'`", type: 'number', default: '60' },
     className: { description: 'Additional classes on the wrapper', type: 'string' },
   }}
 />
@@ -97,6 +99,21 @@ const data = [
 
 Horizontal bars (`layout='vertical'`) work well for long category labels and
 rankings.
+
+### Counts and Long Labels
+
+```tsx
+<BarChart
+  data={ticketsByTeam}
+  dataKeys={['open']}
+  layout='vertical'
+  allowDecimals={false}
+  categoryAxisWidth={160}
+/>
+```
+
+`allowDecimals={false}` keeps the value axis on whole numbers (no `0.5` ticks for a
+count); `categoryAxisWidth` widens the label column so long names are not clipped.
 
 ### With React Query
 

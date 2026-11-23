@@ -60,6 +60,7 @@ const TintedCard = memo(function TintedCard({
   const { number } = useFormat()
   const Icon = resolveIcon(icon)
   const styles = cardColors.tinted[color]
+  const shownValue = formatValue(value, formatNumber, number)
   const isMini = size === 'mini'
   const isCompact = size === 'compact' || isMini
 
@@ -108,8 +109,9 @@ const TintedCard = memo(function TintedCard({
               styles.value,
               isMini ? 'text-xs' : isCompact ? 'text-sm' : 'text-lg'
             )}
+            title={shownValue}
           >
-            {formatValue(value, formatNumber, number)}
+            {shownValue}
           </p>
           <div className='flex items-center gap-1'>
             <p
@@ -123,7 +125,10 @@ const TintedCard = memo(function TintedCard({
             {pulse && Number(value) > 0 && <PulseDot />}
           </div>
           {subtitle && !isMini && (
-            <p className='text-[10px] text-muted-foreground truncate'>
+            <p
+              className='text-[10px] text-muted-foreground truncate'
+              title={subtitle}
+            >
               {subtitle}
             </p>
           )}
@@ -177,6 +182,7 @@ const OutlinedCard = memo(function OutlinedCard({
                 'text-[11px] font-medium text-muted-foreground',
                 wrapLabel ? 'break-words' : 'truncate'
               )}
+              title={wrapLabel ? undefined : label}
             >
               {label}
             </p>
@@ -186,7 +192,10 @@ const OutlinedCard = memo(function OutlinedCard({
             {formatValue(value, formatNumber, number)}
           </p>
           {subtitle && (
-            <p className='text-xs text-muted-foreground truncate'>
+            <p
+              className='text-xs text-muted-foreground truncate'
+              title={subtitle}
+            >
               {subtitle}
             </p>
           )}
@@ -284,6 +293,7 @@ const AccentCard = memo(function AccentCard({
                 wrapLabel ? 'break-words' : 'truncate',
                 isCompact ? 'text-[11px]' : 'text-sm'
               )}
+              title={wrapLabel ? undefined : label}
             >
               {label}
             </p>
@@ -295,6 +305,7 @@ const AccentCard = memo(function AccentCard({
                 'text-muted-foreground truncate',
                 isCompact ? 'text-[10px]' : 'text-xs'
               )}
+              title={subtitle}
             >
               {subtitle}
             </p>

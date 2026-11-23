@@ -84,6 +84,7 @@ interface CalendarWithEventsProps {
   onDateClick?: (date: Date) => void // A day cell was clicked
   onEventClick?: (event: CalendarEvent) => void // An event chip was clicked
   defaultDate?: Date // Month shown first (default: today)
+  onMonthChange?: (month: Date) => void // User navigated; gets the 1st day of the new month
   className?: string // Additional classes
 }
 
@@ -173,6 +174,31 @@ const events = [
 ```
 
 Shows events on calendar dates.
+
+### Loading Events Per Month
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+import { startOfMonth } from 'date-fns'
+import { useQuery } from '@tanstack/react-query'
+import { CalendarWithEvents } from '@telamonjs/ui'
+
+export function AgendaCalendar() {
+  const [month, setMonth] = useState(() => startOfMonth(new Date()))
+  const { data: events = [] } = useQuery({
+    queryKey: ['agenda', month.toISOString()],
+    queryFn: () => agendaApi.listByMonth(month),
+  })
+
+  return <CalendarWithEvents events={events} onMonthChange={setMonth} />
+}
+```
+
+`onMonthChange` fires when the user moves to another month (previous, next, or Today while
+another month is shown) with the first day of that month. It does not fire on mount — start
+your state at the month you pass as `defaultDate` (today by default).
 
 ### Disabled Dates
 

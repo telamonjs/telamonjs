@@ -76,5 +76,51 @@ describe('BarChart', () => {
         '#00ff00'
       )
     })
+
+    it('value axis allows decimals by default', () => {
+      render(<BarChart data={mockData} dataKeys={['vendas']} />)
+
+      expect(screen.getByTestId('y-axis')).toHaveAttribute(
+        'data-allow-decimals',
+        'true'
+      )
+    })
+
+    it('allowDecimals={false} reaches the value axis in both layouts', () => {
+      const { unmount } = render(
+        <BarChart data={mockData} dataKeys={['vendas']} allowDecimals={false} />
+      )
+      expect(screen.getByTestId('y-axis')).toHaveAttribute(
+        'data-allow-decimals',
+        'false'
+      )
+      unmount()
+
+      render(
+        <BarChart
+          data={mockData}
+          dataKeys={['vendas']}
+          layout='vertical'
+          allowDecimals={false}
+        />
+      )
+      expect(screen.getByTestId('x-axis')).toHaveAttribute(
+        'data-allow-decimals',
+        'false'
+      )
+    })
+
+    it('categoryAxisWidth sets the category (Y) axis width in vertical layout', () => {
+      render(
+        <BarChart
+          data={mockData}
+          dataKeys={['vendas']}
+          layout='vertical'
+          categoryAxisWidth={160}
+        />
+      )
+
+      expect(screen.getByTestId('y-axis')).toHaveAttribute('data-width', '160')
+    })
   })
 })
