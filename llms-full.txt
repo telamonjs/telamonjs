@@ -20055,15 +20055,30 @@ const logger = createLogger({
   context: { service: 'my-app' },
 })
 
-createServerLogger() // Server Components: no ANSI colors
+createServerLogger() // Server Components, API routes: JSON lines
 createBrowserLogger() // colorized console output
 createWorkerLogger({ context: { jobId, jobName } }) // background jobs: no ANSI colors
 createTestLogger() // silent no-op for tests
 ```
 
-Every factory returns a `ConsoleLogger` (or a `NoOpLogger` when `enabled: false`), configured
-through `LoggerConfig`: `level`, `enabled`, `context`, `colorize`, `showTimestamps`, `showLevel`,
-`showContext`. Output is human-readable text on the console.
+The factories are configured through `LoggerConfig`: `level`, `enabled`, `context`, `format`,
+`colorize`, `showTimestamps`, `showLevel`, `showContext`. `enabled: false` returns a
+`NoOpLogger`; otherwise `format` picks the output:
+
+| `format`             | Logger          | Output                                                    |
+| -------------------- | --------------- | --------------------------------------------------------- |
+| `'simple'` (default) | `ConsoleLogger` | human-readable text                                       |
+| `'json'`             | `ConsoleLogger` | one JSON object per line, for log aggregators             |
+| `'pretty'`           | `PrettyLogger`  | icons and colors for CLIs                                 |
+
+`createServerLogger()` defaults to `'json'`; pass `format: 'simple'` for text. A JSON line holds
+`timestamp` (ISO 8601), `level` (lowercase), `message` and, when there is any, `context`:
+
+```json
+{"timestamp":"2026-01-01T12:00:00.000Z","level":"info","message":"User created","context":{"userId":"123"}}
+```
+
+Error and fatal lines go to `console.error`, warnings to `console.warn`, the rest to `console.log`.
 
 ## Adapters
 

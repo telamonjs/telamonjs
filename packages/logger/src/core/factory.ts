@@ -1,10 +1,11 @@
 /**
- * Logger factory - browser-safe: every factory returns a ConsoleLogger or a
- * NoOpLogger (no Node.js dependencies).
+ * Logger factory - browser-safe: every factory returns a ConsoleLogger,
+ * PrettyLogger or NoOpLogger (no Node.js dependencies).
  */
 
 import { ConsoleLogger } from '../adapters/console.js'
 import { NoOpLogger } from '../adapters/noop.js'
+import { PrettyLogger } from '../adapters/pretty.js'
 import type { ILogger } from './types.js'
 import type { LoggerConfig } from './types.js'
 import { getLogLevelFromEnv, parseLogLevel } from './levels.js'
@@ -15,7 +16,9 @@ export type { LoggerConfig } from './types.js'
 /**
  * Create logger instance (browser-safe)
  *
- * Returns ConsoleLogger or NoOpLogger only (no Node.js dependencies)
+ * `format` picks the output: `'simple'` (default) is ConsoleLogger text,
+ * `'json'` is ConsoleLogger writing one JSON object per line, `'pretty'` is
+ * PrettyLogger. `enabled: false` returns a NoOpLogger.
  *
  * @example
  * ```ts
@@ -35,6 +38,7 @@ export function createLogger(config?: LoggerConfig): ILogger {
     level = getLogLevelFromEnv(),
     enabled = true,
     context = {},
+    format = 'simple',
     colorize = process.env.NODE_ENV !== 'production',
     showTimestamps = true,
     showLevel = true,
@@ -50,10 +54,19 @@ export function createLogger(config?: LoggerConfig): ILogger {
   // Parse level if string
   const logLevel = typeof level === 'string' ? parseLogLevel(level) : level
 
-  // Always return ConsoleLogger (browser-safe)
+  if (format === 'pretty') {
+    // Unset colorize falls back to PrettyLogger's TTY/NO_COLOR detection
+    return new PrettyLogger({
+      level: logLevel,
+      context,
+      colorize: config?.colorize,
+    })
+  }
+
   return new ConsoleLogger({
     level: logLevel,
     context,
+    format,
     colorize,
     showTimestamps,
     showLevel,

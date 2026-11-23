@@ -238,6 +238,23 @@ describe('PrettyLogger', () => {
     })
   })
 
+  describe('Colors', () => {
+    it('emits ANSI colors when colorize is true', () => {
+      new PrettyLogger({ colorize: true }).warn('careful')
+      expect(consoleSpy.log.mock.calls[0][0]).toContain('\x1b[33m')
+    })
+
+    it('emits plain text when colorize is false', () => {
+      const logger = new PrettyLogger({ colorize: false })
+      logger.warn('careful', { userId: '1' })
+      logger.banner('Hi')
+      for (const call of consoleSpy.log.mock.calls) {
+        expect(call.join(' ')).not.toContain('\x1b[')
+      }
+      expect(consoleSpy.log.mock.calls[0][0]).toContain('careful')
+    })
+  })
+
   describe('Edge Cases', () => {
     it('handles null context', () => {
       const logger = new PrettyLogger({ level: LogLevel.INFO })

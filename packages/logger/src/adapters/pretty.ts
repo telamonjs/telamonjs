@@ -2,17 +2,51 @@
  * Pretty logger (CLI, colorful)
  */
 
-import chalk from 'chalk'
 import type { LogContext, LogLevel, LoggerConfig } from '../core/types.js'
 import { BaseLogger } from './base.js'
+
+// ponytail: raw ANSI codes instead of chalk (ESM-only, and the barrel made
+// every consumer load it). Only the styles below are used.
+const ANSI = {
+  bold: [1, 22],
+  red: [31, 39],
+  green: [32, 39],
+  yellow: [33, 39],
+  blue: [34, 39],
+  magenta: [35, 39],
+  cyan: [36, 39],
+  gray: [90, 39],
+} as const
+
+type Style = keyof typeof ANSI
+
+/** The default chalk used to apply: colors only on a TTY, never with NO_COLOR. */
+function supportsColor(): boolean {
+  return (
+    typeof process !== 'undefined' &&
+    !process.env.NO_COLOR &&
+    process.stdout?.isTTY === true
+  )
+}
 
 /**
  * Pretty logger (CLI-friendly with colors and emojis)
  */
 export class PrettyLogger extends BaseLogger {
+  private colorize: boolean
+
   constructor(config?: LoggerConfig) {
-    const { level = 3, context = {} } = config || {}
+    const { level = 3, context = {}, colorize = supportsColor() } = config || {}
     super(typeof level === 'number' ? level : 3, context)
+    this.colorize = colorize
+  }
+
+  private paint(text: string, ...styles: Style[]): string {
+    if (!this.colorize) return text
+    return styles.reduce(
+      (out, style) => `\x1b[${ANSI[style][0]}m${out}\x1b[${ANSI[style][1]}m`,
+      text
+    )
   }
 
   protected logMessage(
@@ -21,44 +55,45 @@ export class PrettyLogger extends BaseLogger {
     context?: LogContext
   ): void {
     const parts: string[] = []
+    const paint = this.paint.bind(this)
 
     // Icon + colored message based on level
     switch (level) {
       case 0: // FATAL
-        parts.push(chalk.red.bold('💀'), chalk.red.bold(message))
+        parts.push(paint('💀', 'red', 'bold'), paint(message, 'red', 'bold'))
         break
       case 1: // ERROR
-        parts.push(chalk.red('✗'), chalk.red(message))
+        parts.push(paint('✗', 'red'), paint(message, 'red'))
         break
       case 2: // WARN
-        parts.push(chalk.yellow('⚠'), chalk.yellow(message))
+        parts.push(paint('⚠', 'yellow'), paint(message, 'yellow'))
         break
       case 3: // INFO
         // Check for special contexts
         if (context?.level === 'success') {
           parts.push(
-            chalk.green('✓'),
-            chalk.green(message.replace(/^✓\s*/, ''))
+            paint('✓', 'green'),
+            paint(message.replace(/^✓\s*/, ''), 'green')
           )
         } else if (context?.level === 'perf') {
           parts.push(
-            chalk.magenta('⏱'),
-            chalk.magenta(message.replace(/^\[PERF\]\s*/, ''))
+            paint('⏱', 'magenta'),
+            paint(message.replace(/^\[PERF\]\s*/, ''), 'magenta')
           )
         } else if (context?.level === 'audit') {
           parts.push(
-            chalk.cyan('📋'),
-            chalk.cyan(message.replace(/^\[AUDIT\]\s*/, ''))
+            paint('📋', 'cyan'),
+            paint(message.replace(/^\[AUDIT\]\s*/, ''), 'cyan')
           )
         } else {
-          parts.push(chalk.blue('ℹ'), message)
+          parts.push(paint('ℹ', 'blue'), message)
         }
         break
       case 4: // DEBUG
-        parts.push(chalk.gray('→'), chalk.gray(message))
+        parts.push(paint('→', 'gray'), paint(message, 'gray'))
         break
       case 5: // TRACE
-        parts.push(chalk.gray('·'), chalk.gray(message))
+        parts.push(paint('·', 'gray'), paint(message, 'gray'))
         break
     }
 
@@ -67,7 +102,7 @@ export class PrettyLogger extends BaseLogger {
       const { level: _level, ...restContext } = context
       if (Object.keys(restContext).length > 0) {
         const contextStr = JSON.stringify(restContext, null, 2)
-        parts.push(chalk.gray(contextStr))
+        parts.push(paint(contextStr, 'gray'))
       }
     }
 
@@ -83,7 +118,7 @@ export class PrettyLogger extends BaseLogger {
    */
   banner(message: string): void {
     console.log()
-    console.log(chalk.bold.blue('🚀 ' + message))
+    console.log(this.paint('🚀 ' + message, 'blue', 'bold'))
     console.log()
   }
 

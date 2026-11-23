@@ -7,8 +7,7 @@ timers.
 
 The package has a single entry point and it is **browser-safe** (console
 adapters only), so importing it from a client component can't drag Node
-built-ins into your bundle. Its only runtime dependency is `chalk`, used by
-`PrettyLogger`.
+built-ins into your bundle. It has no runtime dependencies.
 
 ## Install
 
@@ -43,8 +42,11 @@ import {
 const log = createServerLogger()   // JSON lines, no colors: Next.js Server Components, API routes
 ```
 
-`createLogger(config)` returns a console logger, or a no-op one when
-`enabled: false`. The adapters are exported too (`ConsoleLogger`,
+`createLogger(config)` returns a no-op logger when `enabled: false`; otherwise
+`format` picks the output: `'simple'` (default, human-readable text),
+`'json'` (one JSON object per line: `timestamp`, `level`, `message`, `context`)
+or `'pretty'` (a `PrettyLogger`). `createServerLogger()` defaults to `'json'`.
+The adapters are exported too (`ConsoleLogger`,
 `PrettyLogger`, `BrowserLogger`, `NoOpLogger`). To ship logs elsewhere,
 implement `ILogger` or extend `BaseLogger` in your app.
 

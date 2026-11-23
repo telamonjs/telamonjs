@@ -26,6 +26,7 @@ export class ConsoleLogger extends BaseLogger {
   private showTimestamps: boolean
   private showLevel: boolean
   private showContext: boolean
+  private json: boolean
 
   constructor(config?: ConsoleLoggerConfig) {
     const {
@@ -35,6 +36,7 @@ export class ConsoleLogger extends BaseLogger {
       showTimestamps = true,
       showLevel = true,
       showContext = true,
+      format,
     } = config || {}
 
     super(typeof level === 'number' ? level : 3, context)
@@ -42,6 +44,7 @@ export class ConsoleLogger extends BaseLogger {
     this.showTimestamps = showTimestamps
     this.showLevel = showLevel
     this.showContext = showContext
+    this.json = format === 'json'
   }
 
   protected logMessage(
@@ -49,6 +52,11 @@ export class ConsoleLogger extends BaseLogger {
     message: string,
     context?: LogContext
   ): void {
+    if (this.json) {
+      this.writeToConsole(level, this.toJsonLine(level, message, context))
+      return
+    }
+
     const parts: string[] = []
 
     // Timestamp
@@ -78,6 +86,21 @@ export class ConsoleLogger extends BaseLogger {
 
     // Output
     this.writeToConsole(level, parts.join(' '))
+  }
+
+  /** One JSON object per line, for log aggregators (format: 'json'). */
+  private toJsonLine(
+    level: LogLevel,
+    message: string,
+    context?: LogContext
+  ): string {
+    const cleaned = context ? cleanContext(context) : {}
+    return JSON.stringify({
+      timestamp: new Date().toISOString(),
+      level: LOG_LEVEL_NAMES_UPPER[level].toLowerCase(),
+      message,
+      ...(Object.keys(cleaned).length > 0 && { context: cleaned }),
+    })
   }
 
   private colorizeLevel(level: LogLevel, levelName: string): string {
