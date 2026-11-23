@@ -1,4 +1,4 @@
-import NextAuth, { type Session } from 'next-auth'
+import NextAuth from 'next-auth'
 import type { Adapter } from 'next-auth/adapters'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import Credentials from 'next-auth/providers/credentials'
@@ -75,10 +75,6 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   ],
   callbacks: {
     jwt: base.jwt,
-    // The package types its callbacks structurally (plain records), not with
-    // next-auth's interfaces: spread the session into a plain object, and type
-    // the result as the Session declared in src/types/next-auth.d.ts.
-    session: ({ session, token }) =>
-      base.session({ session: { ...session, user: { ...session.user } }, token }) as unknown as Session,
+    session: base.session,
   },
 })

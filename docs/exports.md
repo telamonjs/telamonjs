@@ -903,6 +903,7 @@ Types:
 - `MfJwtPayload` (type)
 - `RoleInfo` (type)
 - `SessionClaims` (type)
+- `SessionExtras` (type)
 
 ## @telamonjs/permissions
 

@@ -223,3 +223,26 @@ describe('createAuthCallbacks — impersonation', () => {
     expect(ctx.session(token).impersonationExpired).toBe(false)
   })
 })
+
+describe('session callback typing', () => {
+  // next-auth's Session/DefaultSession are interfaces without an index
+  // signature; `base.session` must plug into `callbacks.session` as-is.
+  interface AppSession {
+    user?: { name?: string | null; email?: string | null }
+    expires: string
+  }
+  type NextAuthSessionCallback = (params: {
+    session: AppSession
+    token: Record<string, unknown>
+  }) => AppSession
+
+  it('is assignable to a next-auth style session callback and keeps expires', () => {
+    const callback: NextAuthSessionCallback = createAuthCallbacks().session
+    const out = callback({
+      session: { user: { name: 'Ana' }, expires: '2030-01-01' },
+      token: { id: 'u1', permissions: ['a'] },
+    })
+    expect(out.expires).toBe('2030-01-01')
+    expect(out.user).toMatchObject({ name: 'Ana', id: 'u1', permissions: ['a'] })
+  })
+})

@@ -148,9 +148,32 @@ async function applyImpersonation(
 }
 
 type JwtArgs = { token: Record<string, unknown>; user?: unknown }
-type SessionArgs = {
-  session: { user?: Record<string, unknown> } & Record<string, unknown>
-  token: Record<string, unknown>
+// Generic over the app's session type (next-auth's `Session` is an interface
+// without an index signature), so `base.session` plugs straight into
+// `callbacks.session` and keeps fields like `expires`.
+type SessionArgs<S> = { session: S; token: Record<string, unknown> }
+
+/** What `session` adds on top of the app's session object. */
+export interface SessionExtras {
+  user: Record<string, unknown> & {
+    id?: string
+    pessoaId?: string
+    role?: RoleInfo
+    roles: RoleInfo[]
+    permissions?: string[]
+    accessToken?: string
+    refreshToken?: string
+  }
+  isImpersonating: boolean
+  impersonationLogId?: string
+  impersonationExpired: boolean
+  originalUser?: {
+    id: string
+    name?: string
+    email?: string
+    role?: RoleInfo
+    roles: RoleInfo[]
+  }
 }
 
 /**
@@ -196,12 +219,16 @@ export function createAuthCallbacks(options: AuthCallbacksOptions = {}) {
       return token
     },
 
-    session({ session, token }: SessionArgs) {
-      const t = token as Partial<MfJwtPayload> & Record<string, unknown>
-      return {
-        ...session,
+    session<S extends { user?: object | null }>({
+      session,
+      token,
+    }: SessionArgs<S>): S & SessionExtras {
+      const t = token as Partial<MfJwtPayload> &
+        Pick<SessionClaims, 'accessToken' | 'refreshToken'> &
+        Record<string, unknown>
+      const extras: SessionExtras = {
         user: {
-          ...session.user,
+          ...(session.user as Record<string, unknown> | null | undefined),
           id: t.id,
           pessoaId: t.pessoaId,
           role: t.role,
@@ -226,6 +253,7 @@ export function createAuthCallbacks(options: AuthCallbacksOptions = {}) {
             }
           : undefined,
       }
+      return { ...session, ...extras }
     },
   }
 }
