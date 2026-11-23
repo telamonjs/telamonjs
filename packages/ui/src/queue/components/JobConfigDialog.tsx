@@ -19,6 +19,7 @@ import { Textarea } from '../../ui/textarea'
 import { useTelamonjsT } from '../../i18n/use-t'
 import { useEscapeToClose } from '../hooks/use-escape-to-close'
 import type { JobConfig } from '../types'
+import { INACTIVE_BADGE } from './job-shared'
 
 interface JobConfigDialogProps {
   job: JobConfig | null
@@ -96,7 +97,10 @@ export default function JobConfigDialog({
         <div className="flex-1 space-y-4 overflow-y-auto p-6">
           <div className="flex items-center gap-2">
             <Badge variant="outline">{job.module}</Badge>
-            <Badge variant={job.enabled ? 'default' : 'secondary'}>
+            <Badge
+              variant={job.enabled ? 'default' : 'outline'}
+              className={job.enabled ? undefined : INACTIVE_BADGE}
+            >
               {job.enabled ? t('queue.jobConfigDialog.active') : t('queue.jobConfigDialog.inactive')}
             </Badge>
             {job.orphan && (

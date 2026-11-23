@@ -10,7 +10,7 @@
 import { memo } from 'react'
 import { CheckSquare, Square, Loader2, RefreshCw, AlertCircle } from 'lucide-react'
 import { cn } from '../../../utils/cn'
-import { formatQueueName } from '../../lib/format'
+import { useQueueLabels } from '../labels-context'
 import { useTelamonjsT } from '../../../i18n/use-t'
 import type { JobState } from '../../types'
 import { getStatusConfig, truncateId, type JobInfo } from '../job-shared'
@@ -35,6 +35,7 @@ export const JobRow = memo(function JobRow({
   onSelectJob,
 }: JobRowProps) {
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const config = getStatusConfig(t)[status]
 
   return (
@@ -73,7 +74,7 @@ export const JobRow = memo(function JobRow({
 
         <div className='flex-1 min-w-0'>
           <div className='flex items-center gap-2'>
-            <span className='font-medium text-sm truncate'>{formatQueueName(job.queueName)}</span>
+            <span className='font-medium text-sm truncate'>{jobLabel(job.queueName)}</span>
             <span className='text-xs text-muted-foreground font-mono flex-shrink-0'>
               #{truncateId(job.id)}
             </span>

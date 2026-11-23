@@ -58,6 +58,7 @@ import { useTelamonjsT } from '../../i18n/use-t'
 import { useFormat } from '../../i18n/use-format'
 import { useDateFnsLocale } from '../../i18n/use-date-fns-locale'
 import type { JobConfig, JobHistoryEntry } from '../types'
+import { INACTIVE_BADGE } from './job-shared'
 
 export interface JobDetailPageProps {
   /** Job name — auto-fetches config+history via hooks */
@@ -283,7 +284,7 @@ function JobDetailPageUI({
       case 'enabled':
         return <Badge className='bg-green-700'>{t('queue.jobDetailPage.actionEnabled')}</Badge>
       case 'disabled':
-        return <Badge variant='secondary'>{t('queue.jobDetailPage.actionDisabled')}</Badge>
+        return <Badge variant='outline' className={INACTIVE_BADGE}>{t('queue.jobDetailPage.actionDisabled')}</Badge>
       case 'updated':
         return <Badge variant='outline'>{t('queue.jobDetailPage.actionUpdated')}</Badge>
       case 'created':
@@ -320,7 +321,10 @@ function JobDetailPageUI({
             </h1>
             <div className='mt-2 flex items-center gap-2'>
               <Badge variant='outline'>{config.module}</Badge>
-              <Badge variant={enabled ? 'default' : 'secondary'}>
+              <Badge
+                variant={enabled ? 'default' : 'outline'}
+                className={enabled ? undefined : INACTIVE_BADGE}
+              >
                 {enabled ? t('queue.jobDetailPage.active') : t('queue.jobDetailPage.inactive')}
               </Badge>
               {config.orphan && (

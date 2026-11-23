@@ -38,7 +38,7 @@ import { subHours } from 'date-fns'
 import { useQueueApi } from '../../api/provider'
 import { useQueueHistoryAll, useCopyToClipboard } from '../../hooks'
 import { TabToolbar } from '../../../components/toolbar/TabToolbar'
-import { formatQueueName } from '../../lib/format'
+import { useQueueLabels } from '../labels-context'
 import { useLocale } from 'next-intl'
 import { useTelamonjsT } from '../../../i18n/use-t'
 import { useQueueReadOnly } from '../read-only-context'
@@ -63,6 +63,7 @@ interface DateRange {
 export default function HistoricoTab() {
   'use no memo' // useVirtualizer (TanStack) is incompatible with the compiler
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const readOnly = useQueueReadOnly()
   const format = useFormat()
   const locale = useLocale()
@@ -344,7 +345,7 @@ export default function HistoricoTab() {
                           onClick={() => setSelectedJob(job)}
                           formatDate={formatDate}
                           formatDuration={formatJobDuration}
-                          formatQueueName={formatQueueName}
+                          formatQueueName={jobLabel}
                           truncateId={truncateId}
                         />
                       </div>
@@ -405,7 +406,7 @@ export default function HistoricoTab() {
               onRemove={handleRemove}
               formatDate={formatDate}
               formatDuration={formatJobDuration}
-              formatQueueName={formatQueueName}
+              formatQueueName={jobLabel}
               copyToClipboard={copyToClipboard}
               copied={copied}
               renderValue={renderValue}

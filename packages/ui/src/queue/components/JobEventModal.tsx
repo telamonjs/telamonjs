@@ -22,7 +22,7 @@ import {
 import { useFormatter } from 'next-intl'
 import { cn } from '../../utils/cn'
 import { useCopyToClipboard } from '../hooks'
-import { formatQueueName as formatJobName } from '../lib/format'
+import { useQueueLabels } from './labels-context'
 import { useTelamonjsT } from '../../i18n/use-t'
 import { useFormat } from '../../i18n/use-format'
 import type { JobEvent } from './types'
@@ -34,6 +34,7 @@ interface JobEventModalProps {
 
 export default function JobEventModal({ event, onClose }: JobEventModalProps) {
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const format = useFormat()
   const intlFormat = useFormatter()
   const { copied, copy: copyToClipboard, reset: resetCopied } = useCopyToClipboard()
@@ -133,7 +134,7 @@ export default function JobEventModal({ event, onClose }: JobEventModalProps) {
             <div>
               <h2 className="text-lg font-semibold">{config.label}</h2>
               <p className="text-sm text-muted-foreground">
-                {formatJobName(event.jobName)}
+                {jobLabel(event.jobName)}
               </p>
             </div>
           </div>

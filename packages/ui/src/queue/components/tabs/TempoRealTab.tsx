@@ -37,7 +37,8 @@ import { Badge } from '../../../ui/badge'
 import JobStatsCards from '../JobStatsCards'
 import QueuesTable, { type QueueAction } from '../QueuesTable'
 import { TabToolbar } from '../../../components/toolbar/TabToolbar'
-import { formatQueueName } from '../../lib/format'
+import { useQueueLabels } from '../labels-context'
+import type { QueueModuleIcon } from '../module-icon'
 import { useTelamonjsT } from '../../../i18n/use-t'
 import { useFormat, useTickingNow } from '../../../i18n/use-format'
 
@@ -146,7 +147,7 @@ function QueuesPanel({
   moduleIcons,
 }: {
   onAction: (action: QueueAction) => Promise<void>
-  moduleIcons?: Record<string, string>
+  moduleIcons?: Record<string, QueueModuleIcon>
 }) {
   const t = useTelamonjsT()
   const titleId = useId()
@@ -290,7 +291,7 @@ const JobRow = React.memo(({ job, isSelected, onClick }: JobRowProps) => {
   const duration = formatDuration(job.processedOn, job.finishedOn, locale)
   const relativeTs = job.finishedOn || job.processedOn || job.timestamp
   const timeAgo = relativeTs ? format.relative(relativeTs, now) : '—'
-  const queueDisplay = formatQueueName(job.queueName)
+  const queueDisplay = useQueueLabels().jobLabel(job.queueName)
 
   const StatusIcon =
     job.status === 'active'
@@ -536,8 +537,8 @@ const JobDetailPanel = React.memo(function JobDetailPanel({
 interface TempoRealTabProps {
   /** Enable SSE real-time updates (default: true) */
   enableSSE?: boolean
-  /** Module icons for the queues table (module name → emoji) */
-  moduleIcons?: Record<string, string>
+  /** Module icons for the queues table (module name → emoji, node or icon component) */
+  moduleIcons?: Record<string, QueueModuleIcon>
   /** This tab is the visible one — visited tabs stay mounted (default: true) */
   active?: boolean
   /** Timeline poll interval in ms while SSE is down (default: 2000) */

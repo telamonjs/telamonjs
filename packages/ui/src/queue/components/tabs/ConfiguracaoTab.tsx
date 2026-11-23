@@ -23,12 +23,13 @@ import {
   useUpdateJobConfig,
 } from '../../hooks'
 import JobConfigDialog from '../JobConfigDialog'
-import { formatQueueName } from '../../lib/format'
 import { useTelamonjsT } from '../../../i18n/use-t'
 import { useQueueReadOnly } from '../read-only-context'
+import { useQueueLabels } from '../labels-context'
+import { ModuleIcon, type QueueModuleIcon } from '../module-icon'
 import type { JobConfig } from '../../types'
 
-const defaultModuleIcons: Record<string, string> = {
+const defaultModuleIcons: Record<string, QueueModuleIcon> = {
   alertas: '🚨',
   ancoras: '⚓',
   apisul: '🌐',
@@ -52,7 +53,7 @@ const defaultModuleIcons: Record<string, string> = {
 }
 
 interface ConfiguracaoTabProps {
-  moduleIcons?: Record<string, string>
+  moduleIcons?: Record<string, QueueModuleIcon>
 }
 
 export default function ConfiguracaoTab({
@@ -61,6 +62,7 @@ export default function ConfiguracaoTab({
   const t = useTelamonjsT()
   const readOnly = useQueueReadOnly()
   const icons = moduleIconsProp ?? defaultModuleIcons
+  const { jobLabel, moduleLabel, orderModules } = useQueueLabels()
 
   const { data: allJobs, isLoading } = useAllJobs()
   const [searchQuery, setSearchQuery] = useState('')
@@ -106,9 +108,10 @@ export default function ConfiguracaoTab({
     return grouped
   }, [filteredJobs])
 
+  // Same group order as the Real-time queues table
   const sortedModules = useMemo(
-    () => Object.entries(jobsByModule).sort(([a], [b]) => a.localeCompare(b)),
-    [jobsByModule]
+    () => orderModules(Object.keys(jobsByModule)).map(m => [m, jobsByModule[m]] as const),
+    [jobsByModule, orderModules]
   )
 
   const toggleModule = (module: string) => {
@@ -242,6 +245,7 @@ export default function ConfiguracaoTab({
           const isExpanded = expandedModules.has(module)
           const moduleStats = getModuleStats(moduleJobs)
           const moduleIcon = icons[module] || '📦'
+          const label = moduleLabel(module)
           const isTogglingModule = togglingModules.has(module)
           const allEnabled = moduleJobs.every(j => j.enabled)
           const allDisabled = moduleJobs.every(j => !j.enabled)
@@ -259,9 +263,11 @@ export default function ConfiguracaoTab({
                   ) : (
                     <ChevronRight className='text-muted-foreground h-4 w-4' />
                   )}
-                  <span className='text-base'>{moduleIcon}</span>
-                  <span className='text-sm font-medium capitalize'>
-                    {module}
+                  <span className='text-base'>
+                    <ModuleIcon icon={moduleIcon} />
+                  </span>
+                  <span className={cn('text-sm font-medium', !label && 'capitalize')}>
+                    {label ?? module}
                   </span>
                   <span className='text-muted-foreground text-xs'>
                     · {moduleJobs.length}
@@ -296,7 +302,7 @@ export default function ConfiguracaoTab({
                         disabled={isTogglingModule}
                         className='hover:bg-muted rounded p-1 transition-colors'
                         title={t('queue.config.activateAll')}
-                        aria-label={t('queue.config.activateAllModule', { module })}
+                        aria-label={t('queue.config.activateAllModule', { module: label ?? module })}
                       >
                         <Play
                           className={cn(
@@ -312,7 +318,7 @@ export default function ConfiguracaoTab({
                         disabled={isTogglingModule}
                         className='hover:bg-muted rounded p-1 transition-colors'
                         title={t('queue.config.deactivateAll')}
-                        aria-label={t('queue.config.deactivateAllModule', { module })}
+                        aria-label={t('queue.config.deactivateAllModule', { module: label ?? module })}
                       >
                         <Pause
                           className={cn(
@@ -332,6 +338,7 @@ export default function ConfiguracaoTab({
                     .sort((a, b) => a.jobName.localeCompare(b.jobName))
                     .map(job => {
                       const isToggling = togglingJobs.has(job.jobName)
+                      const title = jobLabel(job.jobName)
 
                       return (
                         <div
@@ -354,7 +361,7 @@ export default function ConfiguracaoTab({
                             <div className='min-w-0 flex-1'>
                               <div className='flex items-center gap-2'>
                                 <span className='truncate text-sm font-medium'>
-                                  {formatQueueName(job.jobName)}
+                                  {title}
                                 </span>
                                 {job.orphan && (
                                   <Badge
@@ -367,7 +374,10 @@ export default function ConfiguracaoTab({
                                 )}
                               </div>
                               <p className='text-muted-foreground truncate text-xs'>
-                                {job.description || job.jobName}
+                                {/* No repeat when the title already is the description */}
+                                {job.description && job.description !== title
+                                  ? job.description
+                                  : job.jobName}
                               </p>
                             </div>
                           </div>

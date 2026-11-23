@@ -141,6 +141,9 @@ function renderQueuesTable(
 }
 
 import QueuesTable from './QueuesTable'
+import { Zap } from 'lucide-react'
+import { QueueLabelsContext, type QueueLabels } from './labels-context'
+import type { QueueModuleIcon } from './module-icon'
 
 // ============================================================================
 // TESTS
@@ -615,5 +618,81 @@ describe('QueuesTable readOnly (PRD 068)', () => {
     ]) {
       expect(screen.queryByTitle(title)).not.toBeInTheDocument()
     }
+  })
+})
+
+// Issue #7 part 2: module/job labels, icon components, group order
+describe('QueuesTable labels (issue #7)', () => {
+  function renderWithLabels(
+    labels: QueueLabels,
+    moduleIcons?: Record<string, QueueModuleIcon>,
+    queues: QueueStats[] = allQueues
+  ) {
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <QueueApiProvider adapter={makeMockAdapter()}>
+          <QueueLabelsContext.Provider value={labels}>
+            <QueuesTable queues={queues} moduleIcons={moduleIcons} />
+          </QueueLabelsContext.Provider>
+        </QueueApiProvider>
+      </QueryClientProvider>
+    )
+  }
+
+  const groupOrder = () =>
+    screen
+      .getAllByTestId(/^queue-module-toggle-/)
+      .map(b => b.dataset.testid?.replace('queue-module-toggle-', ''))
+
+  it('renders moduleLabels as group titles without CSS capitalize', () => {
+    renderWithLabels({ moduleLabels: { gateway: 'Gateway de comunicação' } })
+    expect(screen.getByText('Gateway de comunicação')).not.toHaveClass('capitalize')
+    // Modules without a label keep the raw key, capitalized by CSS
+    expect(screen.getByText('imports')).toHaveClass('capitalize')
+  })
+
+  it('orders groups by moduleLabels key order, then alphabetically', () => {
+    const coreQueue = { ...importQueue, name: 'core_ping', module: 'core' }
+    renderWithLabels({ moduleLabels: { imports: 'Imports' } }, undefined, [
+      gatewayQueue1,
+      coreQueue,
+      importQueue,
+    ])
+    expect(groupOrder()).toEqual(['imports', 'core', 'gateway'])
+  })
+
+  it('prefers the contract displayName for the row label', async () => {
+    const user = userEvent.setup()
+    renderWithLabels({}, undefined, [{ ...gatewayQueue1, displayName: 'Ingest gateway data' }])
+    await user.click(screen.getByText('gateway'))
+    expect(screen.getByText('Ingest gateway data')).toBeInTheDocument()
+  })
+
+  it('falls back to formatQueueName when displayName is the raw name', async () => {
+    const user = userEvent.setup()
+    renderWithLabels({}, undefined, [{ ...gatewayQueue1, displayName: gatewayQueue1.name }])
+    await user.click(screen.getByText('gateway'))
+    expect(screen.getByText('Process Data')).toBeInTheDocument()
+  })
+
+  it('jobLabel overrides the displayName', async () => {
+    const user = userEvent.setup()
+    renderWithLabels({ jobLabel: () => 'Processar dados' }, undefined, [gatewayQueue1])
+    await user.click(screen.getByText('gateway'))
+    expect(screen.getByText('Processar dados')).toBeInTheDocument()
+    expect(screen.queryByText('Process Data')).not.toBeInTheDocument()
+  })
+
+  it('accepts an icon component and a node as module icons', () => {
+    renderWithLabels({}, { gateway: Zap, imports: <span data-testid='imports-icon'>I</span> })
+    const gateway = screen.getByTestId('queue-module-toggle-gateway')
+    expect(gateway.querySelector('svg')).not.toBeNull()
+    expect(screen.getByTestId('imports-icon')).toBeInTheDocument()
+  })
+
+  it('has no axe violations with labels and icon components', async () => {
+    const { container } = renderWithLabels({ moduleLabels: { gateway: 'Gateway' } }, { gateway: Zap })
+    expect(await axe(container)).toHaveNoViolations()
   })
 })

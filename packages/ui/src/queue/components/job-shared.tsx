@@ -40,6 +40,9 @@ type T = ReturnType<typeof useTelamonjsT>
  * drift apart. */
 export const HISTORY_PAGE_SIZE = 50
 
+/** Neutral look for disabled/inactive badges (the theme's `secondary` is blue). */
+export const INACTIVE_BADGE = 'bg-muted text-muted-foreground'
+
 /** Status → icon/label/color config. Takes `t` (from `useTelamonjsT()`) since
  * it's consumed by function components that can call hooks — module-level
  * plain functions receive `t` explicitly instead. */

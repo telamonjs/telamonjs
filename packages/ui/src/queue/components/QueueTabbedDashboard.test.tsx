@@ -24,12 +24,15 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import React from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 
 vi.mock('./tabs/TempoRealTab', async () => {
   const { useQueueReadOnly } = await import('./read-only-context')
+  const { useQueueLabels } = await import('./labels-context')
   return {
     default: function TempoRealTabStub({ enableSSE, moduleIcons, active, pollInterval }: { enableSSE?: boolean; moduleIcons?: Record<string, string>; active?: boolean; pollInterval?: number }) {
       const readOnly = useQueueReadOnly()
+      const labels = useQueueLabels()
       return React.createElement(
         'div',
         {
@@ -39,6 +42,8 @@ vi.mock('./tabs/TempoRealTab', async () => {
           'data-readonly': String(readOnly),
           'data-active': String(active),
           'data-pollinterval': String(pollInterval),
+          'data-joblabel': labels.jobLabel('comunicacoes_enviar-email'),
+          'data-modulelabel': labels.moduleLabel('comunicacoes') ?? '',
         },
         'TempoRealTab stub'
       )
@@ -61,7 +66,13 @@ import QueueTabbedDashboard from './QueueTabbedDashboard'
 
 function makeMockAdapter(): QueueApiAdapter {
   return {
-    getStats: vi.fn().mockResolvedValue({ totalWaiting: 0, totalActive: 0, totalCompleted: 0, totalFailed: 0, totalDelayed: 0, queues: [] }),
+    getStats: vi.fn().mockResolvedValue({
+      totalWaiting: 0, totalActive: 0, totalCompleted: 0, totalFailed: 0, totalDelayed: 0,
+      queues: [{
+        name: 'comunicacoes_enviar-email', displayName: 'Send e-mail', module: 'comunicacoes', description: 'Send e-mail',
+        dispatchable: false, waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, paused: false,
+      }],
+    }),
     getRedisMetrics: vi.fn().mockResolvedValue({}),
     getJobs: vi.fn().mockResolvedValue({ jobs: [], total: 0 }),
     getJobsAll: vi.fn().mockResolvedValue({ jobs: [], total: 0 }),
@@ -79,10 +90,14 @@ function makeMockAdapter(): QueueApiAdapter {
 }
 
 function renderDashboard(props: Partial<React.ComponentProps<typeof QueueTabbedDashboard>> = {}) {
+  // Every real tab runs React Query; so does the labels provider
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
-    <QueueApiProvider adapter={makeMockAdapter()}>
-      <QueueTabbedDashboard {...props} />
-    </QueueApiProvider>
+    <QueryClientProvider client={queryClient}>
+      <QueueApiProvider adapter={makeMockAdapter()}>
+        <QueueTabbedDashboard {...props} />
+      </QueueApiProvider>
+    </QueryClientProvider>
   )
 }
 
@@ -127,6 +142,31 @@ describe('QueueTabbedDashboard', () => {
       await waitFor(() =>
         expect(screen.getByTestId('tempo-real-tab').dataset.active).toBe('false')
       )
+    })
+  })
+
+  // Issue #7 part 2: labels reach every tab through the labels context
+  describe('Labels', () => {
+    it('shows the raw module key and the formatted job name by default, then the contract displayName', async () => {
+      renderDashboard()
+      const tab = await screen.findByTestId('tempo-real-tab')
+      expect(tab.dataset.modulelabel).toBe('')
+      // displayName comes from the stats query once it resolves
+      await waitFor(() => expect(tab.dataset.joblabel).toBe('Send e-mail'))
+    })
+
+    it('forwards moduleLabels', async () => {
+      renderDashboard({ moduleLabels: { comunicacoes: 'Comunicações' } })
+      const tab = await screen.findByTestId('tempo-real-tab')
+      expect(tab.dataset.modulelabel).toBe('Comunicações')
+    })
+
+    it('jobLabel overrides the contract displayName; undefined falls back to it', async () => {
+      renderDashboard({
+        jobLabel: name => (name === 'comunicacoes_enviar-email' ? 'Enviar e-mail' : undefined),
+      })
+      const tab = await screen.findByTestId('tempo-real-tab')
+      expect(tab.dataset.joblabel).toBe('Enviar e-mail')
     })
   })
 

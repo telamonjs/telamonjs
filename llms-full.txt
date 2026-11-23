@@ -21677,12 +21677,65 @@ export default function JobsPage() {
 | `title`          | `string`                   | `'Central de Jobs'`                 |
 | `description`    | `string`                   | queue monitoring subtitle           |
 | `icon`           | `ComponentType`            | —                                   |
-| `moduleIcons`    | `Record<string, string>`   | — (icons for the config tab)        |
+| `moduleIcons`    | `Record<string, ReactNode \| IconComponent>` | — (module group icons: emoji, node or icon component) |
+| `moduleLabels`   | `Record<string, I18nText>` | — (module group titles; key order = group order) |
+| `jobLabel`       | `(jobName: string) => I18nText \| undefined` | — (job label override) |
 | `enableSSE`      | `boolean`                  | `true`                              |
 | `pollInterval`   | `number` (ms)              | `2000` (timeline polling while SSE is down) |
 | `syncTabWithUrl` | `boolean`                  | `false` (reads/writes `?tab=` param)|
 | `onTabChange`    | `(tab: string) => void`    | —                                   |
 | `apiUrl`         | `string`                   | `process.env.NEXT_PUBLIC_API_URL`   |
+
+### Module and job labels
+
+Jobs are grouped by **module**, the prefix of the job name (`comunicacoes_enviar-email`
+belongs to `comunicacoes`). Module keys and job names are Redis keys, so they cannot
+carry accents or spaces. Three props turn them into real names:
+
+- `moduleLabels` sets the group titles in the Real-time and Configuration tabs. Its key
+  order is also the group order in both tabs. Modules it does not list follow,
+  alphabetically by label. Without it, groups show the raw key, capitalized, in
+  alphabetical order.
+- Job labels use the job contract's `displayName` (the `description` of the contract in
+  `@telamonjs/queue`). When a job has none, the job name is formatted: the module prefix is
+  removed and the words are capitalized, so `comunicacoes_enviar-email` becomes "Enviar Email".
+  `jobLabel` overrides both. Return `undefined` to keep the default. The label is used in
+  queue rows, timeline and history rows, job details and modal titles.
+- `moduleIcons` takes an emoji, any React node, or an icon component such as a Lucide icon.
+
+Text values are `I18nText`: a literal, or `msg('key')` resolved in the active locale.
+
+```tsx title="app/admin/jobs/jobs-dashboard.tsx"
+'use client'
+
+import { Mail, Wrench } from 'lucide-react'
+import { msg } from '@telamonjs/ui'
+import { QueueTabbedDashboard } from '@telamonjs/ui/queue'
+
+const moduleLabels = {
+  comunicacoes: 'Comunicações',
+  manutencao: msg('jobs.modules.maintenance'),
+}
+const moduleIcons = { comunicacoes: Mail, manutencao: Wrench }
+const jobLabels: Record<string, string> = {
+  'manutencao_limpar-audit-logs': 'Limpar logs de auditoria',
+}
+
+export function JobsDashboard() {
+  return (
+    <QueueTabbedDashboard
+      moduleLabels={moduleLabels}
+      moduleIcons={moduleIcons}
+      jobLabel={name => jobLabels[name]}
+    />
+  )
+}
+```
+
+<Callout type='warn' title='Functions do not cross the server boundary'>
+  `jobLabel` and icon components are functions, so a Server Component cannot pass them to
+  `QueueTabbedDashboard`. Set them in a Client Component, as above.
+</Callout>
 
 ## Adapters
 

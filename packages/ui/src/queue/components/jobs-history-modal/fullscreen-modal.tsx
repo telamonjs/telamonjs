@@ -28,7 +28,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { cn } from '../../../utils/cn'
-import { formatQueueName } from '../../lib/format'
+import { useQueueLabels } from '../labels-context'
 import { useLocale } from 'next-intl'
 import { useTelamonjsT } from '../../../i18n/use-t'
 import { useQueueReadOnly } from '../read-only-context'
@@ -90,6 +90,7 @@ export function FullscreenModal({
   onOffsetChange,
 }: FullscreenModalProps) {
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const readOnly = useQueueReadOnly()
   const format = useFormat()
   const locale = useLocale()
@@ -331,7 +332,7 @@ export function FullscreenModal({
                           </div>
                           <div className='min-w-0'>
                             <p className='font-medium text-sm truncate'>
-                              {formatQueueName(job.queueName)}
+                              {jobLabel(job.queueName)}
                             </p>
                             <div className='flex items-center gap-2 text-xs text-muted-foreground'>
                               <span className='font-mono'>

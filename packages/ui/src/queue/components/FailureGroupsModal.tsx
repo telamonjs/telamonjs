@@ -30,7 +30,7 @@ import {
 import { useBulkJobAction } from '../hooks/use-queue-actions'
 import { useEscapeToClose } from '../hooks/use-escape-to-close'
 import { useFailureGroups } from '../hooks/use-queue-health'
-import { formatQueueName } from '../lib/format'
+import { useQueueLabels } from './labels-context'
 import JobsListModal from './JobsListModal'
 
 export interface FailureGroupsModalProps {
@@ -41,6 +41,7 @@ export interface FailureGroupsModalProps {
 
 export default function FailureGroupsModal({ queueName, onClose }: FailureGroupsModalProps) {
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const readOnly = useQueueReadOnly()
   const intl = useFormatter()
   const { data, isLoading, isError, refetch } = useFailureGroups(queueName)
@@ -90,7 +91,7 @@ export default function FailureGroupsModal({ queueName, onClose }: FailureGroups
             <div>
               <h2 id='failure-groups-title' className='text-lg font-semibold'>
                 {t('queue.failureGroupsModal.title')}
-                <span className='text-muted-foreground font-normal'> - {formatQueueName(queueName)}</span>
+                <span className='text-muted-foreground font-normal'> - {jobLabel(queueName)}</span>
               </h2>
               <p className='text-sm text-muted-foreground'>
                 {data ? (
@@ -263,7 +264,7 @@ export default function FailureGroupsModal({ queueName, onClose }: FailureGroups
       <JobsListModal
         status={showJobs ? 'failed' : null}
         queueName={queueName}
-        queueDisplayName={formatQueueName(queueName)}
+        queueDisplayName={jobLabel(queueName)}
         manualRetry={data?.manualRetry}
         onClose={() => {
           setShowJobs(false)

@@ -25,7 +25,7 @@ import {
 import { useFormatter, useLocale } from 'next-intl'
 import { cn } from '../../utils/cn'
 import { useCopyToClipboard } from '../hooks'
-import { formatQueueName } from '../lib/format'
+import { useQueueLabels } from './labels-context'
 import { useTelamonjsT } from '../../i18n/use-t'
 import { useFormat } from '../../i18n/use-format'
 
@@ -63,6 +63,7 @@ export default function JobDetailModal({
   onPromote
 }: JobDetailModalProps) {
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const format = useFormat()
   const intlFormat = useFormatter()
   const locale = useLocale()
@@ -221,7 +222,7 @@ export default function JobDetailModal({
             <div>
               <h2 className="text-lg font-semibold">{config.label}</h2>
               <p className="text-sm text-muted-foreground">
-                {formatQueueName(job.queueName)}
+                {jobLabel(job.queueName)}
               </p>
             </div>
           </div>

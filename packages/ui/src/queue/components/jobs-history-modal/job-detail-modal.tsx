@@ -22,7 +22,7 @@ import {
   Trash2,
 } from 'lucide-react'
 import { cn } from '../../../utils/cn'
-import { formatQueueName } from '../../lib/format'
+import { useQueueLabels } from '../labels-context'
 import { useLocale } from 'next-intl'
 import { useTelamonjsT } from '../../../i18n/use-t'
 import { useQueueReadOnly } from '../read-only-context'
@@ -53,6 +53,7 @@ export function JobDetailModal({
   onCopy,
 }: JobDetailModalProps) {
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const readOnly = useQueueReadOnly()
   const format = useFormat()
   const locale = useLocale()
@@ -84,7 +85,7 @@ export function JobDetailModal({
                 {statusConfig[job.status as JobStatus]?.label}
               </h2>
               <p className='text-sm text-muted-foreground'>
-                {formatQueueName(job.queueName)}
+                {jobLabel(job.queueName)}
               </p>
             </div>
           </div>

@@ -47,6 +47,9 @@ import { QueueApiProvider } from '../../api/provider'
 import type { QueueConfigApiAdapter } from '../../api/types'
 import type { JobConfig } from '../../types'
 import ConfiguracaoTab from './ConfiguracaoTab'
+import { Zap } from 'lucide-react'
+import { QueueLabelsContext, type QueueLabels } from '../labels-context'
+import type { QueueModuleIcon } from '../module-icon'
 
 // ============================================================================
 // MOCK ADAPTER
@@ -279,5 +282,66 @@ describe('ConfiguracaoTab readOnly (PRD 068)', () => {
     expect(switchEl).toBeDisabled()
     await user.click(switchEl)
     expect(toggleJobConfig).not.toHaveBeenCalled()
+  })
+})
+
+// Issue #7 part 2: module/job labels, icon components, group order
+describe('ConfiguracaoTab labels (issue #7)', () => {
+  const coreJob: JobConfig = { ...importsJob, jobName: 'core_ping', module: 'core' }
+
+  function renderWithLabels(labels: QueueLabels, moduleIcons?: Record<string, QueueModuleIcon>) {
+    const adapter = makeMockAdapter({
+      getJobConfigs: vi.fn().mockResolvedValue([gatewayJob, coreJob, importsJob]),
+    })
+    const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, gcTime: 0 } } })
+    return render(
+      <QueryClientProvider client={queryClient}>
+        <QueueApiProvider adapter={adapter}>
+          <QueueLabelsContext.Provider value={labels}>
+            <ConfiguracaoTab moduleIcons={moduleIcons} />
+          </QueueLabelsContext.Provider>
+        </QueueApiProvider>
+      </QueryClientProvider>
+    )
+  }
+
+  const groupOrder = () =>
+    screen.getAllByTestId(/^module-toggle-/).map(b => b.dataset.testid?.replace('module-toggle-', ''))
+
+  it('renders moduleLabels as group titles and in the module bulk-action names', async () => {
+    renderWithLabels({ moduleLabels: { gateway: 'Gateway de comunicação' } })
+    expect(await screen.findByText('Gateway de comunicação')).not.toHaveClass('capitalize')
+    expect(screen.getByText('core')).toHaveClass('capitalize')
+    expect(
+      screen.getByLabelText('Desativar todos os jobs de Gateway de comunicação')
+    ).toBeInTheDocument()
+  })
+
+  it('orders groups like the Real-time tab: moduleLabels order, then alphabetically', async () => {
+    renderWithLabels({ moduleLabels: { imports: 'Imports' } })
+    await screen.findByText('Imports')
+    expect(groupOrder()).toEqual(['imports', 'core', 'gateway'])
+  })
+
+  it('uses jobLabel for job rows, keeping the description below', async () => {
+    const user = userEvent.setup()
+    renderWithLabels({ jobLabel: name => (name === 'gateway_process_data' ? 'Processar dados' : undefined) })
+    await user.click(await screen.findByText('gateway'))
+    expect(screen.getByText('Processar dados')).toBeInTheDocument()
+    expect(screen.getByText('Process incoming data')).toBeInTheDocument()
+  })
+
+  it('shows the job name below when the title already is the description', async () => {
+    const user = userEvent.setup()
+    renderWithLabels({ displayNames: { gateway_process_data: 'Process incoming data' } })
+    await user.click(await screen.findByText('gateway'))
+    expect(screen.getByText('Process incoming data')).toBeInTheDocument()
+    expect(screen.getByText('gateway_process_data')).toBeInTheDocument()
+  })
+
+  it('accepts an icon component as a module icon', async () => {
+    renderWithLabels({}, { gateway: Zap })
+    await screen.findByText('gateway')
+    expect(screen.getByTestId('module-toggle-gateway').querySelector('svg')).not.toBeNull()
   })
 })

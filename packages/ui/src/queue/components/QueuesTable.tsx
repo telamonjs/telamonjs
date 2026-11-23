@@ -31,7 +31,8 @@ import type { QueueHealth, QueueHealthStatus, QueueStats } from '../types'
 import DispatchJobModal from './DispatchJobModal'
 import JobsListModal from './JobsListModal'
 import FailureGroupsModal from './FailureGroupsModal'
-import { formatQueueName } from '../lib/format'
+import { useQueueLabels } from './labels-context'
+import { ModuleIcon, type QueueModuleIcon } from './module-icon'
 import { useQueueApi } from '../api/provider'
 import { useQueueReadOnly } from './read-only-context'
 import { useTelamonjsT } from '../../i18n/use-t'
@@ -57,8 +58,8 @@ interface QueuesTableProps {
   onAction?: (action: QueueAction) => Promise<void>
   onRefresh?: () => void
   className?: string
-  /** Custom module icons for visual differentiation */
-  moduleIcons?: Record<string, string>
+  /** Custom module icons (emoji, node or icon component) for visual differentiation */
+  moduleIcons?: Record<string, QueueModuleIcon>
 }
 
 export type QueueAction =
@@ -120,8 +121,12 @@ function relative(
 }
 
 /** Title, description and confirm label of each bulk action. */
-function confirmTexts(t: ReturnType<typeof useTelamonjsT>, { action, count }: PendingAction) {
-  const values = { name: formatQueueName(action.queueName), count, limit: ACTION_LIMIT }
+function confirmTexts(
+  t: ReturnType<typeof useTelamonjsT>,
+  jobLabel: (name: string) => string,
+  { action, count }: PendingAction
+) {
+  const values = { name: jobLabel(action.queueName), count, limit: ACTION_LIMIT }
   switch (action.type) {
     case 'retry-all':
       return {
@@ -150,7 +155,7 @@ function confirmTexts(t: ReturnType<typeof useTelamonjsT>, { action, count }: Pe
   }
 }
 
-const defaultModuleIcons: Record<string, string> = {
+const defaultModuleIcons: Record<string, QueueModuleIcon> = {
   gateway: '🔌',
   imports: '📥',
   roteamento: '🗺️',
@@ -177,6 +182,7 @@ export default React.memo(function QueuesTable({
   const api = useQueueApi()
   const hasFailureGroups = 'getFailureGroups' in api
   const icons = moduleIconsProp ?? defaultModuleIcons
+  const { jobLabel, moduleLabel, orderModules } = useQueueLabels()
   const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set())
   const [loadingAction, setLoadingAction] = useState<{
     queue: string
@@ -188,7 +194,7 @@ export default React.memo(function QueuesTable({
   const [failuresQueue, setFailuresQueue] = useState<string | null>(null)
 
   const groupedQueues = useMemo(() => {
-    return (queues || []).reduce(
+    const grouped = (queues || []).reduce(
       (acc, queue) => {
         const queueModule = queue.module || 'other'
         if (!acc[queueModule]) acc[queueModule] = []
@@ -197,7 +203,9 @@ export default React.memo(function QueuesTable({
       },
       {} as Record<string, QueueStats[]>
     )
-  }, [queues])
+    // Same group order as the Configuration tab
+    return orderModules(Object.keys(grouped)).map(m => [m, grouped[m]] as const)
+  }, [queues, orderModules])
 
   const toggleModule = (module: string) => {
     const newExpanded = new Set(expandedModules)
@@ -258,10 +266,11 @@ export default React.memo(function QueuesTable({
   return (
     <>
       <div className={cn('divide-y', className)}>
-        {Object.entries(groupedQueues).map(([module, moduleQueues]) => {
+        {groupedQueues.map(([module, moduleQueues]) => {
           const isExpanded = expandedModules.has(module)
           const stats = getModuleStats(moduleQueues)
           const moduleIcon = icons[module] || '📦'
+          const label = moduleLabel(module)
 
           return (
             <div key={module}>
@@ -284,9 +293,11 @@ export default React.memo(function QueuesTable({
                       title={t(`queue.queuesTable.${statusMeta[stats.worst].labelKey}`)}
                     />
                   )}
-                  <span className="text-sm">{moduleIcon}</span>
-                  <span className="font-medium text-sm capitalize">
-                    {module}
+                  <span className="text-sm">
+                    <ModuleIcon icon={moduleIcon} className="h-3.5 w-3.5" />
+                  </span>
+                  <span className={cn('font-medium text-sm', !label && 'capitalize')}>
+                    {label ?? module}
                   </span>
                   <span className="text-xs text-muted-foreground">
                     · {moduleQueues.length}
@@ -322,8 +333,9 @@ export default React.memo(function QueuesTable({
 
               {/* Queue Items */}
               {isExpanded && (
-                <div className="border-t bg-muted/10">
-                  <table className="w-full text-sm">
+                <div className="border-t bg-muted/10 overflow-x-auto">
+                  {/* Fixed layout + fixed column widths: every group's columns line up */}
+                  <table className={cn('w-full table-fixed text-sm', health ? 'min-w-[44rem]' : 'min-w-[36rem]')}>
                     <thead>
                       <tr className="border-b text-muted-foreground text-xs">
                         <th className="text-left px-4 py-1.5 font-medium">
@@ -331,7 +343,7 @@ export default React.memo(function QueuesTable({
                         </th>
                         {health && (
                           <>
-                            <th className="text-left px-2 py-1.5 font-medium whitespace-nowrap">
+                            <th className="text-left px-2 py-1.5 font-medium whitespace-nowrap w-24">
                               {t('queue.queuesTable.columnLastSuccess')}
                             </th>
                             <th className="text-center px-2 py-1.5 font-medium w-12">
@@ -339,22 +351,22 @@ export default React.memo(function QueuesTable({
                             </th>
                           </>
                         )}
-                        <th className="text-center px-2 py-1.5 font-medium w-16">
+                        <th className="text-center px-2 py-1.5 font-medium w-14">
                           {t('queue.queuesTable.columnWaiting')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-16">
+                        <th className="text-center px-2 py-1.5 font-medium w-14">
                           {t('queue.queuesTable.columnActive')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-16">
+                        <th className="text-center px-2 py-1.5 font-medium w-14">
                           {t('queue.queuesTable.columnCompleted')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-16">
+                        <th className="text-center px-2 py-1.5 font-medium w-14">
                           {t('queue.queuesTable.columnFailed')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-16">
+                        <th className="text-center px-2 py-1.5 font-medium w-14">
                           {t('queue.queuesTable.columnDelayed')}
                         </th>
-                        <th className="text-right px-3 py-1.5 font-medium w-28">
+                        <th className="text-right px-3 py-1.5 font-medium w-40">
                           {t('queue.queuesTable.columnActions')}
                         </th>
                       </tr>
@@ -375,17 +387,17 @@ export default React.memo(function QueuesTable({
                             <button
                               onClick={() => setSelectedQueue(queue)}
                               data-testid={`queue-detail-${queue.name}`}
-                              className="text-left group"
+                              className="text-left group max-w-full"
                             >
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 min-w-0">
                                 {h && (
                                   <span
                                     data-testid={`queue-status-${queue.name}`}
                                     className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)}
                                   />
                                 )}
-                                <span className="font-medium text-xs group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                  {formatQueueName(queue.name)}
+                                <span className="font-medium text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
+                                  {jobLabel(queue.name, queue.displayName)}
                                 </span>
                                 {queue.dispatchable && (
                                   <span title={t('queue.queuesTable.executableManually')}>
@@ -442,7 +454,7 @@ export default React.memo(function QueuesTable({
                                 setJobsFilter({
                                   status: 'waiting',
                                   queueName: queue.name,
-                                  displayName: formatQueueName(queue.name)
+                                  displayName: jobLabel(queue.name, queue.displayName)
                                 })
                               }
                               disabled={queue.waiting === 0}
@@ -464,7 +476,7 @@ export default React.memo(function QueuesTable({
                                 setJobsFilter({
                                   status: 'active',
                                   queueName: queue.name,
-                                  displayName: formatQueueName(queue.name)
+                                  displayName: jobLabel(queue.name, queue.displayName)
                                 })
                               }
                               disabled={queue.active === 0}
@@ -486,7 +498,7 @@ export default React.memo(function QueuesTable({
                                 setJobsFilter({
                                   status: 'completed',
                                   queueName: queue.name,
-                                  displayName: formatQueueName(queue.name)
+                                  displayName: jobLabel(queue.name, queue.displayName)
                                 })
                               }
                               disabled={queue.completed === 0}
@@ -512,7 +524,7 @@ export default React.memo(function QueuesTable({
                                 setJobsFilter({
                                   status: 'failed',
                                   queueName: queue.name,
-                                  displayName: formatQueueName(queue.name)
+                                  displayName: jobLabel(queue.name, queue.displayName)
                                 })
                               }}
                               disabled={queue.failed === 0}
@@ -548,7 +560,7 @@ export default React.memo(function QueuesTable({
                                 setJobsFilter({
                                   status: 'delayed',
                                   queueName: queue.name,
-                                  displayName: formatQueueName(queue.name)
+                                  displayName: jobLabel(queue.name, queue.displayName)
                                 })
                               }
                               disabled={queue.delayed === 0}
@@ -751,9 +763,9 @@ export default React.memo(function QueuesTable({
           {confirmAction && (
             <>
               <AlertDialogHeader>
-                <AlertDialogTitle>{confirmTexts(t, confirmAction).title}</AlertDialogTitle>
+                <AlertDialogTitle>{confirmTexts(t, jobLabel, confirmAction).title}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  {confirmTexts(t, confirmAction).description}
+                  {confirmTexts(t, jobLabel, confirmAction).description}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -766,7 +778,7 @@ export default React.memo(function QueuesTable({
                       : 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
                   }
                 >
-                  {confirmTexts(t, confirmAction).confirm}
+                  {confirmTexts(t, jobLabel, confirmAction).confirm}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </>

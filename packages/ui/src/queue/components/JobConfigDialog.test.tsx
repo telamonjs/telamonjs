@@ -1,4 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
+
+// The real Badge: the variant check below reads its classes
+vi.unmock('../../ui/badge')
 import { render, screen, fireEvent } from '@testing-library/react'
 import JobConfigDialog from './JobConfigDialog'
 import type { JobConfig } from '../types'
@@ -25,5 +28,13 @@ describe('JobConfigDialog (consumer QA 7.3.1)', () => {
     expect(screen.getByText('Expressão cron')).toBeInTheDocument()
     expect(screen.getByText('órfão')).toBeInTheDocument()
     expect(screen.queryByText('orphan')).not.toBeInTheDocument()
+  })
+
+  // Issue #7: the theme's `secondary` badge is blue; inactive must look neutral
+  it('renders the inactive badge neutral, not with the blue secondary variant', () => {
+    render(<JobConfigDialog job={{ ...job, enabled: false }} onClose={vi.fn()} onUpdate={vi.fn()} />)
+    const badge = screen.getByText('Inativo')
+    expect(badge).toHaveClass('bg-muted', 'text-muted-foreground')
+    expect(badge).not.toHaveClass('bg-secondary')
   })
 })
