@@ -168,6 +168,28 @@ types):
 - The SSE endpoint requires the `jobs.execute` permission in the reference
   backend — the connection is rejected otherwise.
 
+### Protecting the routes
+
+`QueueHttpModule.forRoot()` (from `@telamonjs/queue/nestjs`) declares no
+permission on its routes unless you ask it to. With the usual global auth and
+permissions guards, that means every logged-in user can dispatch jobs, remove
+them and edit job configs. Set both options:
+
+```ts
+QueueHttpModule.forRoot({
+  depsFactory: () => ({ queues, jobConfigStore, contracts, eventBroadcaster }),
+  getActor: req => req.user.email,
+  readPermission: 'queue.read',   // every GET route, the SSE stream included
+  writePermission: 'queue.write', // every POST/PATCH route
+})
+```
+
+Each option takes what `@Permissions(...)` from
+[`@telamonjs/permissions`](/docs/packages/permissions) takes: a string, or a
+list of clauses (OR between entries, an inner array is AND). They are written as
+the metadata that package's guard reads, so that guard (global, or in `guards`)
+is what enforces them.
+
 ## Real-time updates (SSE)
 
 With `enableSSE` (the default), the dashboard connects to the adapter's

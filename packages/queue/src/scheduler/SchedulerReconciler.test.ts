@@ -283,6 +283,30 @@ describe('SchedulerReconciler', () => {
       await expect(reconciler.reconcile()).resolves.not.toThrow()
       expect(logger.error).toHaveBeenCalled()
     })
+
+    it('warns (with job name and message) when reading one job from Redis fails, and keeps going', async () => {
+      const { registry, queues } = makeFakeRegistry()
+      const jobs = jobsMap(['simple-job', SimpleJob as unknown as JobConstructor])
+      const { store } = makeFakeStore([])
+      const logger = {
+        debug() {},
+        info() {},
+        warn: vi.fn(),
+        error: vi.fn(),
+      } as unknown as ILogger
+      const queue = makeFakeQueue()
+      queue.getRepeatableJobs.mockRejectedValueOnce(new Error('WRONGTYPE'))
+      queues.set('simple-job', queue)
+
+      const reconciler = new SchedulerReconciler(registry, store, jobs, { logger })
+      await expect(reconciler.reconcile()).resolves.not.toThrow()
+
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('SchedulerReconciler'),
+        expect.objectContaining({ jobName: 'simple-job', error: 'WRONGTYPE' })
+      )
+      expect(logger.error).not.toHaveBeenCalled()
+    })
   })
 
   describe('start()/stop() lifecycle', () => {

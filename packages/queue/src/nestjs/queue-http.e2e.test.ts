@@ -7,6 +7,7 @@ import type { CanActivate, ExecutionContext, INestApplication } from '@nestjs/co
 import { Test } from '@nestjs/testing'
 import request from 'supertest'
 import type { Request } from 'express'
+import { createPermissionsGuard } from '@telamonjs/permissions/nest'
 import { QueueHttpModule } from './queue-http.module.js'
 import {
   makeDeps,
@@ -138,5 +139,86 @@ describe('QueueHttpModule e2e (Nest DI/guards/params binding)', () => {
       })
       req.end()
     })
+  })
+})
+
+/**
+ * `readPermission`/`writePermission` against the real `@telamonjs/permissions`
+ * guard — the point of the options is that this guard enforces them.
+ */
+@Injectable()
+class HeaderUserGuard implements CanActivate {
+  canActivate(context: ExecutionContext): boolean {
+    const req = context.switchToHttp().getRequest<Request & { user?: unknown }>()
+    const header = req.headers['x-permissions']
+    req.user = {
+      id: 'u1',
+      permissions: typeof header === 'string' && header ? header.split(',') : [],
+    }
+    return true
+  }
+}
+
+describe('QueueHttpModule e2e (readPermission / writePermission)', () => {
+  let app: INestApplication
+
+  beforeAll(async () => {
+    const queue = makeQueue({ add: vi.fn().mockResolvedValue(makeBullJob({ id: 'd-1' })) })
+    const queues = makeQueueSource(
+      { 'send-email': queue },
+      { 'send-email': { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, paused: 0 } }
+    )
+    const contracts = makeContracts([
+      { name: 'send-email', module: 'notifications', description: 'Send email', dispatchable: true },
+    ])
+    const deps = makeDeps({ queues, contracts })
+
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        QueueHttpModule.forRoot({
+          depsFactory: () => deps,
+          getActor: () => 'qa',
+          guards: [HeaderUserGuard, createPermissionsGuard()],
+          readPermission: 'queue.read',
+          writePermission: 'queue.write',
+        }),
+      ],
+    }).compile()
+
+    app = moduleRef.createNestApplication()
+    await app.init()
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  const dispatch = (permissions: string) =>
+    request(app.getHttpServer())
+      .post('/queue/dispatch')
+      .set('x-permissions', permissions)
+      .send({ queueName: 'send-email', data: {} })
+
+  it('lets a reader read but not write', async () => {
+    await request(app.getHttpServer())
+      .get('/queue/stats')
+      .set('x-permissions', 'queue.read')
+      .expect(200)
+    await dispatch('queue.read').expect(403)
+  })
+
+  it('lets a writer write but not read (the two permissions are independent)', async () => {
+    const res = await dispatch('queue.write')
+    expect(res.status).toBe(201)
+    await request(app.getHttpServer())
+      .get('/queue/stats')
+      .set('x-permissions', 'queue.write')
+      .expect(403)
+  })
+
+  it('rejects a logged-in user with neither permission on every kind of route', async () => {
+    await request(app.getHttpServer()).get('/queue/config').expect(403)
+    await request(app.getHttpServer()).patch('/queue/config/send-email').send({}).expect(403)
+    await request(app.getHttpServer()).post('/queue/jobs/remove').send({}).expect(403)
   })
 })

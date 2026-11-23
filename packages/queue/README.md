@@ -138,11 +138,27 @@ const queues = queueSourceFromRegistry(queueRegistry, () => contracts.getAll().m
 The name list also gates lookups: a queue outside it resolves to `undefined`
 and the handlers answer 404, so a request-supplied name can't create a queue in Redis.
 
-**Guards and permission metadata.** `QueueHttpModule` declares no route
-metadata. A guard that reads it through a decorator (`@Permissions(...)` +
-`Reflector`) finds none and may let the request through, so use a guard that
-checks the permission directly. The SSE route sets `X-Accel-Buffering: no`,
-which only disables buffering on nginx; other reverse proxies need their own config.
+**Set `readPermission` and `writePermission`.** Without them the routes
+declare no permission metadata, so a guard that reads it (`@telamonjs/permissions`'
+`createPermissionsGuard()`, global or in `guards`) lets every authenticated user
+call every route, including dispatch, remove and job config edits:
+
+```ts
+QueueHttpModule.forRoot({
+  depsFactory: () => ({ queues, jobConfigStore: store, contracts, eventBroadcaster }),
+  getActor: req => (req as AuthedRequest).user.email,
+  readPermission: 'queue.read',   // every GET route, SSE stream included
+  writePermission: 'queue.write', // every POST/PATCH route
+})
+```
+
+Each option takes what `@Permissions(...)` takes: a string, or a list of clauses
+(OR between entries, an inner array is AND). They are metadata only: the
+permissions guard enforces them, so it must run on these routes. Omit both and
+the behaviour is unchanged.
+
+The SSE route sets `X-Accel-Buffering: no`, which only disables buffering on
+nginx; other reverse proxies need their own config.
 
 Job events (`jobStarted`, `jobCompleted`, `jobFailed`) are published over Redis
 pub/sub by `JobEventPublisher`; consume them through the SSE stream in your web app.

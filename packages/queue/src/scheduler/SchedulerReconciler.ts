@@ -209,9 +209,13 @@ export class SchedulerReconciler {
           .filter(j => j.name === jobName)
           .map(j => j.key)
         if (keys.length > 0) result.set(jobName, keys)
-      } catch {
-        // Ignore per-job errors - one bad queue shouldn't stop the reconcile
-        // pass from evaluating the rest.
+      } catch (err) {
+        // One bad queue shouldn't stop the reconcile pass from evaluating
+        // the rest - but it must not be invisible either.
+        this.logger.warn('SchedulerReconciler failed to read repeatable jobs', {
+          jobName,
+          error: err instanceof Error ? err.message : String(err),
+        })
       }
     }
 
