@@ -1,4 +1,5 @@
 import { encode, decode } from '@auth/core/jwt'
+import { stampSessionTimes } from './session'
 import type { AuthUser, MfJwtPayload, RoleInfo } from './types'
 
 export interface TokenConfig {
@@ -35,13 +36,18 @@ export function resolveTokenConfig(
 /**
  * Issues the session JWE in the NextAuth v5 format (for server-side login on
  * the API, impersonation, etc.). Same secret+salt as the Next app.
+ *
+ * A payload without `authTime` is a new session: it gets `authTime`/`accessAt`
+ * stamped (on a copy), so `sessionState` does not read it as issued at 0.
  */
 export async function encodeSessionToken(
   payload: MfJwtPayload,
   config?: TokenConfig
 ): Promise<string> {
   const { secret, salt, maxAge } = resolveTokenConfig(config)
-  return encode({ token: payload, secret, salt, maxAge })
+  const token =
+    payload.authTime == null ? stampSessionTimes({ ...payload }) : payload
+  return encode({ token, secret, salt, maxAge })
 }
 
 /** Decodes the session JWE. Returns null for an invalid/expired token. */

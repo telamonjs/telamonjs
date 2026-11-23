@@ -17,7 +17,7 @@ pnpm add @telamonjs/auth @auth/core
 
 | Peer dependency | Range |
 | --- | --- |
-| `@auth/core` | `^0.34.0` |
+| `@auth/core` | `>=0.34.0 <1` |
 | `@nestjs/common` (optional) | `^10.0.0 \|\| ^11.0.0` |
 | `@nestjs/core` (optional) | `^10.0.0 \|\| ^11.0.0` |
 <!-- /generated:peers -->
@@ -95,9 +95,20 @@ sessionState(payload, { revokedAt: user.sessionsRevokedAt, accessChangedAt: user
 // → 'revoked' | 'stale' | 'fresh'
 ```
 
-On the Nest side, subclass the guard and override `resolveUser` (its return
-becomes `request.user`, `null` is a 401); `allowQueryToken` turns `?token=` off
-outside SSE routes. Full recipe on the docs site.
+`stampSessionTimes(token, now?)` sets both claims to the same instant (it
+mutates and returns `token`). `encodeSessionToken` stamps a payload that has no
+`authTime` on its own, so tokens issued on the API (server-side login,
+impersonation) are compared correctly too.
+
+> **Refreshing a `stale` token:** recompute roles/permissions and set only
+> `token.accessAt = Date.now()`. Never call `stampSessionTimes` again there: it
+> also moves `authTime` forward, which would resurrect a revoked session.
+
+On the Nest side, subclass the guard (`createJwtAuthGuard()` returns a subclass
+of `JwtAuthGuardBase`, exported for apps built with `declaration: true`) and
+override `resolveUser` (its return becomes `request.user`, `null` is a 401);
+`allowQueryToken` turns `?token=` off outside SSE routes. Full recipe on the
+docs site.
 
 ## Core (isomorphic)
 

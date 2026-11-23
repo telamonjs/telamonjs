@@ -19495,6 +19495,8 @@ building blocks; the app keeps the state:
 - The `jwt` callback stamps two claims at login: `authTime` (login time) and
   `accessAt` (when roles/permissions were computed), both epoch ms. `iat` can't
   serve: NextAuth re-signs the token on every renewal, so `iat` keeps moving.
+  `encodeSessionToken` stamps both on a payload without `authTime`, so tokens
+  issued on the API (server-side login, impersonation) carry them too.
 - `sessionState(token, { revokedAt, accessChangedAt })` compares them with two
   per-user marks and returns `'revoked'` (revocation newer than the login),
   `'stale'` (access changed after the claims were computed) or `'fresh'`.

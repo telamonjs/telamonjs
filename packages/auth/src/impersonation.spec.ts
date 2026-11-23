@@ -4,6 +4,7 @@ import {
   DEFAULT_IMPERSONATION_MAX_AGE,
 } from './impersonation'
 import { decodeSessionToken, payloadToAuthUser } from './jwt'
+import { sessionState } from './session'
 
 const SECRET = 'test-secret-with-at-least-32-characters!!'
 
@@ -99,6 +100,18 @@ describe('createImpersonationToken', () => {
       { secret: SECRET }
     )
     expect((curto!.exp as number) - (curto!.iat as number)).toBe(120)
+  })
+
+  it('is fresh against marks set before it was issued', async () => {
+    const marks = { revokedAt: Date.now() - 1, accessChangedAt: Date.now() - 1 }
+    const payload = await decodeSessionToken(
+      await createImpersonationToken(
+        { target, actor, logId: 'l' },
+        { secret: SECRET }
+      ),
+      { secret: SECRET }
+    )
+    expect(sessionState(payload!, marks)).toBe('fresh')
   })
 
   it('expired token does not decode (time-based revocation)', async () => {

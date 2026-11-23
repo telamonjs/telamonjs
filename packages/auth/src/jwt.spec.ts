@@ -50,6 +50,31 @@ describe('encode/decodeSessionToken', () => {
     expect(await decodeSessionToken(token, { secret: SECRET })).toBeNull()
   })
 
+  it('stamps authTime/accessAt when the payload has none, without mutating it', async () => {
+    const before = Date.now()
+    const payload = { ...basePayload }
+    const decoded = await decodeSessionToken(
+      await encodeSessionToken(payload, { secret: SECRET }),
+      { secret: SECRET }
+    )
+    expect(decoded?.authTime).toBeGreaterThanOrEqual(before)
+    expect(decoded?.accessAt).toBe(decoded?.authTime)
+    expect(payload).not.toHaveProperty('authTime')
+    expect(payload).not.toHaveProperty('accessAt')
+  })
+
+  it('keeps authTime/accessAt already in the payload', async () => {
+    const decoded = await decodeSessionToken(
+      await encodeSessionToken(
+        { ...basePayload, authTime: 1000, accessAt: 2000 },
+        { secret: SECRET }
+      ),
+      { secret: SECRET }
+    )
+    expect(decoded?.authTime).toBe(1000)
+    expect(decoded?.accessAt).toBe(2000)
+  })
+
   it('invalid token → null (does not throw)', async () => {
     expect(await decodeSessionToken('lixo', { secret: SECRET })).toBeNull()
   })

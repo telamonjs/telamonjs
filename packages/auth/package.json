@@ -73,7 +73,7 @@
   "author": "Marcos Tullyo (https://github.com/mtullyoc)",
   "license": "MIT",
   "peerDependencies": {
-    "@auth/core": "^0.34.0",
+    "@auth/core": ">=0.34.0 <1",
     "@nestjs/common": "^10.0.0 || ^11.0.0",
     "@nestjs/core": "^10.0.0 || ^11.0.0"
   },
