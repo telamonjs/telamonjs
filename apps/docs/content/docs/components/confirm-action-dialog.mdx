@@ -1,0 +1,83 @@
+---
+title: ConfirmActionDialog
+description: Confirmation dialog for an async action, with optional inputs, a pending state and inline errors
+---
+
+The dialog behind `confirmDialog` on the row and menu actions of a `ListPage`, available for any
+other button. It stays open while the action runs, closes when it succeeds and shows the error
+when it fails, so the user can retry without retyping what they filled in.
+
+```tsx
+import { Button, ConfirmActionDialog } from '@telamonjs/ui'
+
+<ConfirmActionDialog
+  title='Reject request?'
+  description='The requester is notified with your reason.'
+  confirmText='Reject'
+  variant='destructive'
+  inputs={[{ name: 'reason', label: 'Reason', type: 'textarea', required: true }]}
+  onConfirm={({ reason }) => requestsApi.reject(request.id, reason)}
+>
+  <Button variant='destructive'>Reject</Button>
+</ConfirmActionDialog>
+```
+
+---
+
+## Behavior
+
+- **Pending**: while the promise returned by `onConfirm` is pending, both buttons are disabled,
+  the confirm button shows a spinner and the dialog cannot be dismissed.
+- **Success**: when `onConfirm` resolves, the dialog closes.
+- **Failure**: when it rejects, the dialog stays open and shows the error's `message` (or a
+  localized fallback). Resolve `false` instead to stay open without a message — for an error
+  you already reported, such as in a toast.
+- **Inputs**: `text`, `textarea` and `select` (`options` are strings, value = label). A
+  `required` input left empty (or blank) blocks the confirm and is marked invalid. Values
+  reach `onConfirm` keyed by `name`; every opening starts again from `defaultValue`.
+
+Pass `open` / `onOpenChange` to control it (for example from a menu item), or a `children`
+trigger and nothing else to let it own its state.
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `onConfirm` | `(values: Record<string, string>) => unknown` | required |
+| `open` / `onOpenChange` | `boolean` / `(open: boolean) => void` | uncontrolled |
+| `children` | `ReactNode` — the element that opens it | — |
+| `title` | `I18nText` | localized "Confirm action" |
+| `description` | `I18nText` | — |
+| `confirmText` / `cancelText` | `I18nText` | localized "Confirm" / "Cancel" |
+| `variant` | `'default' \| 'destructive'` | `'default'` |
+| `inputs` | `ConfirmDialogInput[]` (`name`, `label`, `type`, `required?`, `options?`, `defaultValue?`) | — |
+
+## In row actions
+
+`ActionConfig.confirmDialog` renders this dialog with the same options. Its `inputs` reach the
+action as a second argument, only when inputs are declared (handlers written for the row alone
+keep working):
+
+```tsx
+actionsConfig: {
+  custom: [
+    {
+      id: 'reject',
+      label: 'Reject',
+      handler: (row, ctx) => requestsApi.reject(row.id, ctx?.inputs.reason ?? ''),
+      confirmDialog: {
+        title: row => `Reject ${row.number}?`,
+        variant: 'destructive',
+        inputs: [{ name: 'reason', label: 'Reason', type: 'textarea', required: true }],
+      },
+    },
+  ],
+},
+```
+
+A failing row action shows its error toast as before and keeps the dialog open for a retry.
+
+## Related
+
+- [ListPage Pattern — Row Actions](/docs/patterns/listpage-pattern#row-actions)
+- [Dialogs](/docs/patterns/dialogs)

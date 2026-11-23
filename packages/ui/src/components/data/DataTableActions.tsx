@@ -15,17 +15,7 @@ import React, { useCallback, useMemo, useState } from 'react'
 // IMPORTANT: import directly from the source modules, NOT from the root
 // barrel ('../../'). Importing the barrel pulls the ENTIRE library (including
 // eager tiptap/recharts modules) into the ListPage/DataTable runtime graph.
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '../../ui/alert-dialog'
+import { ConfirmActionDialog } from '../dialog/confirm-action-dialog'
 import { Badge } from '../../ui/badge'
 import { Button } from '../../ui/button'
 import {
@@ -39,7 +29,7 @@ import { toast } from 'sonner'
 import { wasToasted } from '../../utils/toasted-error'
 import {
   ActionConfig,
-  ConfirmDialogConfig,
+  ActionContext,
   DataTableActionsConfig,
   TooltipConfig,
 } from '../../types/actions'
@@ -93,7 +83,7 @@ async function runAction<TData>({
   router,
   onActionComplete,
   onLoadingChange,
-  onSettled,
+  ctx,
   text,
   fallbackError,
 }: {
@@ -107,11 +97,15 @@ async function runAction<TData>({
     result?: unknown
   ) => void | Promise<void>
   onLoadingChange?: (loading: boolean) => void
-  onSettled?: () => void
+  /** Values of `confirmDialog.inputs` — passed on only when it declares inputs */
+  ctx?: ActionContext
   text: ReturnType<typeof useText>
   fallbackError: string
-}): Promise<void> {
+}): Promise<boolean> {
   onLoadingChange?.(true)
+  // Handlers written before `inputs` keep being called with the row alone
+  const args = (arg: unknown): [TData, ActionContext?] =>
+    ctx ? [arg as TData, ctx] : [arg as TData]
 
   try {
     let result: unknown
@@ -121,13 +115,13 @@ async function runAction<TData>({
       const href =
         typeof action.href === 'function' ? action.href(row) : action.href
       router.push(href)
-      return
+      return true
     } else if (action.onClick) {
-      result = await action.onClick(row)
+      result = await action.onClick(...args(row))
     } else if (action.handler) {
       // Pass row.id (string) for standard delete actions, full row for custom handlers
       const handlerArg = actionId === 'delete' ? row.id : row
-      result = await action.handler(handlerArg as TData)
+      result = await action.handler(...args(handlerArg))
     }
 
     // Handle success
@@ -148,6 +142,7 @@ async function runAction<TData>({
     if (onActionComplete) {
       await onActionComplete(actionId, row, result)
     }
+    return true
   } catch (error) {
     // Callbacks expect Error; cast (not narrow) to keep passing the original
     // thrown value through unchanged.
@@ -167,87 +162,61 @@ async function runAction<TData>({
 
     // useCrudMutations already toasted it (standard delete) — unless a custom errorMessage is set
     if (action.errorMessage || !wasToasted(err)) toast.error(text(errorMessage))
+    return false
   } finally {
     onLoadingChange?.(false)
-    onSettled?.()
   }
 }
 
 /**
- * Confirmation dialog shared by the inline ActionButton (as its trigger) and
- * the overflow menu (controlled, rendered outside the menu content so it
- * survives the menu closing).
+ * Confirmation of a row action: maps `action.confirmDialog` (row functions
+ * resolved) onto the public ConfirmActionDialog. Shared by the inline
+ * ActionButton (as its trigger) and the overflow menu (controlled, rendered
+ * outside the menu content so it survives the menu closing).
+ *
+ * `onRun` resolves false on failure (already toasted): the dialog then stays
+ * open so the user can retry or cancel without retyping the inputs.
  */
-function ConfirmActionDialog<TData>({
+function RowConfirmDialog<TData>({
   action,
   row,
   open,
   onOpenChange,
-  onConfirm,
+  onRun,
   children,
 }: {
   action: ActionConfig<TData>
   row: TData & { id: string | number | BigInt }
   open: boolean
   onOpenChange: (open: boolean) => void
-  onConfirm: () => void
+  onRun: (ctx?: ActionContext) => Promise<boolean>
   children?: React.ReactNode
 }) {
   const t = useTelamonjsT()
-  const text = useText()
-
-  const confirmConfig: ConfirmDialogConfig<TData> =
-    action.confirmDialog === true
-      ? {
-          title: t('dialog.confirmActionTitle'),
-          description: t('dialog.confirmActionDescription'),
-          confirmText: t('common.confirm'),
-          cancelText: t('common.cancel'),
-          variant: 'default',
-        }
-      : action.confirmDialog || {}
+  const config =
+    typeof action.confirmDialog === 'object' ? action.confirmDialog : undefined
+  const inputs = config?.inputs?.length ? config.inputs : undefined
+  const ofRow = <V,>(v: V | ((r: TData) => V)): V =>
+    typeof v === 'function' ? (v as (r: TData) => V)(row) : v
 
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      {children && <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>}
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {text(
-              typeof confirmConfig.title === 'function'
-                ? confirmConfig.title(row)
-                : confirmConfig.title
-            )}
-          </AlertDialogTitle>
-          {confirmConfig.description && (
-            <AlertDialogDescription>
-              {text(
-                typeof confirmConfig.description === 'function'
-                  ? confirmConfig.description(row)
-                  : confirmConfig.description
-              )}
-            </AlertDialogDescription>
-          )}
-        </AlertDialogHeader>
-        {/* TODO: Add support for confirmConfig.inputs if needed */}
-        <AlertDialogFooter>
-          <AlertDialogCancel data-testid='modal-cancel'>
-            {text(confirmConfig.cancelText) || t('common.cancel')}
-          </AlertDialogCancel>
-          <AlertDialogAction
-            data-testid='modal-confirm'
-            className={
-              confirmConfig.variant === 'destructive'
-                ? 'bg-red-500 text-white hover:bg-red-600'
-                : ''
-            }
-            onClick={onConfirm}
-          >
-            {text(confirmConfig.confirmText) || t('common.confirm')}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmActionDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={ofRow(config?.title)}
+      description={
+        config
+          ? ofRow(config.description)
+          : t('dialog.confirmActionDescription')
+      }
+      confirmText={config?.confirmText}
+      cancelText={config?.cancelText}
+      variant={config?.variant}
+      inputs={inputs}
+      onConfirm={values => onRun(inputs ? { inputs: values } : undefined)}
+    >
+      {children}
+    </ConfirmActionDialog>
   )
 }
 
@@ -342,7 +311,7 @@ function ActionButton<TData>({
 
   // Handle action execution (delegates to the shared runAction helper)
   const executeAction = useCallback(
-    () =>
+    (ctx?: ActionContext) =>
       runAction({
         action,
         row,
@@ -350,7 +319,7 @@ function ActionButton<TData>({
         router,
         onActionComplete,
         onLoadingChange: setIsLoading,
-        onSettled: () => setConfirmDialogOpen(false),
+        ctx,
         text,
         fallbackError: t('toast.unknownError'),
       }),
@@ -415,15 +384,15 @@ function ActionButton<TData>({
   // Wrap with confirmation dialog if needed
   if (action.confirmDialog) {
     return withDisabledHint(
-      <ConfirmActionDialog
+      <RowConfirmDialog
         action={action}
         row={row}
         open={confirmDialogOpen}
         onOpenChange={setConfirmDialogOpen}
-        onConfirm={executeAction}
+        onRun={executeAction}
       >
         {button}
-      </ConfirmActionDialog>
+      </RowConfirmDialog>
     )
   }
 
@@ -594,13 +563,14 @@ export function DataTableActions<TData>({
   } | null>(null)
 
   const runMenuAction = useCallback(
-    (actionId: string, action: ActionConfig<TData>) =>
-      void runAction({
+    (actionId: string, action: ActionConfig<TData>, ctx?: ActionContext) =>
+      runAction({
         action,
         row: row.original,
         actionId,
         router,
         onActionComplete: handleActionComplete,
+        ctx,
         text,
         fallbackError: t('toast.unknownError'),
       }),
@@ -717,7 +687,7 @@ export function DataTableActions<TData>({
                       if (actionConfig.confirmDialog) {
                         setPendingConfirm({ id, config: actionConfig })
                       } else {
-                        runMenuAction(id, actionConfig)
+                        void runMenuAction(id, actionConfig)
                       }
                     }}
                   >
@@ -746,15 +716,15 @@ export function DataTableActions<TData>({
       )}
 
       {pendingConfirm && (
-        <ConfirmActionDialog
+        <RowConfirmDialog
           action={pendingConfirm.config}
           row={row.original}
           open
           onOpenChange={open => {
             if (!open) setPendingConfirm(null)
           }}
-          onConfirm={() =>
-            runMenuAction(pendingConfirm.id, pendingConfirm.config)
+          onRun={ctx =>
+            runMenuAction(pendingConfirm.id, pendingConfirm.config, ctx)
           }
         />
       )}

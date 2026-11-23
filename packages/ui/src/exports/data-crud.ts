@@ -38,6 +38,8 @@ export type {
   StandardActionsConfig,
   ActionsDisplayConfig,
   ConfirmDialogConfig,
+  ConfirmDialogInput,
+  ActionContext,
   TooltipConfig,
   ButtonVariant,
   BadgeVariant,

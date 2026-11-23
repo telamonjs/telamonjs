@@ -18,6 +18,8 @@ export { CreateDialog } from '../components/dialog/create-dialog'
 export type { CreateDialogProps } from '../components/dialog/create-dialog'
 export { ViewPortalDialog } from '../components/dialog/view-portal-dialog'
 export { CrudViewDialog } from '../components/dialog/crud-view-dialog'
+export { ConfirmActionDialog } from '../components/dialog/confirm-action-dialog'
+export type { ConfirmActionDialogProps } from '../components/dialog/confirm-action-dialog'
 export type { CrudViewDialogProps } from '../components/dialog/crud-view-dialog'
 export type {
   ViewPortalDialogProps,

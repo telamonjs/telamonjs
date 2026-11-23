@@ -92,6 +92,7 @@ Runtime:
 - `CommandList`
 - `CommandPalette`
 - `ComparisonTable`
+- `ConfirmActionDialog`
 - `ContentTabs`
 - `CreateDialog`
 - `CreateForm`
@@ -359,6 +360,7 @@ Types:
 
 - `ActionButton` (type)
 - `ActionConfig` (type)
+- `ActionContext` (type)
 - `ActionsDisplayConfig` (type)
 - `ActiveFilterChip` (type)
 - `AdminFormField` (type)
@@ -403,7 +405,9 @@ Types:
 - `ComparisonColumn` (type)
 - `ComparisonRow` (type)
 - `ComparisonTableProps` (type)
+- `ConfirmActionDialogProps` (type)
 - `ConfirmDialogConfig` (type)
+- `ConfirmDialogInput` (type)
 - `ContentPortalProps` (type)
 - `ContentTabsProps` (type)
 - `ContentTabsVariant` (type)
@@ -417,6 +421,7 @@ Types:
 - `CrudEditFn` (type)
 - `CrudListingFn` (type)
 - `CrudLoadFn` (type)
+- `CrudPermissions` (type)
 - `CrudScope` (type)
 - `CrudViewDialogProps` (type)
 - `CustomAction` (type)

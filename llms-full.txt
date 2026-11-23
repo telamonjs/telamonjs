@@ -977,16 +977,60 @@ reads it all from a single prop.
 | --- | --- | --- | --- |
 | `module` | `ModuleMetadata` | Yes | Identification: `name`, `title`, `description`, `route` (all required) |
 | `list` | `ListConfig<T>` | Yes | `title`, `description` (required), columns, search placeholder, sorting, page size, toolbar |
-| `form` | `FormConfig` | Yes | Form `sections` + Zod `validation`, shared by the create and edit dialogs |
+| `form` | `FormConfig` | No | Form `sections` + Zod `validation` (optional), shared by the create and edit dialogs. Omit it for a read-only list |
 | `query` | `QueryConfig<T>` | Yes | React Query: `queryKey`, `queryFn`, `staleTime?`, `refetchInterval?` |
 | `mutations` | `MutationsConfig<T, TFormData>` | Yes | `create`/`update`/`delete` (each a `MutationConfig`) with declarative `invalidates`, plus `getForEdit`/`getForView` |
 | `actionsConfig` | `DataTableActionsConfig<T> \| false` | No | Row action buttons: `standard: { view, edit, delete }` + custom actions |
 | `dialogs` | `DialogsConfig<T>` | No | View/edit/create dialogs: rich headers, the view body, deep links via `urlParam` |
 | `pages` | `PagesConfig<T>` | No | Dedicated pages instead of dialogs (see [Standalone form pages](/docs/patterns/edit-page)) |
+| `permissions` | `CrudPermissions` | No | Who may create, edit, delete and view (see [Permissions](#permissions)) |
 
 `create`, `update` and `delete` are each optional: an omitted one resolves
 `{ success: false }` instead of throwing, so a read-only module needs no stub
 mutations.
+
+A read-only list also needs no form: without `form`, `ListPage` offers no "New"
+button and no create or edit dialog, even if `dialogs.create` / `dialogs.edit`
+are set. The view dialog keeps working.
+
+### Permissions
+
+`permissions` names the permission each operation needs (a string, or an array
+meaning any of them). An operation without one stays allowed:
+
+```tsx
+import { createPermissionChecker } from '@telamonjs/permissions'
+import type { AuthUser } from '@telamonjs/auth'
+
+const checker = createPermissionChecker({ bypassRoles: ['superadmin'] })
+
+export function usuariosConfigFor(user: AuthUser): CrudConfig<Usuario, UsuarioFormData> {
+  return {
+    ...usuariosConfig,
+    permissions: {
+      can: perm => checker.can(user, perm),
+      create: 'usuarios.create',
+      edit: 'usuarios.update',
+      delete: 'usuarios.delete',
+      view: 'usuarios.read',
+    },
+  }
+}
+```
+
+| Operation | Gates |
+| --- | --- |
+| `create` | the "New" button and the create dialog (`?create=1` included) |
+| `edit` | the row edit, the view dialog's Edit, the edit dialog and `dialogs.view.portal.onSaveSection` |
+| `delete` | the row delete and the view dialog's Delete |
+| `view` | the row view and the view dialog (row click included) |
+
+The checker is `can` when set, so bypass roles and wildcards work as your
+checker defines them. Without `can`, the names are looked up in
+`actionsConfig.userPermissions`; with neither, everything is allowed. The row
+view/edit/delete inherit the operation's permission unless their own
+`ActionConfig` declares a `permission`, and `permissions.can` also decides the
+`permission` of custom actions (it becomes `actionsConfig.can`).
 
 ---
 
@@ -1324,6 +1368,7 @@ All exported from `@telamonjs/ui`:
 - `ModuleMetadata`, `ListConfig<T>`, `FormConfig`
 - `QueryConfig<T>`, `MutationConfig<TInput, TOutput>`, `MutationsConfig<T, TFormData>`
 - `DialogConfig<T>`, `DialogsConfig<T>`, `PagesConfig<T>`
+- `CrudPermissions` — the `permissions` key
 - `CrudConfigWithAnyForm<T>` — alias for `CrudConfig<T, any>` when a context must accept any config (`TFormData` is invariant)
 
 ---
@@ -2386,6 +2431,16 @@ hide the actions column.
 `ActionConfig` also takes `href`, `onClick`, `enabled`, `tooltip`, `variant`, `permission`,
 `successMessage` and `errorMessage`.
 
+`confirmDialog.inputs` asks for values before confirming (a reason, a note); they reach the
+handler as `(row, { inputs })`. The dialog stays open while the action runs and after a
+failure — see [ConfirmActionDialog](/docs/components/confirm-action-dialog), which is also
+available for your own buttons.
+
+`permission` is checked against `actionsConfig.userPermissions` by exact name. Set
+`actionsConfig.can` (or `config.permissions.can`, see
+[Permissions](/docs/getting-started/crud-config#permissions)) to decide it with your own
+checker instead, so a bypass role with no listed permissions still sees the actions.
+
 ---
 
 ## Bulk Actions
@@ -2976,7 +3031,8 @@ Errors: Zod errors from `form.validation` render per field before submit; a reje
 - The footer is automatic and follows the row actions. **Edit** appears when `dialogs.edit`
   exists and `actionsConfig.standard.edit` is not `false`, and hands over to the edit dialog.
   **Delete** appears when `actionsConfig.standard.delete` is set and reuses its label, icon and
-  confirmation. Both honor the action's `permission` against `userPermissions` and its
+  confirmation. Both honor the action's `permission` (checked with `actionsConfig.can` or
+  `config.permissions`, else against `userPermissions`) and its
   `visible`/`enabled` for the record — evaluated against the list row, or against the fetched
   record when the dialog opens from a deep link to a row outside the loaded page. A user who
   cannot edit or delete a row from the table does not get the button in the footer either.
@@ -3085,6 +3141,8 @@ dialogs: {
 - `portal` and `renderContent` are mutually exclusive; with both, `portal` wins and a dev
   warning is logged.
 - The portal has **no footer**: editing is per section, deleting lives in the row actions.
+- With `config.permissions.edit` set, only users granted it get the section pencils
+  (`onSaveSection` is dropped otherwise) — in `ListPage` and in `CrudViewDialog`.
 - Leaving a dirty section (switching, back to the grid, closing) asks to discard first.
 - Sections also accept `description` (shown on the grid card), `group` and `padded`
   (default `true`; pass `false` for lists and full-bleed content). `defaultSection` skips the
@@ -8993,6 +9051,93 @@ export function UserList({ users }) {
 ---
 
 **Status:** ✅ Stable
+
+---
+
+# ConfirmActionDialog
+
+> Confirmation dialog for an async action, with optional inputs, a pending state and inline errors
+
+Source: apps/docs/content/docs/components/confirm-action-dialog.mdx
+
+The dialog behind `confirmDialog` on the row and menu actions of a `ListPage`, available for any
+other button. It stays open while the action runs, closes when it succeeds and shows the error
+when it fails, so the user can retry without retyping what they filled in.
+
+```tsx
+import { Button, ConfirmActionDialog } from '@telamonjs/ui'
+
+<ConfirmActionDialog
+  title='Reject request?'
+  description='The requester is notified with your reason.'
+  confirmText='Reject'
+  variant='destructive'
+  inputs={[{ name: 'reason', label: 'Reason', type: 'textarea', required: true }]}
+  onConfirm={({ reason }) => requestsApi.reject(request.id, reason)}
+>
+  <Button variant='destructive'>Reject</Button>
+</ConfirmActionDialog>
+```
+
+---
+
+## Behavior
+
+- **Pending**: while the promise returned by `onConfirm` is pending, both buttons are disabled,
+  the confirm button shows a spinner and the dialog cannot be dismissed.
+- **Success**: when `onConfirm` resolves, the dialog closes.
+- **Failure**: when it rejects, the dialog stays open and shows the error's `message` (or a
+  localized fallback). Resolve `false` instead to stay open without a message — for an error
+  you already reported, such as in a toast.
+- **Inputs**: `text`, `textarea` and `select` (`options` are strings, value = label). A
+  `required` input left empty (or blank) blocks the confirm and is marked invalid. Values
+  reach `onConfirm` keyed by `name`; every opening starts again from `defaultValue`.
+
+Pass `open` / `onOpenChange` to control it (for example from a menu item), or a `children`
+trigger and nothing else to let it own its state.
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `onConfirm` | `(values: Record<string, string>) => unknown` | required |
+| `open` / `onOpenChange` | `boolean` / `(open: boolean) => void` | uncontrolled |
+| `children` | `ReactNode` — the element that opens it | — |
+| `title` | `I18nText` | localized "Confirm action" |
+| `description` | `I18nText` | — |
+| `confirmText` / `cancelText` | `I18nText` | localized "Confirm" / "Cancel" |
+| `variant` | `'default' \| 'destructive'` | `'default'` |
+| `inputs` | `ConfirmDialogInput[]` (`name`, `label`, `type`, `required?`, `options?`, `defaultValue?`) | — |
+
+## In row actions
+
+`ActionConfig.confirmDialog` renders this dialog with the same options. Its `inputs` reach the
+action as a second argument, only when inputs are declared (handlers written for the row alone
+keep working):
+
+```tsx
+actionsConfig: {
+  custom: [
+    {
+      id: 'reject',
+      label: 'Reject',
+      handler: (row, ctx) => requestsApi.reject(row.id, ctx?.inputs.reason ?? ''),
+      confirmDialog: {
+        title: row => `Reject ${row.number}?`,
+        variant: 'destructive',
+        inputs: [{ name: 'reason', label: 'Reason', type: 'textarea', required: true }],
+      },
+    },
+  ],
+},
+```
+
+A failing row action shows its error toast as before and keeps the dialog open for a retry.
+
+## Related
+
+- [ListPage Pattern — Row Actions](/docs/patterns/listpage-pattern#row-actions)
+- [Dialogs](/docs/patterns/dialogs)
 
 ---
 
@@ -20031,6 +20176,10 @@ export async function deleteCliente(id: string) {
 All are pure and null-safe (`user` may be `null`/`undefined` → `false`). The
 `UserWithPermissions` type is structural on purpose: the `AuthUser` from the
 auth package satisfies it by shape, with no dependency between the packages.
+
+A `CrudConfig` takes the same checker: `permissions: { can: p => can(session?.user, p), create:
+'clientes.create', … }` gates the list's "New" button, row actions and dialogs (see
+[Permissions](/docs/getting-started/crud-config#permissions)).
 
 </Step>
 </Steps>

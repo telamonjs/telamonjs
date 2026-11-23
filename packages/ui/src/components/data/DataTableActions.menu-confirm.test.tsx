@@ -20,6 +20,10 @@ vi.unmock('../../ui/button')
 vi.unmock('../../ui/badge')
 vi.unmock('../../ui/alert-dialog')
 vi.unmock('@radix-ui/react-slot')
+vi.unmock('../../ui/input')
+vi.unmock('../../ui/textarea')
+vi.unmock('../../ui/label')
+vi.unmock('@radix-ui/react-label')
 
 // dropdown-menu is swapped by a resolve.alias in vitest.config.ts; point the
 // specifier back at the real module through an absolute path.
@@ -139,6 +143,71 @@ describe('DataTableActions overflow menu confirmation', () => {
 
       await user.click(screen.getByTestId('modal-confirm'))
       await waitFor(() => expect(handler).toHaveBeenCalledWith('1'))
+    })
+  })
+
+  describe('Confirm inputs', () => {
+    it('renders confirmDialog.inputs and passes their values as the second argument', async () => {
+      const handler = vi.fn().mockResolvedValue({ success: true })
+      const { user, openMenu } = renderMenu({
+        custom: [
+          {
+            id: 'reject',
+            label: 'Reject',
+            position: 'dropdown',
+            handler,
+            confirmDialog: {
+              title: 'Reject?',
+              inputs: [
+                { name: 'reason', label: 'Reason', type: 'textarea', required: true },
+              ],
+            },
+          },
+        ],
+      })
+
+      await openMenu()
+      await user.click(await screen.findByRole('menuitem', { name: 'Reject' }))
+      await user.click(await screen.findByTestId('modal-confirm'))
+      // required and empty: nothing runs
+      expect(handler).not.toHaveBeenCalled()
+
+      await user.type(screen.getByRole('textbox', { name: /Reason/ }), 'spam')
+      await user.click(screen.getByTestId('modal-confirm'))
+
+      await waitFor(() =>
+        expect(handler).toHaveBeenCalledWith(item, { inputs: { reason: 'spam' } })
+      )
+      await waitFor(() =>
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      )
+    })
+
+    it('a failing action keeps the dialog open (inputs kept) for a retry', async () => {
+      const handler = vi.fn().mockRejectedValue(new Error('boom'))
+      const { user, openMenu } = renderMenu({
+        custom: [
+          {
+            id: 'reject',
+            label: 'Reject',
+            position: 'dropdown',
+            handler,
+            confirmDialog: {
+              inputs: [{ name: 'reason', label: 'Reason', type: 'text' }],
+            },
+          },
+        ],
+      })
+
+      await openMenu()
+      await user.click(await screen.findByRole('menuitem', { name: 'Reject' }))
+      await user.type(await screen.findByRole('textbox', { name: 'Reason' }), 'x')
+      await user.click(screen.getByTestId('modal-confirm'))
+
+      await waitFor(() => expect(handler).toHaveBeenCalled())
+      await waitFor(() => expect(screen.getByTestId('modal-confirm')).toBeEnabled())
+      expect(screen.getByRole('alertdialog')).toBeInTheDocument()
+      expect(screen.getByRole('textbox', { name: 'Reason' })).toHaveValue('x')
     })
   })
 

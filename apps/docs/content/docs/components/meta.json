@@ -18,6 +18,7 @@
     "data-table",
     "report-table",
     "mobile-card",
+    "confirm-action-dialog",
     "---Standalone Pages---",
     "create-page",
     "edit-page",

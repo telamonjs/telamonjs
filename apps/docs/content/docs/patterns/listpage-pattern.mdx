@@ -298,6 +298,11 @@ hide the actions column.
 `ActionConfig` also takes `href`, `onClick`, `enabled`, `tooltip`, `variant`, `permission`,
 `successMessage` and `errorMessage`.
 
+`confirmDialog.inputs` asks for values before confirming (a reason, a note); they reach the
+handler as `(row, { inputs })`. The dialog stays open while the action runs and after a
+failure — see [ConfirmActionDialog](/docs/components/confirm-action-dialog), which is also
+available for your own buttons.
+
 `permission` is checked against `actionsConfig.userPermissions` by exact name. Set
 `actionsConfig.can` (or `config.permissions.can`, see
 [Permissions](/docs/getting-started/crud-config#permissions)) to decide it with your own

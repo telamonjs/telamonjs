@@ -40,15 +40,36 @@ export interface ConfirmDialogConfig<TData = any> {
   cancelText?: I18nText
   /** Dialog variant */
   variant?: 'default' | 'destructive'
-  /** Optional input fields in the dialog */
-  inputs?: Array<{
-    name: string
-    label: string
-    type: 'text' | 'textarea' | 'select'
-    required?: boolean
-    options?: string[] // For select type
-    defaultValue?: string
-  }>
+  /**
+   * Fields asked before confirming (a reason, a note…). Their values reach the
+   * action as the second argument of `handler`/`onClick`: `(row, { inputs })`.
+   */
+  inputs?: ConfirmDialogInput[]
+}
+
+/**
+ * A field of a confirmation dialog (`ConfirmDialogConfig.inputs`,
+ * `ConfirmActionDialog`'s `inputs`)
+ */
+export interface ConfirmDialogInput {
+  /** Key of the value in `inputs` */
+  name: string
+  label: I18nText
+  type: 'text' | 'textarea' | 'select'
+  /** Confirming is blocked while it is empty */
+  required?: boolean
+  /** Choices of a `select` (value = label) */
+  options?: string[]
+  defaultValue?: string
+}
+
+/**
+ * Second argument of an action's `handler`/`onClick`, passed when its
+ * `confirmDialog` declares `inputs`
+ */
+export interface ActionContext {
+  /** Values of `confirmDialog.inputs`, by `name` */
+  inputs: Record<string, string>
 }
 
 /**
@@ -91,10 +112,10 @@ export interface ActionConfig<TData = any> {
   // Behavior (mutually exclusive - use only one)
   /** Navigation URL */
   href?: string | ((row: TData) => string)
-  /** Direct click handler */
-  onClick?: (row: TData) => void | Promise<void>
-  /** Async handler with result */
-  handler?: (row: TData) => Promise<unknown>
+  /** Direct click handler (`ctx` only when `confirmDialog.inputs` is set) */
+  onClick?: (row: TData, ctx?: ActionContext) => void | Promise<void>
+  /** Async handler with result (`ctx` only when `confirmDialog.inputs` is set) */
+  handler?: (row: TData, ctx?: ActionContext) => Promise<unknown>
 
   // Confirmation dialog
   /** Confirmation dialog configuration */
