@@ -86,7 +86,7 @@
     }
   },
   "devDependencies": {
-    "@auth/core": "^0.34.3",
+    "@auth/core": "^0.41.3",
     "@nestjs/common": "^11.0.0",
     "@nestjs/core": "^11.0.0",
     "@types/node": "catalog:",
