@@ -191,7 +191,7 @@ import { Permissions, RequirePermission } from '@telamonjs/permissions/nest'
 
 `RequirePermission` is an alias of `Permissions` for projects that use that
 naming convention. Routes without the decorator are **not** restricted by the
-guard.
+guard, unless it is created with `failClosed: true` (see below).
 
 ### `createPermissionsGuard`
 
@@ -199,8 +199,8 @@ guard.
 import { createPermissionsGuard } from '@telamonjs/permissions/nest'
 
 export const PermissionsGuard = createPermissionsGuard()
-// options: createPermissionsGuard({ bypassRoles: ['superadmin', 'admin'] })
-// default bypassRoles: ['superadmin']
+// options: createPermissionsGuard({ bypassRoles: ['superadmin', 'admin'], failClosed: true })
+// defaults: bypassRoles ['superadmin'], failClosed false
 ```
 
 ```ts
@@ -213,9 +213,31 @@ getAdminData() {}
 The guard runs **after** the auth guard from
 [@telamonjs/auth](/docs/packages/auth): it reads
 `request.user.permissions` (the array materialized in the JWT), applies the
-clause semantics, and throws `ForbiddenException` listing the missing
-permissions. Bypass roles short-circuit to allow. It can also be registered
-globally via `APP_GUARD` after the auth guard.
+clause semantics, and throws `ForbiddenException` (403) with the generic message
+`Insufficient permissions` — the required codes are never sent to the client. A
+request without `request.user` gets `UnauthorizedException` (401). Bypass roles
+short-circuit to allow. It can also be registered globally via `APP_GUARD` after
+the auth guard.
+
+### `failClosed` — deny by default
+
+With `failClosed: true`, a route that carries no `@Permissions` is denied (403)
+unless it is marked `@Public()`. That turns a forgotten decorator into a denial
+instead of an open endpoint — useful with a global `APP_GUARD`.
+
+```ts
+import { createPermissionsGuard, Public } from '@telamonjs/permissions/nest'
+
+export const PermissionsGuard = createPermissionsGuard({ failClosed: true })
+
+@Public()
+@Get('health')
+health() {}
+```
+
+`Public()` uses the metadata key `'isPublic'`, the same as `Public()` from
+`@telamonjs/auth/nest`, so either decorator marks a route public for both
+guards. Default: `false` — routes without the decorator stay open.
 
 ---
 
@@ -245,7 +267,7 @@ The token predates the grant — permissions are materialized at login. Have the
 user log out/in, or implement token refresh. Verify by logging
 `session.user.permissions`.
 
-### Guard throws "User not authenticated"
+### Guard throws "User not authenticated" (401)
 
 `PermissionsGuard` ran without `JwtAuthGuard` before it — nothing attached
 `request.user`. Check guard order.

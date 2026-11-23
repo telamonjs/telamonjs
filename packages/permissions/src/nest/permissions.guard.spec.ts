@@ -1,7 +1,13 @@
 import { describe, it, expect } from 'vitest'
-import { ForbiddenException, type ExecutionContext } from '@nestjs/common'
+import {
+  ForbiddenException,
+  UnauthorizedException,
+  type ExecutionContext
+} from '@nestjs/common'
 import type { Reflector } from '@nestjs/core'
 import { createPermissionsGuard } from './permissions.guard'
+import { Reflector as RealReflector } from '@nestjs/core'
+import { IS_PUBLIC_KEY, PERMISSIONS_KEY, Public } from './permissions.decorator'
 import type { PermissionClause, UserWithPermissions } from '../types'
 
 function ctx(user?: UserWithPermissions): ExecutionContext {
@@ -14,11 +20,16 @@ function ctx(user?: UserWithPermissions): ExecutionContext {
 
 function guardWith(
   clauses: PermissionClause[] | undefined,
-  options?: { bypassRoles?: readonly string[] }
+  options?: { bypassRoles?: readonly string[]; failClosed?: boolean },
+  isPublic?: boolean
 ) {
   const Guard = createPermissionsGuard(options)
+  const metadata: Record<string, unknown> = {
+    [PERMISSIONS_KEY]: clauses,
+    [IS_PUBLIC_KEY]: isPublic
+  }
   const reflector = {
-    getAllAndOverride: () => clauses
+    getAllAndOverride: (key: string) => metadata[key]
   } as unknown as Reflector
   return new Guard(reflector)
 }
@@ -63,18 +74,46 @@ describe('createPermissionsGuard', () => {
     expect(guardWith(['processos.read']).canActivate(ctx(gestor))).toBe(true)
   })
 
-  it('denies (403) when the permission is missing, with the canonical message format', () => {
+  it('denies (403) with a generic message that does not leak the required codes', () => {
     expect(() =>
       guardWith(['usuarios.write']).canActivate(ctx(semPermissao))
-    ).toThrowError(
-      new ForbiddenException('Missing required permissions: usuarios.write')
+    ).toThrowError(new ForbiddenException('Insufficient permissions'))
+  })
+
+  it('denies (401) when there is no user on the request', () => {
+    expect(() => guardWith(['usuarios.write']).canActivate(ctx(undefined))).toThrow(
+      UnauthorizedException
     )
   })
 
-  it('denies (403) when there is no user on the request', () => {
-    expect(() => guardWith(['usuarios.write']).canActivate(ctx(undefined))).toThrow(
-      ForbiddenException
-    )
+  describe('failClosed', () => {
+    it('denies (403) a route without @Permissions', () => {
+      expect(() =>
+        guardWith(undefined, { failClosed: true }).canActivate(ctx(gestor))
+      ).toThrow(ForbiddenException)
+      expect(() =>
+        guardWith([], { failClosed: true }).canActivate(ctx(gestor))
+      ).toThrow(ForbiddenException)
+    })
+
+    it('allows a route without @Permissions when it is marked public', () => {
+      expect(
+        guardWith(undefined, { failClosed: true }, true).canActivate(ctx())
+      ).toBe(true)
+    })
+
+    it('still checks @Permissions normally', () => {
+      const g = guardWith(['processos.read'], { failClosed: true })
+      expect(g.canActivate(ctx(gestor))).toBe(true)
+      expect(() => g.canActivate(ctx(semPermissao))).toThrow(ForbiddenException)
+    })
+
+    it('Public() uses the same metadata key as @telamonjs/auth Public()', () => {
+      expect(IS_PUBLIC_KEY).toBe('isPublic')
+      @Public()
+      class Controller {}
+      expect(new RealReflector().get(IS_PUBLIC_KEY, Controller)).toBe(true)
+    })
   })
 
   // OR semantics between string clauses (dominant pattern in consumers)

@@ -1,7 +1,9 @@
 export {
   Permissions,
   RequirePermission,
-  PERMISSIONS_KEY
+  PERMISSIONS_KEY,
+  Public,
+  IS_PUBLIC_KEY
 } from './permissions.decorator'
 export {
   createPermissionsGuard,

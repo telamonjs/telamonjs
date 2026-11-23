@@ -58,6 +58,22 @@ getAdminData() {}
 ```
 
 The guard delegates to the same checker, so client and server checks can't drift.
+A request with no `request.user` gets a 401; a user without the permission gets a
+403 with the generic message `Insufficient permissions` (the required codes are
+never sent to the client).
+
+By default a route without `@Permissions` is open. Opt into deny-by-default with
+`failClosed`; then only routes marked `@Public()` skip the decorator:
+
+```ts
+import { createPermissionsGuard, Public } from '@telamonjs/permissions/nest'
+
+export const PermissionsGuard = createPermissionsGuard({ failClosed: true })
+
+@Public()          // same metadata key as Public() from @telamonjs/auth/nest
+@Get('health')
+health() {}
+```
 
 ## Role helpers
 

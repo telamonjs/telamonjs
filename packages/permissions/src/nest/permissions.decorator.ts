@@ -23,3 +23,12 @@ export const Permissions = (...clauses: PermissionClause[]) =>
 
 /** Alias (projects that use the @RequirePermission convention) */
 export const RequirePermission = Permissions
+
+/**
+ * Same key as `@telamonjs/auth/nest`'s `IS_PUBLIC_KEY`, so either package's
+ * `Public()` marks a route public for both guards (no dependency between them).
+ */
+export const IS_PUBLIC_KEY = 'isPublic'
+
+/** Marks a route/controller public — lets it through a `failClosed` guard. */
+export const Public = () => SetMetadata(IS_PUBLIC_KEY, true)

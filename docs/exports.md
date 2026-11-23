@@ -928,8 +928,10 @@ Types:
 
 Runtime:
 
+- `IS_PUBLIC_KEY`
 - `PERMISSIONS_KEY`
 - `Permissions`
+- `Public`
 - `RequirePermission`
 - `createPermissionsGuard`
 

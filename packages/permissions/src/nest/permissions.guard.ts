@@ -1,6 +1,7 @@
 import {
   Injectable,
   ForbiddenException,
+  UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
   type Type
@@ -8,11 +9,17 @@ import {
 import { Reflector } from '@nestjs/core'
 import { createPermissionChecker } from '../checker'
 import type { PermissionClause, UserWithPermissions } from '../types'
-import { PERMISSIONS_KEY } from './permissions.decorator'
+import { IS_PUBLIC_KEY, PERMISSIONS_KEY } from './permissions.decorator'
 
 export interface PermissionsGuardOptions {
   /** Roles with full bypass. Default: ['superadmin'] */
   bypassRoles?: readonly string[]
+  /**
+   * Deny routes that carry no `@Permissions` unless they are marked `@Public()`
+   * (this package's or `@telamonjs/auth/nest`'s — same metadata key).
+   * Default: false (a route without the decorator is open).
+   */
+  failClosed?: boolean
 }
 
 /**
@@ -40,18 +47,25 @@ export function createPermissionsGuard(
     }
 
     canActivate(context: ExecutionContext): boolean {
+      const targets = [context.getHandler(), context.getClass()]
       const clauses = this.reflector.getAllAndOverride<
         PermissionClause[] | undefined
-      >(PERMISSIONS_KEY, [context.getHandler(), context.getClass()])
+      >(PERMISSIONS_KEY, targets)
 
-      // No decorator = open route
-      if (!clauses || clauses.length === 0) return true
+      // No decorator = open route, unless failClosed (then only @Public() passes)
+      if (!clauses || clauses.length === 0) {
+        if (!options?.failClosed) return true
+        if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, targets)) {
+          return true
+        }
+        throw new ForbiddenException('Insufficient permissions')
+      }
 
       const request = context.switchToHttp().getRequest()
       const user: UserWithPermissions | undefined = request.user
 
       if (!user) {
-        throw new ForbiddenException('User not authenticated')
+        throw new UnauthorizedException('User not authenticated')
       }
 
       if (checker.hasBypassRole(user)) return true
@@ -64,11 +78,8 @@ export function createPermissionsGuard(
           : checker.can(user, clause)
       )
 
-      if (!allowed) {
-        throw new ForbiddenException(
-          `Missing required permissions: ${clauses.flat().join(', ')}`
-        )
-      }
+      // Generic on purpose: the required codes are not the client's business
+      if (!allowed) throw new ForbiddenException('Insufficient permissions')
 
       return true
     }
