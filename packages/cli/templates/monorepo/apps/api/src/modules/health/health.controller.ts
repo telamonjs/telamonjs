@@ -1,6 +1,6 @@
 import { Controller, Get } from '@nestjs/common'
 import { PrismaService } from '../../common/prisma/prisma.service'
-import { Public } from '../../common/decorators/public.decorator'
+import { Public } from '@telamonjs/auth/nest'
 
 @Controller('health')
 export class HealthController {

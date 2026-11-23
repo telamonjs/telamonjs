@@ -29,7 +29,9 @@ using it.
   instantiate `PrismaClient` anywhere else.
 - **`packages/shared` never imports `next` or `next-auth`.** The NextAuth
   config (`apps/web/src/auth.ts`) stays in the web app; the API decodes the
-  session cookie itself with `@auth/core/jwt` (see `apps/api/CLAUDE.md`).
+  session cookie itself. Both sides share the `@telamonjs/auth` contract:
+  `createAuthCallbacks()` in the web app, `createJwtAuthGuard()` in the API
+  (see `apps/api/CLAUDE.md`).
 
 ## Commands
 

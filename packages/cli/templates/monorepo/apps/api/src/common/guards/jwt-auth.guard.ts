@@ -1,101 +1,43 @@
-import { Injectable, CanActivate, ExecutionContext, UnauthorizedException, InternalServerErrorException } from '@nestjs/common'
+import { Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { Request } from 'express'
-import { decode } from '@auth/core/jwt'
+import { payloadToAuthUser, type AuthUser } from '@telamonjs/auth'
+import { createJwtAuthGuard, type MfJwtPayload } from '@telamonjs/auth/nest'
 import { PrismaService } from '../prisma/prisma.service'
-import { IS_PUBLIC_KEY } from '../decorators/public.decorator'
+
+export type { AuthUser }
 
 /**
- * Authenticated user, derived from the NextAuth session JWT. Mirrors the
- * `session` callback in apps/web/src/auth.ts.
- */
-export interface AuthUser {
-  id: string
-  email: string
-  role: 'ADMIN' | 'USER'
-}
-
-/**
- * JwtAuthGuard — global (APP_GUARD). Decodes the NextAuth v5 session cookie
- * (JWE) with the same NEXTAUTH_SECRET; the `salt` is the cookie name itself
- * (`__Secure-` prefix under HTTPS). Also accepts `Authorization: Bearer`.
- * Routes marked with @Public() (health) skip the check.
+ * JwtAuthGuard — global (APP_GUARD), built by @telamonjs/auth. Decodes the
+ * NextAuth v5 session token issued by apps/web (`Authorization: Bearer`,
+ * `?token=` for SSE, then the `authjs.session-token` / `__Secure-` cookies)
+ * with the same NEXTAUTH_SECRET. Routes marked with @Public() (health) skip it.
+ *
+ * `resolveUser` runs once the token is decoded: a deactivated or deleted user
+ * can't stay "logged in" just because the token hasn't expired yet, and the
+ * role comes from the database, so a demotion applies on the next request —
+ * one query per request, by primary key. To also revoke sessions, see
+ * "Session freshness & revocation" in the @telamonjs/auth docs.
  */
 @Injectable()
-export class JwtAuthGuard implements CanActivate {
+export class JwtAuthGuard extends createJwtAuthGuard() {
   constructor(
-    private readonly prisma: PrismaService,
-    private readonly reflector: Reflector
-  ) {}
-
-  async canActivate(context: ExecutionContext): Promise<boolean> {
-    const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
-      context.getHandler(),
-      context.getClass(),
-    ])
-    if (isPublic) return true
-
-    const request = context.switchToHttp().getRequest<Request>()
-
-    const secret = process.env.NEXTAUTH_SECRET
-    if (!secret) {
-      throw new InternalServerErrorException('NEXTAUTH_SECRET não configurado')
-    }
-
-    const { token, salt } = this.extractSessionToken(request)
-    if (!token) {
-      throw new UnauthorizedException('Token de sessão ausente')
-    }
-
-    try {
-      const payload = await decode({ token, secret, salt })
-      if (!payload?.id) {
-        throw new UnauthorizedException('Token inválido')
-      }
-
-      // A deactivated user can't stay "logged in" just because the JWT
-      // hasn't expired yet — one query per request (by PK, cheap enough).
-      const usuario = await this.prisma.client.user.findUnique({
-        where: { id: payload.id as string },
-        select: { ativo: true, email: true, role: true },
-      })
-      if (!usuario || !usuario.ativo) {
-        throw new UnauthorizedException('Usuário inativo')
-      }
-
-      const user: AuthUser = {
-        id: payload.id as string,
-        email: usuario.email,
-        role: usuario.role,
-      }
-      ;(request as Request & { user: AuthUser }).user = user
-      return true
-    } catch (err) {
-      if (err instanceof UnauthorizedException) throw err
-      throw new UnauthorizedException('Token inválido ou expirado')
-    }
+    reflector: Reflector,
+    private readonly prisma: PrismaService
+  ) {
+    super(reflector)
   }
 
-  /**
-   * Priority: Authorization Bearer (default salt) -> `__Secure-authjs.session-token`
-   * cookie (HTTPS/Traefik) -> `authjs.session-token`.
-   */
-  private extractSessionToken(request: Request): { token?: string; salt: string } {
-    const defaultSalt = 'authjs.session-token'
+  protected override async resolveUser(payload: MfJwtPayload): Promise<AuthUser | null> {
+    const usuario = await this.prisma.client.user.findUnique({
+      where: { id: payload.id },
+      select: { ativo: true, email: true, role: true },
+    })
+    if (!usuario || !usuario.ativo) return null
 
-    const authHeader = request.headers['authorization']
-    if (authHeader?.startsWith('Bearer ')) {
-      return { token: authHeader.substring(7), salt: defaultSalt }
+    return {
+      ...payloadToAuthUser(payload),
+      email: usuario.email,
+      role: { id: usuario.role, name: usuario.role, code: usuario.role },
     }
-
-    const cookies = (request as Request & { cookies?: Record<string, string> }).cookies
-    if (cookies?.['__Secure-authjs.session-token']) {
-      return { token: cookies['__Secure-authjs.session-token'], salt: '__Secure-authjs.session-token' }
-    }
-    if (cookies?.['authjs.session-token']) {
-      return { token: cookies['authjs.session-token'], salt: defaultSalt }
-    }
-
-    return { salt: defaultSalt }
   }
 }

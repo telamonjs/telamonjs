@@ -1,10 +1,7 @@
-import { ExecutionContext, UnauthorizedException, InternalServerErrorException } from '@nestjs/common'
+import { ExecutionContext, UnauthorizedException } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { decode } from '@auth/core/jwt'
+import { encodeSessionToken, type AuthUser } from '@telamonjs/auth'
 import { JwtAuthGuard } from './jwt-auth.guard'
-
-jest.mock('@auth/core/jwt')
-const mockedDecode = decode as jest.MockedFunction<typeof decode>
 
 interface FakeReq {
   headers: Record<string, string | undefined>
@@ -22,78 +19,84 @@ function createContext(req: FakeReq, isPublic = false): { ctx: ExecutionContext;
   return { ctx, reflector }
 }
 
-const PAYLOAD = { id: 'u1' }
+// What apps/web's authorize() + createAuthCallbacks() put in the token.
+const CLAIMS = {
+  id: 'u1',
+  email: 'old@a.com',
+  role: { id: 'USER', name: 'USER', code: 'USER' },
+  permissions: [],
+}
 
 describe('JwtAuthGuard', () => {
   const prisma = { client: { user: { findUnique: jest.fn() } } }
-  let guard: JwtAuthGuard
+  const guardFor = (req: FakeReq, isPublic = false) => {
+    const { ctx, reflector } = createContext(req, isPublic)
+    return { ctx, guard: new JwtAuthGuard(reflector, prisma as never) }
+  }
 
   beforeEach(() => {
+    delete process.env.AUTH_SECRET
     process.env.NEXTAUTH_SECRET = 'test-secret'
-    mockedDecode.mockResolvedValue(PAYLOAD as never)
-    prisma.client.user.findUnique.mockResolvedValue({ ativo: true, email: 'a@a.com', role: 'USER' })
-    guard = new JwtAuthGuard(prisma as never, {} as Reflector)
+    prisma.client.user.findUnique.mockReset()
+    prisma.client.user.findUnique.mockResolvedValue({ ativo: true, email: 'a@a.com', role: 'ADMIN' })
   })
 
   it('lets a @Public() route through without checking the token', async () => {
-    const { ctx, reflector } = createContext({ headers: {} }, true)
-    guard = new JwtAuthGuard(prisma as never, reflector)
+    const { ctx, guard } = guardFor({ headers: {} }, true)
     await expect(guard.canActivate(ctx)).resolves.toBe(true)
-    expect(mockedDecode).not.toHaveBeenCalled()
+    expect(prisma.client.user.findUnique).not.toHaveBeenCalled()
   })
 
-  it('500 when NEXTAUTH_SECRET is missing', async () => {
+  it('fails as a server error (not a 401) when NEXTAUTH_SECRET is missing', async () => {
+    const token = await encodeSessionToken(CLAIMS)
     delete process.env.NEXTAUTH_SECRET
-    const { ctx, reflector } = createContext({ headers: {} })
-    guard = new JwtAuthGuard(prisma as never, reflector)
-    await expect(guard.canActivate(ctx)).rejects.toThrow(InternalServerErrorException)
+    const { ctx, guard } = guardFor({ headers: { authorization: `Bearer ${token}` } })
+    const error = await guard.canActivate(ctx).catch((err: unknown) => err)
+    expect(error).toBeInstanceOf(Error)
+    expect(error).not.toBeInstanceOf(UnauthorizedException)
   })
 
   it('401 without a cookie/token', async () => {
-    const { ctx, reflector } = createContext({ headers: {} })
-    guard = new JwtAuthGuard(prisma as never, reflector)
+    const { ctx, guard } = guardFor({ headers: {} })
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException)
   })
 
-  it('401 with an invalid cookie (decode throws)', async () => {
-    mockedDecode.mockRejectedValue(new Error('expired'))
-    const { ctx, reflector } = createContext({ headers: {}, cookies: { 'authjs.session-token': 'bad' } })
-    guard = new JwtAuthGuard(prisma as never, reflector)
+  it('401 with an invalid cookie', async () => {
+    const { ctx, guard } = guardFor({ headers: {}, cookies: { 'authjs.session-token': 'bad' } })
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException)
   })
 
   it('401 when the user is inactive', async () => {
     prisma.client.user.findUnique.mockResolvedValue({ ativo: false, email: 'a@a.com', role: 'USER' })
-    const { ctx, reflector } = createContext({ headers: { authorization: 'Bearer tok' } })
-    guard = new JwtAuthGuard(prisma as never, reflector)
+    const token = await encodeSessionToken(CLAIMS)
+    const { ctx, guard } = guardFor({ headers: { authorization: `Bearer ${token}` } })
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException)
   })
 
   it('401 when the user no longer exists', async () => {
     prisma.client.user.findUnique.mockResolvedValue(null)
-    const { ctx, reflector } = createContext({ headers: { authorization: 'Bearer tok' } })
-    guard = new JwtAuthGuard(prisma as never, reflector)
+    const token = await encodeSessionToken(CLAIMS)
+    const { ctx, guard } = guardFor({ headers: { authorization: `Bearer ${token}` } })
     await expect(guard.canActivate(ctx)).rejects.toThrow(UnauthorizedException)
   })
 
-  it('ok: accepts Bearer and attaches req.user', async () => {
-    const req: FakeReq = { headers: { authorization: 'Bearer tok-123' } }
-    const { ctx, reflector } = createContext(req)
-    guard = new JwtAuthGuard(prisma as never, reflector)
+  it('ok: accepts Bearer and attaches req.user with the role and email from the database', async () => {
+    const token = await encodeSessionToken(CLAIMS)
+    const req: FakeReq = { headers: { authorization: `Bearer ${token}` } }
+    const { ctx, guard } = guardFor(req)
     await expect(guard.canActivate(ctx)).resolves.toBe(true)
-    expect(mockedDecode).toHaveBeenCalledWith(
-      expect.objectContaining({ token: 'tok-123', salt: 'authjs.session-token' })
-    )
-    expect((req.user as { id: string }).id).toBe('u1')
+    expect(prisma.client.user.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'u1' } }))
+    const user = req.user as AuthUser
+    expect(user.id).toBe('u1')
+    expect(user.email).toBe('a@a.com')
+    expect(user.role.code).toBe('ADMIN')
   })
 
-  it('ok: a __Secure- cookie uses the secure salt', async () => {
-    const req: FakeReq = { headers: {}, cookies: { '__Secure-authjs.session-token': 'sec-tok' } }
-    const { ctx, reflector } = createContext(req)
-    guard = new JwtAuthGuard(prisma as never, reflector)
-    await guard.canActivate(ctx)
-    expect(mockedDecode).toHaveBeenCalledWith(
-      expect.objectContaining({ token: 'sec-tok', salt: '__Secure-authjs.session-token' })
-    )
+  it('ok: a __Secure- cookie is decoded with its own name as the salt', async () => {
+    const token = await encodeSessionToken(CLAIMS, { salt: '__Secure-authjs.session-token' })
+    const req: FakeReq = { headers: {}, cookies: { '__Secure-authjs.session-token': token } }
+    const { ctx, guard } = guardFor(req)
+    await expect(guard.canActivate(ctx)).resolves.toBe(true)
+    expect((req.user as AuthUser).id).toBe('u1')
   })
 })

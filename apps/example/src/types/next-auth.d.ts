@@ -1,13 +1,17 @@
 import 'next-auth'
-import { RoleName } from '@prisma/client'
+import type { RoleInfo } from '@telamonjs/auth'
 
+// The session contract of @telamonjs/auth (createAuthCallbacks in src/auth.ts):
+// `role` is a RoleInfo — its `code` is the Prisma RoleName ('ADMIN' | 'USER').
 declare module 'next-auth' {
   interface Session {
     user: {
       id: string
       email: string
       name: string | null
-      role: string
+      role: RoleInfo
+      roles: RoleInfo[]
+      permissions: string[]
       image: string | null
     }
   }
@@ -16,14 +20,8 @@ declare module 'next-auth' {
     id: string
     email: string
     name: string | null
-    role: RoleName
+    role: RoleInfo
+    permissions: string[]
     image: string | null
-  }
-}
-
-declare module 'next-auth/jwt' {
-  interface JWT {
-    id: string
-    role: string
   }
 }

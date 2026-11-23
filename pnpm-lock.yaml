@@ -225,6 +225,9 @@ importers:
       '@tanstack/react-table':
         specifier: ^8.21.3
         version: 8.21.3(react-dom@19.2.8(react@19.2.8))(react@19.2.8)
+      '@telamonjs/auth':
+        specifier: workspace:*
+        version: link:../../packages/auth
       '@telamonjs/ui':
         specifier: workspace:*
         version: link:../../packages/ui

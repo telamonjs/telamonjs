@@ -28,7 +28,7 @@ export function LayoutProviders({ children, session }: LayoutProvidersProps) {
                 user: {
                   name: session.user.name ?? undefined,
                   email: session.user.email ?? undefined,
-                  role: { name: session.user.role ?? undefined },
+                  role: session.user.role,
                 },
               }
             : undefined

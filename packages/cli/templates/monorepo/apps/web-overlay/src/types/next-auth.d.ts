@@ -1,16 +1,18 @@
 import 'next-auth'
+import type { RoleInfo } from '@telamonjs/auth'
 
-// A literal union instead of Prisma's RoleName: this app no longer depends
-// on @prisma/client directly (it lives in {{scope}}/shared).
-type Role = 'ADMIN' | 'USER'
-
+// The session contract of @telamonjs/auth (createAuthCallbacks in src/auth.ts,
+// decoded by apps/api's JwtAuthGuard): `role` is a RoleInfo — its `code` is the
+// Prisma RoleName ('ADMIN' | 'USER').
 declare module 'next-auth' {
   interface Session {
     user: {
       id: string
       email: string
       name: string | null
-      role: string
+      role: RoleInfo
+      roles: RoleInfo[]
+      permissions: string[]
       image: string | null
     }
   }
@@ -19,14 +21,8 @@ declare module 'next-auth' {
     id: string
     email: string
     name: string | null
-    role: Role
+    role: RoleInfo
+    permissions: string[]
     image: string | null
-  }
-}
-
-declare module 'next-auth/jwt' {
-  interface JWT {
-    id: string
-    role: string
   }
 }

@@ -1,5 +1,10 @@
 #!/bin/sh
-# Relink @telamonjs/ui if it was linked before the commit (pre-commit unlinked it).
-if ! grep -q '"link:' apps/web/package.json 2>/dev/null && [ -L "apps/web/node_modules/@telamonjs/ui" ]; then
+# Relink @telamonjs/ui if it was linked before the commit: pre-commit unlinked
+# package.json but left node_modules pointing at the local checkout. With pnpm
+# every installed package is a symlink, so compare where it resolves to (same
+# default as scripts/telamonjs-mode.mjs), not merely whether it is a symlink.
+checkout=$(cd -P "${TELAMONJS_UI:-../telamonjs/packages/ui}" 2>/dev/null && pwd -P)
+installed=$(cd -P apps/web/node_modules/@telamonjs/ui 2>/dev/null && pwd -P)
+if ! grep -q '"link:' apps/web/package.json 2>/dev/null && [ -n "$checkout" ] && [ "$installed" = "$checkout" ]; then
   node scripts/telamonjs-mode.mjs link
 fi

@@ -20,6 +20,7 @@
   "dependencies": {
     "@auth/prisma-adapter": "2.7.4",
     "@hookform/resolvers": "4.1.3",
+    "@telamonjs/auth": "^1.1.0",
     "@telamonjs/ui": "{{uiVersion}}",
     "@prisma/client": "6.2.0",
     "@radix-ui/react-dialog": "1.1.6",

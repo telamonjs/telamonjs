@@ -13,10 +13,10 @@ describe('AdminGuard', () => {
   })
 
   it('403 when the role is insufficient (USER)', () => {
-    expect(() => guard.canActivate(ctxWithUser({ id: 'u1', role: 'USER' }))).toThrow(ForbiddenException)
+    expect(() => guard.canActivate(ctxWithUser({ id: 'u1', role: { id: 'USER', name: 'USER', code: 'USER' } }))).toThrow(ForbiddenException)
   })
 
   it('ok when ADMIN', () => {
-    expect(guard.canActivate(ctxWithUser({ id: 'u1', role: 'ADMIN' }))).toBe(true)
+    expect(guard.canActivate(ctxWithUser({ id: 'u1', role: { id: 'ADMIN', name: 'ADMIN', code: 'ADMIN' } }))).toBe(true)
   })
 })

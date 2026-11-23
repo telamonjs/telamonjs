@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, describe, expect, it } from 'vitest'
@@ -33,5 +33,35 @@ describe('telamonjs-mode.mjs (monorepo template)', () => {
     expect(uiRange()).toBe(`link:${checkout}`)
     run('unlink')
     expect(uiRange()).toBe('^1.0.1')
+  })
+
+  describe('.husky/post-commit', () => {
+    const hook = join(script, '..', '..', '.husky', 'post-commit')
+    const installed = () => join(app, 'apps/web/node_modules/@telamonjs/ui')
+    const installAt = (target: string) => {
+      rmSync(installed(), { force: true })
+      mkdirSync(join(installed(), '..'), { recursive: true })
+      symlinkSync(target, installed())
+    }
+    const postCommit = () => {
+      mkdirSync(join(app, 'scripts'), { recursive: true })
+      copyFileSync(script, join(app, 'scripts', 'telamonjs-mode.mjs'))
+      execFileSync('sh', [hook], { cwd: app, env: { ...process.env, TELAMONJS_UI: checkout } })
+    }
+
+    // pnpm installs every package as a symlink into its store
+    it('does not relink a package installed from the registry', () => {
+      const store = join(dir, 'store', '@telamonjs+ui@1.0.1')
+      mkdirSync(store, { recursive: true })
+      installAt(store)
+      postCommit()
+      expect(uiRange()).toBe('^1.0.1')
+    })
+
+    it('relinks when node_modules still points at the checkout', () => {
+      installAt(checkout)
+      postCommit()
+      expect(uiRange()).toBe(`link:${checkout}`)
+    })
   })
 })

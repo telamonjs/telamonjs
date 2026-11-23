@@ -549,7 +549,12 @@ docker compose -f docker-compose.prod.yml up --build  # database + app (producti
 
 ## Authentication
 
-- Config: `src/auth.ts`
+- Config: `src/auth.ts` — the app's own `authorize()` plus
+  `createAuthCallbacks()` from `@telamonjs/auth/next` (the session contract:
+  `session.user.role` is a `RoleInfo` `{ id, name, code }`, so role checks read
+  `role.code`; `permissions` is a `string[]`). Compose over those callbacks
+  instead of replacing them; the package README covers session revocation
+  and stale-role refresh
 - Layout guard: `src/app/admin/layout.tsx` (calls `auth()`, redirects unless
   `session?.user` exists — check the user, never just `session`: on an auth
   error `auth()` returns a truthy error body)

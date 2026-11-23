@@ -1,7 +1,14 @@
-import NextAuth from 'next-auth'
+import NextAuth, { type Session } from 'next-auth'
 import Credentials from 'next-auth/providers/credentials'
+import { createAuthCallbacks } from '@telamonjs/auth/next'
 import { prisma } from '{{scope}}/shared/prisma'
 import bcrypt from 'bcryptjs'
+
+// Canonical claim-copy of @telamonjs/auth: the same token contract that
+// apps/api's JwtAuthGuard decodes, plus `authTime`/`accessAt` stamped at
+// login. To revoke sessions or refresh stale roles, compose over these
+// callbacks — see "Session freshness & revocation" in the @telamonjs/auth docs.
+const base = createAuthCallbacks()
 
 // No PrismaAdapter here: the session strategy is 'jwt' (the API decodes the
 // same cookie independently — see apps/api/CLAUDE.md), so an adapter tied
@@ -54,26 +61,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           id: user.id,
           email: user.email,
           name: user.name,
-          role: user.role,
           image: user.image,
+          // The session contract (SessionClaims of @telamonjs/auth): the role
+          // enum becomes a RoleInfo, and `permissions` stays empty until the
+          // app materializes RBAC into it (@telamonjs/permissions).
+          role: { id: user.role, name: user.role, code: user.role },
+          permissions: [],
         }
       },
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
-      if (user) {
-        token.role = (user as { role: 'ADMIN' | 'USER' }).role
-        token.id = user.id
-      }
-      return token
-    },
-    async session({ session, token }) {
-      if (session.user) {
-        session.user.id = token.id as string
-        session.user.role = token.role as 'ADMIN' | 'USER'
-      }
-      return session
-    },
+    jwt: base.jwt,
+    // The package types its callbacks structurally (plain records), not with
+    // next-auth's interfaces: spread the session into a plain object, and type
+    // the result as the Session declared in src/types/next-auth.d.ts.
+    session: ({ session, token }) =>
+      base.session({ session: { ...session, user: { ...session.user } }, token }) as unknown as Session,
   },
 })

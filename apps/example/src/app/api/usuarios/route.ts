@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
   if (!currentUser) {
     return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
   }
-  if (currentUser.role !== 'ADMIN') {
+  if (currentUser.role.code !== 'ADMIN') {
     return NextResponse.json(
       { message: 'Apenas administradores podem criar usuários' },
       { status: 403 }

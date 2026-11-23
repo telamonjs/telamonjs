@@ -2,6 +2,7 @@
 # Commits never carry a link: to the local telamonjs checkout; post-commit relinks.
 if grep -q '"link:' apps/web/package.json 2>/dev/null; then
   node scripts/telamonjs-mode.mjs unlink || exit 1
-  pnpm install --lockfile-only --silent 2>/dev/null
-  git add apps/web/package.json pnpm-lock.yaml
+  # A failed lockfile update must abort the commit, not commit a stale lockfile.
+  pnpm install --lockfile-only --silent || exit 1
+  git add apps/web/package.json pnpm-lock.yaml || exit 1
 fi
