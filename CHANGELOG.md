@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-11-24
+
+Minor release driven by what consumer apps had to work around; each package's `CHANGELOG.md`
+has the details. Everything is opt-in: apps that don't use the new options see no change, except
+where noted below.
+
+- `@telamonjs/ui` 1.1.0:
+  - `CrudConfig.permissions` gates the New button, row actions, dialogs and section saving, and
+    takes a `can()` that understands bypass roles.
+  - Public `ConfirmActionDialog` that stays open while the action runs, and `confirmDialog.inputs`
+    are rendered and passed to the handler. A failed confirmed row action now keeps the dialog
+    open for a retry.
+  - `form`/`validation` are optional for read-only lists, `toolbarContent` can receive the list
+    query, and filters take an explicit `allValue`.
+  - The view dialog footer follows the row actions' rules.
+  - Queue dashboard: `moduleLabels`, `jobLabel` and the job contract's `displayName`; the group
+    order is now the same in both tabs.
+  - `maskType` presets (cpf/cnpj/cep), textarea `rows`, StatCard tooltips, BarChart axis props,
+    `CalendarWithEvents.onMonthChange` and `ReportTable.showFooter`.
+  - Form grids collapse to one column on small screens, and dialogs close after the list refetch.
+- `@telamonjs/auth` 1.2.0: the JWT guard's `secret` can be resolved per request, and
+  `createException` lets the guard throw the app's own exception classes.
+- `@telamonjs/permissions` 1.1.0: `createException` and an `onDenied` hook.
+- `@telamonjs/queue` 1.1.0:
+  - Dead-letter queue retention (`maxAge`/`maxLen`, `purgeOlderThan`).
+  - The scheduler reconciler uses BullMQ job schedulers and migrates legacy repeatables on its
+    first pass.
+  - express 4 and 5 are both supported.
+- `@telamonjs/cli` 1.1.0: `telamonjs link` / `telamonjs unlink` replace the per-app link-mode
+  scripts.
+
 ## 2026-11-23
 
 Hardening release across every package; each package's `CHANGELOG.md` has the details.
