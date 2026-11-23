@@ -5,6 +5,7 @@ import type {
   KeepJobs,
 } from 'bullmq'
 import type { ILogger } from '@telamonjs/logger'
+import type { DeadLetterQueueOptions } from './DeadLetterQueue.js'
 
 /**
  * Redis connection configuration
@@ -146,6 +147,13 @@ export interface QueueConfig {
    * @default true
    */
   enableDLQ?: boolean
+
+  /**
+   * Retention for the Dead Letter Queue (`maxAge` ms and/or `maxLen`),
+   * applied whenever an entry is added.
+   * @default {} (keep entries until deleted, retried or cleared)
+   */
+  dlqRetention?: DeadLetterQueueOptions
 }
 
 /**

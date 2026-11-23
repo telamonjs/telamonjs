@@ -96,6 +96,10 @@ export const QueueConfigSchema = z.object({
   // is the bug this field declaration fixes: `enableDLQ: false` was silently
   // discarded and the DLQ was always created.
   enableDLQ: z.boolean().optional(),
+  // Shape only; DeadLetterQueue's constructor validates the values.
+  dlqRetention: z
+    .object({ maxAge: z.number().optional(), maxLen: z.number().optional() })
+    .optional(),
 })
 
 export type ValidatedQueueConfig = z.infer<typeof QueueConfigSchema>

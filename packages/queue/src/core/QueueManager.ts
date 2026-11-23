@@ -94,7 +94,8 @@ export class QueueManager {
       this.dlq = new DeadLetterQueue(
         this.config.redis,
         this.config.prefix,
-        this.logger
+        this.logger,
+        this.config.dlqRetention
       )
     }
 

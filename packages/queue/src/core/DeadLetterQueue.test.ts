@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
 import { DeadLetterQueue } from './DeadLetterQueue'
+import type { DeadLetterQueueOptions } from './DeadLetterQueue'
 import { Queue as BullQueue } from 'bullmq'
 import type { RedisConfig } from './types'
 import { NoOpLogger } from '@telamonjs/logger'
@@ -321,5 +322,131 @@ describe.skipIf(!redisAvailable)('DeadLetterQueue', () => {
     it('should close the DLQ gracefully', async () => {
       await expect(dlq.close()).resolves.not.toThrow()
     })
+  })
+})
+
+describe.skipIf(!redisAvailable)('DeadLetterQueue retention', () => {
+  const redisConfig: RedisConfig = { ...TEST_REDIS, maxRetriesPerRequest: null }
+  const opened: DeadLetterQueue[] = []
+
+  // A unique prefix per DLQ keeps these tests isolated from the shared
+  // `test-dlq` used by the suite above.
+  function makeDlq(options?: DeadLetterQueueOptions): DeadLetterQueue {
+    const prefix = `test-retention-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    const dlq = new DeadLetterQueue(redisConfig, prefix, new NoOpLogger(), options)
+    opened.push(dlq)
+    return dlq
+  }
+
+  // Seeds an entry whose BullMQ timestamp is `ageMs` in the past - the field
+  // retention measures age against.
+  async function seedOldEntry(dlq: DeadLetterQueue, id: string, ageMs: number) {
+    const failedAt = new Date(Date.now() - ageMs)
+    await dlq.getRawQueue().add(
+      'old-job',
+      {
+        id,
+        jobName: 'old-job',
+        data: {},
+        error: { message: 'old' },
+        attempts: 1,
+        failedAt,
+        originalJobId: id,
+      },
+      { jobId: id, timestamp: failedAt.getTime() }
+    )
+  }
+
+  afterEach(async () => {
+    for (const dlq of opened.splice(0)) {
+      await dlq.getRawQueue().obliterate({ force: true }).catch(() => {})
+      await dlq.close().catch(() => {})
+    }
+  })
+
+  describe('defaults', () => {
+    it('keeps every entry when no retention option is set', async () => {
+      const dlq = makeDlq()
+      await seedOldEntry(dlq, 'ancient', 365 * 24 * 60 * 60 * 1000)
+      for (let i = 0; i < 5; i++) {
+        await dlq.add('job', `id-${i}`, {}, new Error('boom'), 1)
+      }
+
+      expect((await dlq.list(0, -1)).length).toBe(6)
+    })
+  })
+
+  describe('maxAge', () => {
+    it('drops entries older than maxAge when a new entry is added', async () => {
+      const dlq = makeDlq({ maxAge: 60_000 })
+      await seedOldEntry(dlq, 'stale', 120_000)
+
+      await dlq.add('job', 'fresh', {}, new Error('boom'), 1)
+
+      expect((await dlq.list(0, -1)).map(e => e.id)).toEqual(['dlq-job-fresh'])
+    })
+  })
+
+  describe('maxLen', () => {
+    it('keeps only the newest maxLen entries after each add', async () => {
+      const dlq = makeDlq({ maxLen: 2 })
+      await seedOldEntry(dlq, 'oldest', 30_000)
+      await seedOldEntry(dlq, 'older', 20_000)
+
+      await dlq.add('job', 'newest', {}, new Error('boom'), 1)
+
+      const ids = (await dlq.list(0, -1)).map(e => e.id).sort()
+      expect(ids).toEqual(['dlq-job-newest', 'older'])
+    })
+
+    it('does nothing while the DLQ is under maxLen', async () => {
+      const dlq = makeDlq({ maxLen: 10 })
+      await dlq.add('job', 'a', {}, new Error('boom'), 1)
+      await dlq.add('job', 'b', {}, new Error('boom'), 1)
+
+      expect((await dlq.list(0, -1)).length).toBe(2)
+    })
+
+    it('applies maxAge and maxLen together', async () => {
+      const dlq = makeDlq({ maxAge: 60_000, maxLen: 1 })
+      await seedOldEntry(dlq, 'stale', 120_000)
+      await seedOldEntry(dlq, 'recent', 1_000)
+
+      await dlq.add('job', 'newest', {}, new Error('boom'), 1)
+
+      expect((await dlq.list(0, -1)).map(e => e.id)).toEqual(['dlq-job-newest'])
+    })
+  })
+
+  describe('purgeOlderThan()', () => {
+    it('removes entries older than the given age and returns how many were removed', async () => {
+      const dlq = makeDlq()
+      await seedOldEntry(dlq, 'stale-1', 120_000)
+      await seedOldEntry(dlq, 'stale-2', 90_000)
+      await dlq.add('job', 'fresh', {}, new Error('boom'), 1)
+
+      const removed = await dlq.purgeOlderThan(60_000)
+
+      expect(removed).toBe(2)
+      expect((await dlq.list(0, -1)).map(e => e.id)).toEqual(['dlq-job-fresh'])
+    })
+
+    it('returns 0 when nothing is old enough', async () => {
+      const dlq = makeDlq()
+      await dlq.add('job', 'fresh', {}, new Error('boom'), 1)
+
+      expect(await dlq.purgeOlderThan(60_000)).toBe(0)
+    })
+  })
+
+  describe('validation', () => {
+    it.each([[{ maxAge: 0 }], [{ maxAge: -1 }], [{ maxLen: 0 }], [{ maxLen: 1.5 }]])(
+      'rejects invalid retention %o',
+      options => {
+        expect(
+          () => new DeadLetterQueue(redisConfig, 'test-invalid', new NoOpLogger(), options)
+        ).toThrow(/DeadLetterQueue/)
+      }
+    )
   })
 })

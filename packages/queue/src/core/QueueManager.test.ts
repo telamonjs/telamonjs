@@ -73,6 +73,22 @@ describe.skipIf(!redisAvailable)('QueueManager', () => {
       expect(qm.getDLQ()).toBeNull()
       await qm.close()
     })
+
+    it('passes dlqRetention through to the DLQ (not stripped by QueueConfigSchema)', async () => {
+      const qm = new QueueManager({
+        redis: TEST_REDIS,
+        prefix: `qm-dlq-retention-${Date.now()}`,
+        dlqRetention: { maxLen: 1 },
+      })
+      const dlq = qm.getDLQ()!
+      await dlq.add('job', 'a', {}, new Error('boom'), 1)
+      await dlq.add('job', 'b', {}, new Error('boom'), 1)
+
+      expect(await dlq.list(0, -1)).toHaveLength(1)
+
+      await dlq.getRawQueue().obliterate({ force: true })
+      await qm.close()
+    })
   })
 
   describe('register()', () => {

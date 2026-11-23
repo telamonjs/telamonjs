@@ -20,7 +20,7 @@ const schedule = dailyAt(9, 0, Timezones.AMERICA_NEW_YORK)
 ## Declaring a scheduled job
 
 A job class declares its default cron in `configDefaults`. That value seeds a
-`JobConfigStore` (Redis), and a `SchedulerReconciler` keeps BullMQ repeatables in
+`JobConfigStore` (Redis), and a `SchedulerReconciler` keeps BullMQ job schedulers in
 sync with the store, so the cron can be toggled or edited from the
 [Jobs Dashboard](/docs/queue/dashboard) without a redeploy:
 
@@ -50,13 +50,28 @@ const store = new JobConfigStore({ redis })
 // Seeds the store from Job.configDefaults and registers the enabled jobs
 await setupFromConfig(queueManager, store, jobs)
 
-// Adds/removes/updates BullMQ repeatables to match the store, every minute
+// Adds/removes/updates BullMQ job schedulers to match the store, every minute
 const reconciler = new SchedulerReconciler(new QueueRegistry({ redis, prefix: 'myapp' }), store, jobs)
 await reconciler.start()
 ```
 
+The reconciler writes one BullMQ **job scheduler** per job (`upsertJobScheduler`,
+id = job name), so a cron, timezone or priority edit updates it in place. It
+removes the scheduler when the job is disabled or loses its cron.
+
+<Callout type='info' title='Upgrading from repeatable jobs'>
+  Earlier versions scheduled through BullMQ's deprecated repeatable API
+  (`add(..., { repeat })`), and those repeatables are still in Redis after an
+  upgrade. On its first reconcile the reconciler finds every repeatable of a job
+  it manages, removes it together with its pending run, then upserts the
+  scheduler — the two never coexist, so no job runs twice. A repeatable of a job
+  that is no longer enabled is simply removed. During a rolling deploy, a
+  repeatable re-created by an instance still on the old version is cleaned up on
+  the next cycle.
+</Callout>
+
 `enabled` seeds as `false` when omitted: without `enabled: true` the job starts
-disabled (not registered, no repeatable) until it is turned on from the
+disabled (not registered, no schedule) until it is turned on from the
 dashboard. `configDefaults` only seeds — a value already in Redis wins.
 
 `configDefaults` takes the same fields as `JobConfigInput` from
@@ -173,8 +188,8 @@ formatCronPattern('0 9 * * 1-5') // 'Weekdays at 9:00 AM'
 ## Dynamic scheduling
 
 `QueueManager.add()` deliberately leaves out BullMQ's `repeat` option. For a
-one-off repeatable outside the `JobConfigStore`, add it through the raw queue,
-with a fixed `jobId` so a restart does not register it twice:
+one-off schedule outside the `JobConfigStore`, upsert a job scheduler on the raw
+queue; the fixed id makes it idempotent, so a restart does not register it twice:
 
 ```typescript
 import { everyMinutes } from '@telamonjs/queue'
@@ -184,11 +199,15 @@ const schedule = everyMinutes(5)
 await queueManager
   .getQueue('monitor')
   ?.getRawQueue()
-  .add('monitor', {}, {
-    repeat: { pattern: schedule.pattern, tz: schedule.tz },
-    jobId: 'monitor-repeat',
-  })
+  .upsertJobScheduler(
+    'monitor-every-5-minutes',
+    { pattern: schedule.pattern, tz: schedule.tz },
+    { name: 'monitor', data: {} }
+  )
 ```
+
+Keep such a job out of the `SchedulerReconciler`'s job map: the reconciler
+removes any schedule of a job it manages other than its own.
 
 <Callout type='info'>
   In the [Jobs Dashboard](/docs/queue/dashboard) configuration tab, cron patterns

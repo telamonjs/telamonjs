@@ -36,6 +36,28 @@ export interface DLQStats {
 }
 
 /**
+ * DLQ retention. Both limits are optional and applied every time an entry is
+ * added; with neither set the DLQ keeps entries until they are deleted,
+ * retried or cleared (the historical behaviour).
+ */
+export interface DeadLetterQueueOptions {
+  /**
+   * Drop entries older than this many milliseconds (measured from the moment
+   * the entry was added to the DLQ).
+   */
+  maxAge?: number
+
+  /**
+   * Keep at most this many entries; the oldest are dropped first.
+   */
+  maxLen?: number
+}
+
+// Every state list() reads, minus 'active': nothing should be processing a
+// DLQ entry, and removing a locked job would fail anyway.
+const RETENTION_STATES = ['wait', 'paused', 'delayed', 'completed', 'failed'] as const
+
+/**
  * Dead Letter Queue - Stores jobs that failed after max retries
  *
  * Jobs are automatically sent to DLQ when they fail permanently.
@@ -59,14 +81,25 @@ export class DeadLetterQueue {
   private queue: BullQueue
   private logger: ILogger
   private queueName: string
+  private retention: DeadLetterQueueOptions
 
   constructor(
     redisConfig: RedisConfig,
     prefix: string = 'telamonjs',
-    logger: ILogger = new NoOpLogger()
+    logger: ILogger = new NoOpLogger(),
+    options: DeadLetterQueueOptions = {}
   ) {
+    const { maxAge, maxLen } = options
+    if (maxAge !== undefined && !(maxAge > 0)) {
+      throw new Error(`DeadLetterQueue: maxAge must be a positive number of ms, got ${maxAge}`)
+    }
+    if (maxLen !== undefined && !(Number.isInteger(maxLen) && maxLen > 0)) {
+      throw new Error(`DeadLetterQueue: maxLen must be a positive integer, got ${maxLen}`)
+    }
+
     this.queueName = `${prefix}-dlq`
     this.logger = logger
+    this.retention = options
 
     this.queue = new BullQueue(this.queueName, {
       connection: redisConfig,
@@ -141,6 +174,14 @@ export class DeadLetterQueue {
         { jobName, jobId }
       )
     }
+
+    // The entry is already stored: a retention failure must not turn a
+    // successful add into an error. The next add retries the cleanup.
+    await this.applyRetention().catch((err: unknown) => {
+      this.logger.error('DLQ retention failed', {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
   }
 
   /**
@@ -336,6 +377,58 @@ export class DeadLetterQueue {
         'clear',
         `Failed to clear DLQ: ${err instanceof Error ? err.message : String(err)}`
       )
+    }
+  }
+
+  /**
+   * Remove every entry added to the DLQ more than `ms` milliseconds ago.
+   *
+   * @param ms - Age threshold in milliseconds
+   * @returns Number of entries removed
+   */
+  async purgeOlderThan(ms: number): Promise<number> {
+    try {
+      let removed = 0
+      for (const state of RETENTION_STATES) {
+        removed += (await this.queue.clean(ms, 0, state)).length
+      }
+
+      if (removed > 0) {
+        this.logger.info('DLQ purged', { olderThanMs: ms, count: removed })
+      }
+
+      return removed
+    } catch (err) {
+      throw new QueueOperationError(
+        this.queueName,
+        'purgeOlderThan',
+        `Failed to purge DLQ: ${err instanceof Error ? err.message : String(err)}`,
+        { olderThanMs: ms }
+      )
+    }
+  }
+
+  private async applyRetention(): Promise<void> {
+    const { maxAge, maxLen } = this.retention
+
+    if (maxAge !== undefined) {
+      await this.purgeOlderThan(maxAge)
+    }
+
+    if (maxLen !== undefined) {
+      const total = await this.queue.getJobCountByTypes(...RETENTION_STATES)
+      if (total <= maxLen) return
+
+      // ponytail: reads every entry to find the oldest across states; fine
+      // because the DLQ never grows past maxLen + 1 once this runs. A
+      // per-state LTRIM-style trim would be the upgrade if maxLen gets huge.
+      const jobs = await this.queue.getJobs([...RETENTION_STATES], 0, -1)
+      jobs.sort((a, b) => b.timestamp - a.timestamp)
+      const excess = jobs.slice(maxLen)
+      for (const job of excess) {
+        await job.remove()
+      }
+      this.logger.info('DLQ trimmed to maxLen', { maxLen, count: excess.length })
     }
   }
 

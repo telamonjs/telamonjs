@@ -20393,7 +20393,7 @@ horizontally.
 | `FlowProducer`       | Job dependency graphs (DAGs)                                             |
 | `QueueRegistry`      | BullMQ queues over **one** shared Redis connection, for code outside a `QueueManager` (API routes, a scheduler process) |
 | `JobConfigStore` (`/job-config`) | Per-job config in Redis (enabled, cron, priority, concurrency, timeout) plus a change history |
-| `SchedulerReconciler` (`/scheduler`) | Keeps BullMQ repeatables in sync with the `JobConfigStore` |
+| `SchedulerReconciler` (`/scheduler`) | Keeps BullMQ job schedulers in sync with the `JobConfigStore` |
 
 ### Data flow
 
@@ -21867,6 +21867,9 @@ const app = express()
 app.use('/admin/queue', createDashboardRouter({ queueManager }))
 ```
 
+Express 4 and 5 are both supported, so the router mounts into a Nest 11 app's
+Express 5 as well.
+
 `startDashboard` also exposes a `/health` endpoint listing registered queues and
 handles SIGTERM shutdown. Basic-auth protection is opt-in via the `auth` config —
 always enable it outside local development.
@@ -21996,8 +21999,35 @@ async function investigateAndRetry(dlqEntryId: string) {
 
 ### Regular cleanup
 
-Delete entries older than your retention window (e.g. 30 days) on a schedule, using
-`dlq.list(0, -1)` + `dlq.delete(entry.id)` filtered by `entry.failedAt`.
+Without a retention the DLQ grows until you delete entries. Give it one and it
+cleans itself every time an entry is added:
+
+```typescript
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  dlqRetention: {
+    maxAge: 30 * 24 * 60 * 60 * 1000, // drop entries older than 30 days
+    maxLen: 10_000, // keep at most the newest 10,000
+  },
+})
+```
+
+| Option   | Type     | Default | Effect                                              |
+| -------- | -------- | ------- | --------------------------------------------------- |
+| `maxAge` | `number` | none    | Entries added more than `maxAge` ms ago are removed |
+| `maxLen` | `number` | none    | Only the newest `maxLen` entries are kept           |
+
+Both are optional and can be combined; with neither set entries are kept until
+deleted, retried or cleared. A standalone `DeadLetterQueue` takes the same
+`DeadLetterQueueOptions` as its fourth constructor argument. A failed cleanup is
+logged and never fails the `add()` that triggered it.
+
+To purge on your own schedule instead, `purgeOlderThan(ms)` removes every entry
+older than `ms` and returns how many it removed:
+
+```typescript
+const removed = await queueManager.getDLQ()?.purgeOlderThan(7 * 24 * 60 * 60 * 1000)
+```
 
 <Callout type='info' title='Failure isolation'>
   DLQ operations never block the main job flow — if adding an entry to the DLQ
@@ -22408,6 +22438,9 @@ Source: apps/docs/content/docs/queue/metrics.mdx
   sampling and lazy updates for high-throughput environments, with fewer Redis
   calls and less CPU per event
 
+Import them from `@telamonjs/queue/monitoring`. The root entry still re-exports
+both for compatibility, but that makes every root import load `prom-client`.
+
 ## Exposed metrics
 
 ```text
@@ -22732,7 +22765,7 @@ const schedule = dailyAt(9, 0, Timezones.AMERICA_NEW_YORK)
 ## Declaring a scheduled job
 
 A job class declares its default cron in `configDefaults`. That value seeds a
-`JobConfigStore` (Redis), and a `SchedulerReconciler` keeps BullMQ repeatables in
+`JobConfigStore` (Redis), and a `SchedulerReconciler` keeps BullMQ job schedulers in
 sync with the store, so the cron can be toggled or edited from the
 [Jobs Dashboard](/docs/queue/dashboard) without a redeploy:
 
@@ -22762,13 +22795,28 @@ const store = new JobConfigStore({ redis })
 // Seeds the store from Job.configDefaults and registers the enabled jobs
 await setupFromConfig(queueManager, store, jobs)
 
-// Adds/removes/updates BullMQ repeatables to match the store, every minute
+// Adds/removes/updates BullMQ job schedulers to match the store, every minute
 const reconciler = new SchedulerReconciler(new QueueRegistry({ redis, prefix: 'myapp' }), store, jobs)
 await reconciler.start()
 ```
 
+The reconciler writes one BullMQ **job scheduler** per job (`upsertJobScheduler`,
+id = job name), so a cron, timezone or priority edit updates it in place. It
+removes the scheduler when the job is disabled or loses its cron.
+
+<Callout type='info' title='Upgrading from repeatable jobs'>
+  Earlier versions scheduled through BullMQ's deprecated repeatable API
+  (`add(..., { repeat })`), and those repeatables are still in Redis after an
+  upgrade. On its first reconcile the reconciler finds every repeatable of a job
+  it manages, removes it together with its pending run, then upserts the
+  scheduler — the two never coexist, so no job runs twice. A repeatable of a job
+  that is no longer enabled is simply removed. During a rolling deploy, a
+  repeatable re-created by an instance still on the old version is cleaned up on
+  the next cycle.
+</Callout>
+
 `enabled` seeds as `false` when omitted: without `enabled: true` the job starts
-disabled (not registered, no repeatable) until it is turned on from the
+disabled (not registered, no schedule) until it is turned on from the
 dashboard. `configDefaults` only seeds — a value already in Redis wins.
 
 `configDefaults` takes the same fields as `JobConfigInput` from
@@ -22885,8 +22933,8 @@ formatCronPattern('0 9 * * 1-5') // 'Weekdays at 9:00 AM'
 ## Dynamic scheduling
 
 `QueueManager.add()` deliberately leaves out BullMQ's `repeat` option. For a
-one-off repeatable outside the `JobConfigStore`, add it through the raw queue,
-with a fixed `jobId` so a restart does not register it twice:
+one-off schedule outside the `JobConfigStore`, upsert a job scheduler on the raw
+queue; the fixed id makes it idempotent, so a restart does not register it twice:
 
 ```typescript
 import { everyMinutes } from '@telamonjs/queue'
@@ -22896,11 +22944,15 @@ const schedule = everyMinutes(5)
 await queueManager
   .getQueue('monitor')
   ?.getRawQueue()
-  .add('monitor', {}, {
-    repeat: { pattern: schedule.pattern, tz: schedule.tz },
-    jobId: 'monitor-repeat',
-  })
+  .upsertJobScheduler(
+    'monitor-every-5-minutes',
+    { pattern: schedule.pattern, tz: schedule.tz },
+    { name: 'monitor', data: {} }
+  )
 ```
+
+Keep such a job out of the `SchedulerReconciler`'s job map: the reconciler
+removes any schedule of a job it manages other than its own.
 
 <Callout type='info'>
   In the [Jobs Dashboard](/docs/queue/dashboard) configuration tab, cron patterns

@@ -9,7 +9,8 @@ dashboard, Prometheus metrics and an HTTP backend for a custom dashboard.
 It pairs with **`@telamonjs/ui/queue`**, the React dashboard frontend
 (`QueueTabbedDashboard` + `createNestJSAdapter`) for your own admin.
 
-**Requires a reachable Redis.** The Bull Board dashboard runs its own Express server.
+**Requires a reachable Redis.** The Bull Board dashboard runs its own Express
+server; Express 4 and 5 are both supported, so it shares a Nest 11 app's Express 5.
 
 ## Install
 
@@ -59,6 +60,30 @@ await setupFromConfig(manager, store, jobs)
 // change them from your admin UI, no restart required
 ```
 
+`SchedulerReconciler` (`@telamonjs/queue/scheduler`) applies the cron side as
+BullMQ job schedulers (`upsertJobScheduler`, one per job, id = job name).
+Repeatables written by earlier versions (`add(..., { repeat })`) are
+replaced on the first reconcile after the upgrade: the legacy repeatable and
+its pending run are removed, then the scheduler is upserted, so no job runs twice.
+
+## Dead-letter queue
+
+Jobs that exhaust their attempts land in one DLQ per `QueueManager`. It keeps
+entries until you delete, retry or clear them, unless you give it a retention:
+
+```ts
+const manager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  dlqRetention: { maxAge: 30 * 24 * 60 * 60 * 1000, maxLen: 10_000 }, // both optional
+})
+
+// Or on demand, e.g. from your own cron:
+const removed = await manager.getDLQ()?.purgeOlderThan(7 * 24 * 60 * 60 * 1000)
+```
+
+Retention runs each time an entry is added. A standalone `DeadLetterQueue`
+takes the same options as its fourth constructor argument.
+
 ## Bull Board and metrics
 
 ```ts
@@ -73,6 +98,9 @@ startDashboard({
 
 `@telamonjs/queue/monitoring` exposes Prometheus collectors (`prom-client`) and
 `getRedisConnectionMetrics(redis)`, a pure function for a Redis pool panel.
+Import the collectors from there: the root still re-exports `QueueMetrics` and
+`OptimizedQueueMetrics` for compatibility, but that loads `prom-client` for
+every root import.
 
 ## HTTP backend for the ui dashboard
 

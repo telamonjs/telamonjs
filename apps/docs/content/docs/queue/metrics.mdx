@@ -13,6 +13,9 @@ import { Callout } from 'fumadocs-ui/components/callout'
   sampling and lazy updates for high-throughput environments, with fewer Redis
   calls and less CPU per event
 
+Import them from `@telamonjs/queue/monitoring`. The root entry still re-exports
+both for compatibility, but that makes every root import load `prom-client`.
+
 ## Exposed metrics
 
 ```text

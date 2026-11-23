@@ -116,8 +116,35 @@ async function investigateAndRetry(dlqEntryId: string) {
 
 ### Regular cleanup
 
-Delete entries older than your retention window (e.g. 30 days) on a schedule, using
-`dlq.list(0, -1)` + `dlq.delete(entry.id)` filtered by `entry.failedAt`.
+Without a retention the DLQ grows until you delete entries. Give it one and it
+cleans itself every time an entry is added:
+
+```typescript
+const queueManager = new QueueManager({
+  redis: { host: 'localhost', port: 6379 },
+  dlqRetention: {
+    maxAge: 30 * 24 * 60 * 60 * 1000, // drop entries older than 30 days
+    maxLen: 10_000, // keep at most the newest 10,000
+  },
+})
+```
+
+| Option   | Type     | Default | Effect                                              |
+| -------- | -------- | ------- | --------------------------------------------------- |
+| `maxAge` | `number` | none    | Entries added more than `maxAge` ms ago are removed |
+| `maxLen` | `number` | none    | Only the newest `maxLen` entries are kept           |
+
+Both are optional and can be combined; with neither set entries are kept until
+deleted, retried or cleared. A standalone `DeadLetterQueue` takes the same
+`DeadLetterQueueOptions` as its fourth constructor argument. A failed cleanup is
+logged and never fails the `add()` that triggered it.
+
+To purge on your own schedule instead, `purgeOlderThan(ms)` removes every entry
+older than `ms` and returns how many it removed:
+
+```typescript
+const removed = await queueManager.getDLQ()?.purgeOlderThan(7 * 24 * 60 * 60 * 1000)
+```
 
 <Callout type='info' title='Failure isolation'>
   DLQ operations never block the main job flow — if adding an entry to the DLQ

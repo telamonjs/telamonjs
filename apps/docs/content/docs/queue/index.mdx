@@ -144,7 +144,7 @@ horizontally.
 | `FlowProducer`       | Job dependency graphs (DAGs)                                             |
 | `QueueRegistry`      | BullMQ queues over **one** shared Redis connection, for code outside a `QueueManager` (API routes, a scheduler process) |
 | `JobConfigStore` (`/job-config`) | Per-job config in Redis (enabled, cron, priority, concurrency, timeout) plus a change history |
-| `SchedulerReconciler` (`/scheduler`) | Keeps BullMQ repeatables in sync with the `JobConfigStore` |
+| `SchedulerReconciler` (`/scheduler`) | Keeps BullMQ job schedulers in sync with the `JobConfigStore` |
 
 ### Data flow
 

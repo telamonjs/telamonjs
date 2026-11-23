@@ -30,7 +30,11 @@ export type {
   MetricDataPoint,
 } from './types.js'
 
-export type { DLQEntry, DLQStats } from './DeadLetterQueue.js'
+export type {
+  DLQEntry,
+  DLQStats,
+  DeadLetterQueueOptions,
+} from './DeadLetterQueue.js'
 
 export type { QueueRegistryConfig, QueueRegistryStats } from './QueueRegistry.js'
 

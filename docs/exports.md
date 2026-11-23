@@ -1042,6 +1042,7 @@ Types:
 - `DLQEntry` (type)
 - `DLQStats` (type)
 - `DashboardConfig` (type)
+- `DeadLetterQueueOptions` (type)
 - `FlowChildJob` (type)
 - `FlowDefinition` (type)
 - `HealthCheckResult` (type)

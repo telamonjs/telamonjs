@@ -5,7 +5,6 @@ import type { JobConfigStore } from '../job-config/JobConfigStore.js'
 import type { JobConfig } from '../job-config/types.js'
 import type { ILogger } from '@telamonjs/logger'
 import { NoOpLogger } from '@telamonjs/logger'
-import type { JobsOptions } from 'bullmq'
 
 export interface SchedulerReconcilerOptions {
   /**
@@ -18,10 +17,20 @@ export interface SchedulerReconcilerOptions {
 }
 
 interface ScheduledJob {
-  repeatableKey: string
   cronPattern: string
   timezone: string
   priority: number
+}
+
+/**
+ * One entry of BullMQ's `repeat` set for a job we manage. Job schedulers and
+ * legacy repeatables (`queue.add(name, data, { repeat })`, what this class
+ * wrote before it moved to job schedulers) live in the same set;
+ * `getJobSchedulers()` reports an `iterationCount` only for real schedulers.
+ */
+interface RedisSchedule {
+  key: string
+  legacy: boolean
 }
 
 export interface SchedulerReconcilerStats {
@@ -36,18 +45,21 @@ export interface SchedulerReconcilerStats {
 }
 
 /**
- * Reconciliation loop that keeps BullMQ repeatable jobs in sync with the
+ * Reconciliation loop that keeps BullMQ job schedulers in sync with the
  * desired state in a `JobConfigStore` - enable/disable and cron edits via a
- * dashboard take effect with no redeploy, and a restart self-heals (BullMQ
- * repeatables are read back from Redis, not from in-memory state).
+ * dashboard take effect with no redeploy, and a restart self-heals (schedulers
+ * are read back from Redis, not from in-memory state).
  *
- * Ported from the original consumer-app scheduler, with two decouplings from that
- * consumer app:
- * - job options come from `new JobClass().options` (`Job.options`), not a
- *   separate per-consumer contract map.
- * - timezone/priority are read straight off `JobConfig` (already resolved
- *   by `JobConfigStore`'s own defaults - see `JobConfigStoreOptions.defaultTimezone`),
- *   never a hardcoded geographic timezone.
+ * Each job gets one job scheduler whose id is the job name, written with
+ * `upsertJobScheduler` (idempotent, updates in place). Legacy repeatables of
+ * a managed job - left by versions that used `add(..., { repeat })` - are
+ * removed (with their pending iteration) before the scheduler is upserted,
+ * so an upgraded deployment never runs a job twice.
+ *
+ * Job options come from `new JobClass().options` (`Job.options`, minus
+ * `jobId`/`delay`, which a scheduler owns); timezone/priority are read straight
+ * off `JobConfig` (already resolved by `JobConfigStore`'s own defaults - see
+ * `JobConfigStoreOptions.defaultTimezone`), never a hardcoded timezone.
  *
  * Depends on `QueueRegistry` (not `QueueManager`) so every reconcile cycle
  * reuses the same `Queue` instances over one shared Redis connection -
@@ -97,10 +109,17 @@ export class SchedulerReconciler {
   }
 
   /**
-   * Reconciles desired state (`JobConfigStore`) with actual state (BullMQ
-   * repeatable jobs). Never throws - a failure is logged and the next cycle
+   * Reconciles desired state (`JobConfigStore`) with actual state (BullMQ job
+   * schedulers). Never throws - a failure is logged and the next cycle
    * (interval or manual) tries again, matching the upstream resilience
    * contract (a bad reconcile cycle must not crash the scheduler process).
+   *
+   * Counts in the "completed with changes" log: `added` = a job scheduled by
+   * this instance for the first time (every job after a restart, including a
+   * legacy repeatable migrated to a scheduler); `removed` = one schedule entry
+   * removed because its job is no longer enabled with a cron; `updated` = a
+   * scheduled job re-upserted because its cron/timezone/priority changed or
+   * a stray legacy repeatable for it reappeared.
    */
   async reconcile(): Promise<void> {
     const startTime = Date.now()
@@ -116,12 +135,18 @@ export class SchedulerReconciler {
       let removed = 0
       let updated = 0
 
-      const currentRepeatables = await this.getRepeatableJobsFromRedis()
+      const current = await this.getSchedulesFromRedis()
 
-      for (const [jobName, keys] of currentRepeatables) {
+      for (const [jobName, schedules] of current) {
         if (!desiredJobs.has(jobName)) {
-          for (const key of keys) {
-            await this.removeJobByKey(jobName, key)
+          for (const schedule of schedules) {
+            await this.removeSchedule(jobName, schedule).catch((err: unknown) => {
+              this.logger.error('SchedulerReconciler failed to remove job', {
+                jobName,
+                key: schedule.key,
+                error: err instanceof Error ? err.message : String(err),
+              })
+            })
             removed++
           }
           this.scheduledJobs.delete(jobName)
@@ -129,22 +154,25 @@ export class SchedulerReconciler {
       }
 
       for (const [jobName, config] of desiredJobs) {
-        const current = this.scheduledJobs.get(jobName)
+        const scheduled = this.scheduledJobs.get(jobName)
+        // Anything for this job other than its own scheduler: a legacy
+        // repeatable, or a scheduler someone created under another id.
+        const strays = (current.get(jobName) ?? []).filter(
+          s => s.legacy || s.key !== jobName
+        )
 
-        if (!current) {
-          const ok = await this.addJob(jobName, config)
-          if (ok) added++
+        if (!scheduled) {
+          if (await this.upsertJob(jobName, config, strays)) added++
           continue
         }
 
         if (
-          current.cronPattern !== config.cronPattern ||
-          current.timezone !== config.timezone ||
-          current.priority !== config.priority
+          strays.length > 0 ||
+          scheduled.cronPattern !== config.cronPattern ||
+          scheduled.timezone !== config.timezone ||
+          scheduled.priority !== config.priority
         ) {
-          await this.removeJob(jobName, current.repeatableKey)
-          const ok = await this.addJob(jobName, config)
-          if (ok) updated++
+          if (await this.upsertJob(jobName, config, strays)) updated++
         }
       }
 
@@ -194,25 +222,24 @@ export class SchedulerReconciler {
   }
 
   /**
-   * Finds all currently-scheduled BullMQ repeatables for jobs known in code,
-   * reusing `QueueRegistry`'s cached `Queue` instances (one Redis round trip
-   * per known job, not per tick per Queue instance).
+   * Reads every schedule (job scheduler or legacy repeatable) of the jobs
+   * known in code, reusing `QueueRegistry`'s cached `Queue` instances (one
+   * Redis round trip per known job, not per tick per Queue instance).
    */
-  private async getRepeatableJobsFromRedis(): Promise<Map<string, string[]>> {
-    const result = new Map<string, string[]>()
+  private async getSchedulesFromRedis(): Promise<Map<string, RedisSchedule[]>> {
+    const result = new Map<string, RedisSchedule[]>()
 
     for (const [jobName] of this.jobs) {
       try {
         const queue = this.queueRegistry.getQueue(jobName)
-        const repeatableJobs = await queue.getRepeatableJobs()
-        const keys = repeatableJobs
-          .filter(j => j.name === jobName)
-          .map(j => j.key)
-        if (keys.length > 0) result.set(jobName, keys)
+        const schedules = (await queue.getJobSchedulers(0, -1))
+          .filter(s => s.name === jobName)
+          .map(s => ({ key: s.key, legacy: s.iterationCount === undefined }))
+        if (schedules.length > 0) result.set(jobName, schedules)
       } catch (err) {
         // One bad queue shouldn't stop the reconcile pass from evaluating
         // the rest - but it must not be invisible either.
-        this.logger.warn('SchedulerReconciler failed to read repeatable jobs', {
+        this.logger.warn('SchedulerReconciler failed to read job schedulers', {
           jobName,
           error: err instanceof Error ? err.message : String(err),
         })
@@ -222,21 +249,28 @@ export class SchedulerReconciler {
     return result
   }
 
-  private async removeJobByKey(jobName: string, repeatableKey: string): Promise<void> {
-    try {
-      const queue = this.queueRegistry.getQueue(jobName)
-      await queue.removeRepeatableByKey(repeatableKey)
-      this.logger.debug('SchedulerReconciler removed job', { jobName, repeatableKey })
-    } catch (err) {
-      this.logger.error('SchedulerReconciler failed to remove job by key', {
-        jobName,
-        repeatableKey,
-        error: err instanceof Error ? err.message : String(err),
-      })
+  private async removeSchedule(jobName: string, schedule: RedisSchedule): Promise<void> {
+    const queue = this.queueRegistry.getQueue(jobName)
+    if (schedule.legacy) {
+      // Deprecated in BullMQ, kept only for this migration path: unlike
+      // removeJobScheduler it also finds the pending iteration of the oldest
+      // `name:id:endDate:tz:pattern` keys.
+      await queue.removeRepeatableByKey(schedule.key)
+    } else {
+      await queue.removeJobScheduler(schedule.key)
     }
+    this.logger.debug('SchedulerReconciler removed schedule', {
+      jobName,
+      key: schedule.key,
+      legacy: schedule.legacy,
+    })
   }
 
-  private async addJob(jobName: string, config: JobConfig): Promise<boolean> {
+  private async upsertJob(
+    jobName: string,
+    config: JobConfig,
+    strays: RedisSchedule[]
+  ): Promise<boolean> {
     const JobClass = this.jobs.get(jobName)
 
     if (!JobClass) {
@@ -245,46 +279,36 @@ export class SchedulerReconciler {
     }
 
     try {
-      const jobInstance = new JobClass()
+      // Strays go first and a failure aborts the upsert: scheduling while a
+      // legacy repeatable survives would run the job twice. The next cycle
+      // retries the whole thing.
+      for (const stray of strays) {
+        await this.removeSchedule(jobName, stray)
+      }
+
+      // A scheduler owns the job id and the delay of every iteration.
+      const { jobId: _jobId, delay: _delay, ...options } = new JobClass().options ?? {}
       const queue = this.queueRegistry.getQueue(jobName)
 
-      // Remove any pre-existing repeatable for this job first, so the
-      // config we're about to write is guaranteed to be the one that
-      // ends up scheduled (BullMQ can otherwise leave a stale repeatable
-      // side by side with the new one if the pattern/opts changed).
-      const existingJobs = await queue.getRepeatableJobs()
-      for (const job of existingJobs) {
-        if (job.name === jobName) {
-          await queue.removeRepeatableByKey(job.key)
-        }
-      }
+      await queue.upsertJobScheduler(
+        jobName,
+        { pattern: config.cronPattern!, tz: config.timezone },
+        { name: jobName, data: {}, opts: { ...options, priority: config.priority } }
+      )
 
-      const jobOptions: JobsOptions = {
-        ...jobInstance.options,
-        repeat: { pattern: config.cronPattern!, tz: config.timezone },
+      this.scheduledJobs.set(jobName, {
+        cronPattern: config.cronPattern!,
+        timezone: config.timezone,
         priority: config.priority,
-      }
+      })
 
-      await queue.add(jobName, {}, jobOptions)
-
-      const repeatableJobs = await queue.getRepeatableJobs()
-      const repeatableJob = repeatableJobs.find(j => j.name === jobName)
-
-      if (repeatableJob) {
-        this.scheduledJobs.set(jobName, {
-          repeatableKey: repeatableJob.key,
-          cronPattern: config.cronPattern!,
-          timezone: config.timezone,
-          priority: config.priority,
-        })
-
-        this.logger.info('SchedulerReconciler scheduled job', {
-          jobName,
-          cronPattern: config.cronPattern,
-          timezone: config.timezone,
-          priority: config.priority,
-        })
-      }
+      this.logger.info('SchedulerReconciler scheduled job', {
+        jobName,
+        cronPattern: config.cronPattern,
+        timezone: config.timezone,
+        priority: config.priority,
+        migratedLegacy: strays.filter(s => s.legacy).length,
+      })
 
       return true
     } catch (err) {
@@ -293,25 +317,6 @@ export class SchedulerReconciler {
         error: err instanceof Error ? err.message : String(err),
       })
       return false
-    }
-  }
-
-  private async removeJob(jobName: string, repeatableKey: string): Promise<void> {
-    if (!this.jobs.has(jobName)) {
-      this.scheduledJobs.delete(jobName)
-      return
-    }
-
-    try {
-      const queue = this.queueRegistry.getQueue(jobName)
-      await queue.removeRepeatableByKey(repeatableKey)
-    } catch (err) {
-      this.logger.error('SchedulerReconciler failed to remove job', {
-        jobName,
-        error: err instanceof Error ? err.message : String(err),
-      })
-    } finally {
-      this.scheduledJobs.delete(jobName)
     }
   }
 }

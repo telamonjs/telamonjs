@@ -86,6 +86,7 @@ export type {
   MetricDataPoint,
   DLQEntry,
   DLQStats,
+  DeadLetterQueueOptions,
   QueueRegistryConfig,
   QueueRegistryStats,
 } from './core/index.js'

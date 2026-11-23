@@ -263,6 +263,9 @@ const app = express()
 app.use('/admin/queue', createDashboardRouter({ queueManager }))
 ```
 
+Express 4 and 5 are both supported, so the router mounts into a Nest 11 app's
+Express 5 as well.
+
 `startDashboard` also exposes a `/health` endpoint listing registered queues and
 handles SIGTERM shutdown. Basic-auth protection is opt-in via the `auth` config —
 always enable it outside local development.
