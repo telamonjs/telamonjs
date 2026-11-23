@@ -22,10 +22,10 @@ describe('prisma-helpers', () => {
       expect(result).toEqual({ categoria: { nome: 'asc' } })
     })
 
-    it('converts underscores to dots (TanStack Table format)', () => {
-      const result = buildPrismaOrderBy('categoria_nome', 'asc')
+    it('keeps snake_case column names intact', () => {
+      const result = buildPrismaOrderBy('created_at', 'asc')
 
-      expect(result).toEqual({ categoria: { nome: 'asc' } })
+      expect(result).toEqual({ created_at: 'asc' })
     })
 
     it('handles deeply nested paths', () => {
@@ -46,16 +46,10 @@ describe('prisma-helpers', () => {
       expect(result).toEqual({ createdAt: 'desc' })
     })
 
-    it('handles mixed dots and underscores', () => {
-      const result = buildPrismaOrderBy('categoria_unidade.nome', 'asc')
+    it('splits only on dots when a path mixes dots and underscores', () => {
+      const result = buildPrismaOrderBy('order_item.created_at', 'asc')
 
-      expect(result).toEqual({
-        categoria: {
-          unidade: {
-            nome: 'asc',
-          },
-        },
-      })
+      expect(result).toEqual({ order_item: { created_at: 'asc' } })
     })
   })
 
@@ -80,17 +74,17 @@ describe('prisma-helpers', () => {
       expect(result).toEqual([])
     })
 
-    it('converts underscores to dots', () => {
+    it('keeps snake_case column names intact', () => {
       const sorting: SortField[] = [
-        { field: 'categoria_nome', order: 'asc' },
-        { field: 'user_email', order: 'desc' },
+        { field: 'created_at', order: 'asc' },
+        { field: 'user.email_address', order: 'desc' },
       ]
 
       const result = buildPrismaOrderByMulti(sorting)
 
       expect(result).toEqual([
-        { categoria: { nome: 'asc' } },
-        { user: { email: 'desc' } },
+        { created_at: 'asc' },
+        { user: { email_address: 'desc' } },
       ])
     })
 

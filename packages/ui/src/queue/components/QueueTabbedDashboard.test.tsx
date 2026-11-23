@@ -21,13 +21,14 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import React from 'react'
 
 vi.mock('./tabs/TempoRealTab', async () => {
   const { useQueueReadOnly } = await import('./read-only-context')
   return {
-    default: function TempoRealTabStub({ enableSSE, moduleIcons }: { enableSSE?: boolean; moduleIcons?: Record<string, string> }) {
+    default: function TempoRealTabStub({ enableSSE, moduleIcons, active, pollInterval }: { enableSSE?: boolean; moduleIcons?: Record<string, string>; active?: boolean; pollInterval?: number }) {
       const readOnly = useQueueReadOnly()
       return React.createElement(
         'div',
@@ -36,6 +37,8 @@ vi.mock('./tabs/TempoRealTab', async () => {
           'data-enablesse': String(enableSSE),
           'data-moduleicons': JSON.stringify(moduleIcons ?? null),
           'data-readonly': String(readOnly),
+          'data-active': String(active),
+          'data-pollinterval': String(pollInterval),
         },
         'TempoRealTab stub'
       )
@@ -103,6 +106,27 @@ describe('QueueTabbedDashboard', () => {
       renderDashboard({ moduleIcons: { gateway: 'G' } })
       const tab = await screen.findByTestId('tempo-real-tab')
       expect(JSON.parse(tab.dataset.moduleicons ?? 'null')).toEqual({ gateway: 'G' })
+    })
+  })
+
+  // Issue #7: visited tabs stay mounted, so the timeline must stop polling
+  describe('Real-time polling', () => {
+    it('forwards pollInterval to TempoRealTab', async () => {
+      renderDashboard({ pollInterval: 5_000 })
+      const tab = await screen.findByTestId('tempo-real-tab')
+      expect(tab.dataset.pollinterval).toBe('5000')
+    })
+
+    it('marks TempoRealTab inactive once another tab is selected', async () => {
+      renderDashboard()
+      const tab = await screen.findByTestId('tempo-real-tab')
+      expect(tab.dataset.active).toBe('true')
+
+      await userEvent.click(screen.getByTestId('content-tab-redis'))
+
+      await waitFor(() =>
+        expect(screen.getByTestId('tempo-real-tab').dataset.active).toBe('false')
+      )
     })
   })
 

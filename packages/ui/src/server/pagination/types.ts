@@ -78,6 +78,13 @@ export interface PaginatedServiceConfig<TModel extends string = string> {
   defaultOrderBy?: string | string[]
   defaultOrderDirection?: 'asc' | 'desc'
 
+  /**
+   * Fields the client may sort by (as sent in `sortBy`, e.g. `'customer.name'`).
+   * When set, any other `sortBy` is ignored and the default sort applies.
+   * When absent, any field is accepted.
+   */
+  sortableFields?: string[]
+
   // Visibility/permission rules
   visibility?: (user: AuthUser) => PrismaWhereClause // Returns Prisma where clause
 

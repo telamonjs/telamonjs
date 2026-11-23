@@ -1878,7 +1878,13 @@ query: { queryKey: ['orders'], queryFn: asQueryFn<Order>(ordersApi.list) },
 
 On the server, `createPaginatedResponse(data, total, page, pageSize)` builds the response, and
 `buildPrismaOrderBy(sortBy, sortOrder)` / `buildPrismaOrderByMulti(sortFields)` turn sort params
-into a Prisma `orderBy` (dotted fields such as `customer.name` become nested objects).
+into a Prisma `orderBy` (dotted fields such as `customer.name` become nested objects; underscores
+are kept, so `created_at` stays a column). `ListPage` sends a nested column's dotted `accessorKey`,
+not TanStack's underscored column id.
+
+`createPaginationContext(...).createPaginatedService(config)` accepts any `sortBy` the client sends
+unless you set `sortableFields: ['name', 'customer.name']`; then any other `sortBy` is ignored in
+favour of `defaultOrderBy`. An invalid `sortOrder` always falls back to `defaultOrderDirection`.
 
 ---
 
@@ -21571,6 +21577,7 @@ export default function JobsPage() {
 | `icon`           | `ComponentType`            | —                                   |
 | `moduleIcons`    | `Record<string, string>`   | — (icons for the config tab)        |
 | `enableSSE`      | `boolean`                  | `true`                              |
+| `pollInterval`   | `number` (ms)              | `2000` (timeline polling while SSE is down) |
 | `syncTabWithUrl` | `boolean`                  | `false` (reads/writes `?tab=` param)|
 | `onTabChange`    | `(tab: string) => void`    | —                                   |
 | `apiUrl`         | `string`                   | `process.env.NEXT_PUBLIC_API_URL`   |
@@ -21699,6 +21706,8 @@ With `enableSSE` (the default), the dashboard connects to the adapter's
   (`connecting | connected | disconnected | error`)
 - If the adapter does not implement `getSSEConfig()`, the dashboard falls back to
   React Query polling
+- The live timeline polls every `pollInterval` only while SSE is down; with the stream
+  connected it polls every 30s as a safety net, and not at all while another tab is open
 
 ## Other components
 

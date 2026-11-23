@@ -107,7 +107,13 @@ query: { queryKey: ['orders'], queryFn: asQueryFn<Order>(ordersApi.list) },
 
 On the server, `createPaginatedResponse(data, total, page, pageSize)` builds the response, and
 `buildPrismaOrderBy(sortBy, sortOrder)` / `buildPrismaOrderByMulti(sortFields)` turn sort params
-into a Prisma `orderBy` (dotted fields such as `customer.name` become nested objects).
+into a Prisma `orderBy` (dotted fields such as `customer.name` become nested objects; underscores
+are kept, so `created_at` stays a column). `ListPage` sends a nested column's dotted `accessorKey`,
+not TanStack's underscored column id.
+
+`createPaginationContext(...).createPaginatedService(config)` accepts any `sortBy` the client sends
+unless you set `sortableFields: ['name', 'customer.name']`; then any other `sortBy` is ignored in
+favour of `defaultOrderBy`. An invalid `sortOrder` always falls back to `defaultOrderDirection`.
 
 ---
 

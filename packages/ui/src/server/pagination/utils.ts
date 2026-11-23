@@ -184,31 +184,62 @@ export function buildWhereClause(
   // Add filter conditions
   conditions.push(...filterConditions)
 
-  // Combine all conditions
-  let where: PrismaWhereClause =
-    conditions.length > 0 ? { AND: conditions } : {}
+  // Compose, never spread: spreading lets baseWhere/visibility overwrite a
+  // search AND or a shared key, and silently drops a scope rule.
+  const parts = [
+    conditions.length > 0 ? { AND: conditions } : undefined,
+    baseWhere,
+    visibilityWhere,
+  ].filter(
+    (part): part is PrismaWhereClause => !!part && Object.keys(part).length > 0
+  )
 
-  // Add base where (always applied)
-  if (baseWhere) {
-    where = { ...where, ...baseWhere }
+  return parts.length > 0 ? { AND: parts } : {}
+}
+
+const isSortOrder = (value: unknown): value is 'asc' | 'desc' =>
+  value === 'asc' || value === 'desc'
+
+/**
+ * Sanitize a client-supplied sort: an invalid direction becomes the default
+ * one, and with `sortableFields` set, fields outside it are dropped (an empty
+ * result falls back to the default sort).
+ */
+export function resolveSort(
+  sortBy: string | string[] | SortField[],
+  sortOrder: unknown,
+  defaults: {
+    defaultOrderBy: string | string[]
+    defaultOrderDirection: 'asc' | 'desc'
+    sortableFields?: string[]
+  }
+): { sortBy: string | string[] | SortField[]; sortOrder: 'asc' | 'desc' } {
+  const { defaultOrderBy, defaultOrderDirection, sortableFields } = defaults
+  const fallback = { sortBy: defaultOrderBy, sortOrder: defaultOrderDirection }
+  const allowed = (field: string) =>
+    !sortableFields || sortableFields.includes(field)
+  const order = isSortOrder(sortOrder) ? sortOrder : defaultOrderDirection
+
+  // The configured default is trusted; everything else came from the client
+  if (sortBy === defaultOrderBy) return { sortBy, sortOrder: order }
+
+  if (typeof sortBy === 'string') {
+    return allowed(sortBy) ? { sortBy, sortOrder: order } : fallback
   }
 
-  // Apply visibility rules (user-based filtering)
-  if (visibilityWhere) {
-    // If visibility has AND/OR at top level, merge appropriately
-    if ('AND' in visibilityWhere || 'OR' in visibilityWhere) {
-      where = {
-        AND: [
-          ...('AND' in where && Array.isArray(where.AND) ? where.AND : [where]),
-          visibilityWhere,
-        ],
-      }
-    } else {
-      where = { ...where, ...visibilityWhere }
-    }
-  }
-
-  return where
+  const fields = (sortBy as unknown[])
+    .filter(
+      (s): s is SortField =>
+        !!s &&
+        typeof s === 'object' &&
+        typeof (s as SortField).field === 'string' &&
+        allowed((s as SortField).field)
+    )
+    .map(s => ({
+      field: s.field,
+      order: isSortOrder(s.order) ? s.order : defaultOrderDirection,
+    }))
+  return fields.length > 0 ? { sortBy: fields, sortOrder: order } : fallback
 }
 
 /**

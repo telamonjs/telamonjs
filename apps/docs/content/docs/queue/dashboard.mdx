@@ -75,6 +75,7 @@ export default function JobsPage() {
 | `icon`           | `ComponentType`            | —                                   |
 | `moduleIcons`    | `Record<string, string>`   | — (icons for the config tab)        |
 | `enableSSE`      | `boolean`                  | `true`                              |
+| `pollInterval`   | `number` (ms)              | `2000` (timeline polling while SSE is down) |
 | `syncTabWithUrl` | `boolean`                  | `false` (reads/writes `?tab=` param)|
 | `onTabChange`    | `(tab: string) => void`    | —                                   |
 | `apiUrl`         | `string`                   | `process.env.NEXT_PUBLIC_API_URL`   |
@@ -203,6 +204,8 @@ With `enableSSE` (the default), the dashboard connects to the adapter's
   (`connecting | connected | disconnected | error`)
 - If the adapter does not implement `getSSEConfig()`, the dashboard falls back to
   React Query polling
+- The live timeline polls every `pollInterval` only while SSE is down; with the stream
+  connected it polls every 30s as a safety net, and not at all while another tab is open
 
 ## Other components
 

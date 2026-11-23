@@ -538,11 +538,17 @@ interface TempoRealTabProps {
   enableSSE?: boolean
   /** Module icons for the queues table (module name → emoji) */
   moduleIcons?: Record<string, string>
+  /** This tab is the visible one — visited tabs stay mounted (default: true) */
+  active?: boolean
+  /** Timeline poll interval in ms while SSE is down (default: 2000) */
+  pollInterval?: number
 }
 
 export default function TempoRealTab({
   enableSSE = true,
   moduleIcons,
+  active = true,
+  pollInterval,
 }: TempoRealTabProps) {
   'use no memo' // useVirtualizer (TanStack) is incompatible with the compiler
   const t = useTelamonjsT()
@@ -565,7 +571,11 @@ export default function TempoRealTab({
     isError,
     isFetching,
     refetch: refetchTimeline,
-  } = useQueueEventsTimeline()
+  } = useQueueEventsTimeline({
+    sseConnected: sseStatus === 'connected',
+    active,
+    pollInterval,
+  })
 
   const handleQueueAction = useCallback(
     async (action: QueueAction) => {

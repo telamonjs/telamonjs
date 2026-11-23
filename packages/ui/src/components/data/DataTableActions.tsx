@@ -173,6 +173,84 @@ async function runAction<TData>({
 }
 
 /**
+ * Confirmation dialog shared by the inline ActionButton (as its trigger) and
+ * the overflow menu (controlled, rendered outside the menu content so it
+ * survives the menu closing).
+ */
+function ConfirmActionDialog<TData>({
+  action,
+  row,
+  open,
+  onOpenChange,
+  onConfirm,
+  children,
+}: {
+  action: ActionConfig<TData>
+  row: TData & { id: string | number | BigInt }
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+  children?: React.ReactNode
+}) {
+  const t = useTelamonjsT()
+  const text = useText()
+
+  const confirmConfig: ConfirmDialogConfig<TData> =
+    action.confirmDialog === true
+      ? {
+          title: t('dialog.confirmActionTitle'),
+          description: t('dialog.confirmActionDescription'),
+          confirmText: t('common.confirm'),
+          cancelText: t('common.cancel'),
+          variant: 'default',
+        }
+      : action.confirmDialog || {}
+
+  return (
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {children && <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>}
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {text(
+              typeof confirmConfig.title === 'function'
+                ? confirmConfig.title(row)
+                : confirmConfig.title
+            )}
+          </AlertDialogTitle>
+          {confirmConfig.description && (
+            <AlertDialogDescription>
+              {text(
+                typeof confirmConfig.description === 'function'
+                  ? confirmConfig.description(row)
+                  : confirmConfig.description
+              )}
+            </AlertDialogDescription>
+          )}
+        </AlertDialogHeader>
+        {/* TODO: Add support for confirmConfig.inputs if needed */}
+        <AlertDialogFooter>
+          <AlertDialogCancel data-testid='modal-cancel'>
+            {text(confirmConfig.cancelText) || t('common.cancel')}
+          </AlertDialogCancel>
+          <AlertDialogAction
+            data-testid='modal-confirm'
+            className={
+              confirmConfig.variant === 'destructive'
+                ? 'bg-red-500 text-white hover:bg-red-600'
+                : ''
+            }
+            onClick={onConfirm}
+          >
+            {text(confirmConfig.confirmText) || t('common.confirm')}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  )
+}
+
+/**
  * ActionButton - Renders a single action button with all its features
  */
 function ActionButton<TData>({
@@ -295,24 +373,6 @@ function ActionButton<TData>({
 
   if (!isVisible) return null
 
-  // Get confirm dialog config
-  const getConfirmDialogConfig = (): ConfirmDialogConfig<TData> => {
-    if (!action.confirmDialog) return {}
-    if (action.confirmDialog === true) {
-      // Default confirmation dialog
-      return {
-        title: t('dialog.confirmActionTitle'),
-        description: t('dialog.confirmActionDescription'),
-        confirmText: t('common.confirm'),
-        cancelText: t('common.cancel'),
-        variant: 'default',
-      }
-    }
-    return action.confirmDialog
-  }
-
-  const confirmConfig = getConfirmDialogConfig()
-
   // Button content (hide action.icon when loading to avoid duplicate with Button's Loader2)
   const buttonContent = (
     <>
@@ -360,46 +420,15 @@ function ActionButton<TData>({
   // Wrap with confirmation dialog if needed
   if (action.confirmDialog) {
     return withDisabledHint(
-      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
-        <AlertDialogTrigger asChild>{button}</AlertDialogTrigger>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {text(
-                typeof confirmConfig.title === 'function'
-                  ? confirmConfig.title(row)
-                  : confirmConfig.title
-              )}
-            </AlertDialogTitle>
-            {confirmConfig.description && (
-              <AlertDialogDescription>
-                {text(
-                  typeof confirmConfig.description === 'function'
-                    ? confirmConfig.description(row)
-                    : confirmConfig.description
-                )}
-              </AlertDialogDescription>
-            )}
-          </AlertDialogHeader>
-          {/* TODO: Add support for confirmConfig.inputs if needed */}
-          <AlertDialogFooter>
-            <AlertDialogCancel data-testid='modal-cancel'>
-              {text(confirmConfig.cancelText) || t('common.cancel')}
-            </AlertDialogCancel>
-            <AlertDialogAction
-              data-testid='modal-confirm'
-              className={
-                confirmConfig.variant === 'destructive'
-                  ? 'bg-red-500 text-white hover:bg-red-600'
-                  : ''
-              }
-              onClick={executeAction}
-            >
-              {text(confirmConfig.confirmText) || t('common.confirm')}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <ConfirmActionDialog
+        action={action}
+        row={row}
+        open={confirmDialogOpen}
+        onOpenChange={setConfirmDialogOpen}
+        onConfirm={executeAction}
+      >
+        {button}
+      </ConfirmActionDialog>
     )
   }
 
@@ -567,6 +596,27 @@ export function DataTableActions<TData>({
     }
   }, [allActions, config.userPermissions])
 
+  // Menu action awaiting confirmation. Its dialog lives outside the
+  // DropdownMenu: the menu unmounts its content as soon as an item is picked.
+  const [pendingConfirm, setPendingConfirm] = useState<{
+    id: string
+    config: ActionConfig<TData>
+  } | null>(null)
+
+  const runMenuAction = useCallback(
+    (actionId: string, action: ActionConfig<TData>) =>
+      void runAction({
+        action,
+        row: row.original,
+        actionId,
+        router,
+        onActionComplete: handleActionComplete,
+        text,
+        fallbackError: t('toast.unknownError'),
+      }),
+    [row.original, router, handleActionComplete, text, t]
+  )
+
   // Determine display mode
   const displayMode = config.display?.mode || 'inline'
   const maxInline = config.display?.maxInline || 999
@@ -684,15 +734,11 @@ export function DataTableActions<TData>({
                     onClick={event => {
                       // Keep the row click handler from also firing
                       event.stopPropagation()
-                      void runAction({
-                        action: actionConfig,
-                        row: row.original,
-                        actionId: id,
-                        router,
-                        onActionComplete: handleActionComplete,
-                        text,
-                        fallbackError: t('toast.unknownError'),
-                      })
+                      if (actionConfig.confirmDialog) {
+                        setPendingConfirm({ id, config: actionConfig })
+                      } else {
+                        runMenuAction(id, actionConfig)
+                      }
                     }}
                   >
                     {actionConfig.icon && (
@@ -717,6 +763,20 @@ export function DataTableActions<TData>({
             })}
           </DropdownMenuContent>
         </DropdownMenu>
+      )}
+
+      {pendingConfirm && (
+        <ConfirmActionDialog
+          action={pendingConfirm.config}
+          row={row.original}
+          open
+          onOpenChange={open => {
+            if (!open) setPendingConfirm(null)
+          }}
+          onConfirm={() =>
+            runMenuAction(pendingConfirm.id, pendingConfirm.config)
+          }
+        />
       )}
     </div>
   )

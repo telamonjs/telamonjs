@@ -51,6 +51,11 @@ export interface QueueTabbedDashboardProps {
   moduleIcons?: Record<string, string>
   /** Enable SSE real-time updates (default: true) */
   enableSSE?: boolean
+  /**
+   * Real-time timeline poll interval in ms while SSE is down (default: 2000).
+   * With SSE connected it polls every 30s; off the Real-time tab, not at all.
+   */
+  pollInterval?: number
   /** Callback when tab changes (for URL sync) */
   onTabChange?: (tab: string) => void
   /** Sync active tab with URL searchParams (default: false) */
@@ -81,6 +86,7 @@ function QueueTabbedDashboardCore({
   icon,
   moduleIcons,
   enableSSE = true,
+  pollInterval,
   onTabChange
 }: CoreProps) {
   const t = useTelamonjsT()
@@ -107,7 +113,12 @@ function QueueTabbedDashboardCore({
         icon: Radio,
         content: (
           <Suspense fallback={<PageSkeleton.TabContent />}>
-            <TempoRealTab enableSSE={enableSSE} moduleIcons={moduleIcons} />
+            <TempoRealTab
+              enableSSE={enableSSE}
+              moduleIcons={moduleIcons}
+              active={activeTab === 'tempo-real'}
+              pollInterval={pollInterval}
+            />
           </Suspense>
         )
       },
@@ -145,7 +156,7 @@ function QueueTabbedDashboardCore({
         )
       }
     ],
-    [moduleIcons, enableSSE, t]
+    [moduleIcons, enableSSE, pollInterval, activeTab, t]
   )
 
   const filteredTabs = useMemo(() => {

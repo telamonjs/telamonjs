@@ -22,6 +22,7 @@ import {
   buildSearchConditions,
   buildWhereClause,
   getFilterOptionsForField,
+  resolveSort,
   sanitizePaginationParams,
 } from './utils'
 import type { FilterOption } from './types'
@@ -95,6 +96,7 @@ export function createPaginationContext(context: PaginationContext) {
       select,
       defaultOrderBy = 'id',
       defaultOrderDirection = 'asc',
+      sortableFields,
       visibility,
       counts,
       baseWhere,
@@ -176,8 +178,13 @@ export function createPaginationContext(context: PaginationContext) {
         where = beforeQuery(queryParams, where)
       }
 
-      // Build orderBy clause
-      const orderBy = buildOrderByClause(sortBy, sortOrder)
+      // Build orderBy clause (sortBy/sortOrder come from the client)
+      const sort = resolveSort(sortBy, sortOrder, {
+        defaultOrderBy,
+        defaultOrderDirection,
+        sortableFields,
+      })
+      const orderBy = buildOrderByClause(sort.sortBy, sort.sortOrder)
 
       // Build include clause with counts
       const includeClause = buildIncludeClause(include, counts)

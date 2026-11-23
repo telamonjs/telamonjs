@@ -15,6 +15,37 @@ export interface TimelineData {
   jobs: TimelineJob[]
 }
 
+const SSE_SAFETY_NET_INTERVAL = 30_000
+const DEFAULT_POLL_INTERVAL = 2_000
+
+export interface QueueEventsTimelineOptions {
+  /** SSE stream is live (it already pushes events into this query's cache) */
+  sseConnected?: boolean
+  /** The view showing the timeline is the active one (default: true) */
+  active?: boolean
+  /** Poll interval in ms while SSE is down (default: 2000) */
+  pollInterval?: number
+}
+
+/**
+ * Poll interval for the timeline: none while hidden or on another tab, a
+ * 30s safety net while SSE is live, otherwise `pollInterval` (2s default).
+ */
+export function timelinePollInterval({
+  isVisible,
+  active,
+  sseConnected,
+  pollInterval = DEFAULT_POLL_INTERVAL,
+}: {
+  isVisible: boolean
+  active: boolean
+  sseConnected: boolean
+  pollInterval?: number
+}): number | false {
+  if (!isVisible || !active) return false
+  return sseConnected ? SSE_SAFETY_NET_INTERVAL : pollInterval
+}
+
 /**
  * Hook for real-time job timeline events.
  *
@@ -27,7 +58,11 @@ export interface TimelineData {
  * const { data: jobs } = useQueueEventsTimeline()
  * ```
  */
-export function useQueueEventsTimeline() {
+export function useQueueEventsTimeline({
+  sseConnected = false,
+  active = true,
+  pollInterval,
+}: QueueEventsTimelineOptions = {}) {
   const api = useQueueApi()
   const isVisible = usePageVisibility()
 
@@ -133,7 +168,11 @@ export function useQueueEventsTimeline() {
       }
     },
     staleTime: 1_000,
-    // Pause polling when page is hidden
-    refetchInterval: isVisible ? 2_000 : false,
+    refetchInterval: timelinePollInterval({
+      isVisible,
+      active,
+      sseConnected,
+      pollInterval,
+    }),
   })
 }

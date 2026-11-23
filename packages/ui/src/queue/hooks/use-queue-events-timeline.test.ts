@@ -13,7 +13,10 @@ import { describe, it, expect, vi } from 'vitest'
 import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
-import { useQueueEventsTimeline } from './use-queue-events-timeline'
+import {
+  timelinePollInterval,
+  useQueueEventsTimeline,
+} from './use-queue-events-timeline'
 import { QueueApiProvider } from '../api/provider'
 import type { QueueApiAdapter } from '../api/types'
 
@@ -162,5 +165,31 @@ describe('useQueueEventsTimeline', () => {
       const ids = result.current.data!.jobs.map(j => j.id)
       expect(ids).toEqual(['b', 'c', 'a'])
     })
+  })
+})
+
+describe('timelinePollInterval', () => {
+  const base = { isVisible: true, active: true, sseConnected: false }
+
+  it('polls every 2s by default while SSE is down', () => {
+    expect(timelinePollInterval(base)).toBe(2_000)
+  })
+
+  it('uses a custom interval while SSE is down', () => {
+    expect(timelinePollInterval({ ...base, pollInterval: 5_000 })).toBe(5_000)
+  })
+
+  it('falls back to a 30s safety net while SSE is connected', () => {
+    expect(
+      timelinePollInterval({ ...base, sseConnected: true, pollInterval: 5_000 })
+    ).toBe(30_000)
+  })
+
+  it('does not poll when the Real-time tab is not active', () => {
+    expect(timelinePollInterval({ ...base, active: false })).toBe(false)
+  })
+
+  it('does not poll when the page is hidden', () => {
+    expect(timelinePollInterval({ ...base, isVisible: false })).toBe(false)
   })
 })

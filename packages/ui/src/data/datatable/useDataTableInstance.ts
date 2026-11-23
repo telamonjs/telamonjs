@@ -17,6 +17,7 @@ import {
   Table,
 } from '@tanstack/react-table'
 import { SortField } from '../../types/pagination'
+import { sortFieldMapping } from './sort-field'
 import {
   useTableColumnFilters,
   useDataTableActions,
@@ -151,13 +152,16 @@ export function useDataTableInstance<TData, TValue>({
     }))
   }, [storeColumnFilters])
 
+  // Store holds server sort fields (dotted paths); TanStack holds column ids
+  const sortFields = useMemo(() => sortFieldMapping(columns), [columns])
+
   // Convert store sorting to TanStack Table format
   const sorting: SortingState = useMemo(() => {
     return storeSorting.map(s => ({
-      id: s.field,
+      id: sortFields.toColumnId(s.field),
       desc: s.order === 'desc',
     }))
-  }, [storeSorting])
+  }, [storeSorting, sortFields])
 
   // Auto-detect responsive view mode (cards on mobile, table on desktop)
   const responsiveMode = useResponsiveViewMode(defaultViewMode)
@@ -173,13 +177,13 @@ export function useDataTableInstance<TData, TValue>({
     (updater: Updater<SortingState>) => {
       const newSorting =
         typeof updater === 'function' ? updater(sorting) : updater
-      const sortFields: SortField[] = newSorting.map(s => ({
-        field: s.id,
+      const nextSort: SortField[] = newSorting.map(s => ({
+        field: sortFields.toField(s.id),
         order: s.desc ? ('desc' as const) : ('asc' as const),
       }))
-      setStoreSorting(sortFields)
+      setStoreSorting(nextSort)
     },
-    [sorting, setStoreSorting]
+    [sorting, setStoreSorting, sortFields]
   )
 
   const handleGlobalFilterChange = useCallback(

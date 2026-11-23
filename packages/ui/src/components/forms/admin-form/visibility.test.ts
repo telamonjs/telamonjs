@@ -116,3 +116,29 @@ describe('stripHiddenErrors', () => {
     expect(errors).toEqual({ pessoa: {} })
   })
 })
+
+describe('prototype-polluting paths', () => {
+  it('never deletes from Object.prototype through a __proto__ path', () => {
+    const original = Object.prototype.hasOwnProperty
+    try {
+      stripHiddenErrors({}, new Set(['__proto__.hasOwnProperty']))
+      omitHiddenFields({ a: 1 }, new Set(['__proto__.hasOwnProperty']))
+      expect(Object.prototype.hasOwnProperty).toBe(original)
+    } finally {
+      // Restore so a failure here cannot cascade into other suites
+      if (Object.prototype.hasOwnProperty !== original) {
+        Object.defineProperty(Object.prototype, 'hasOwnProperty', {
+          value: original,
+          writable: true,
+          configurable: true,
+        })
+      }
+    }
+  })
+
+  it('ignores paths with constructor or prototype segments', () => {
+    const errors: Record<string, unknown> = { constructor: { x: 1 } }
+    stripHiddenErrors(errors, new Set(['constructor.x']))
+    expect(errors).toEqual({ constructor: { x: 1 } })
+  })
+})

@@ -42,6 +42,7 @@ import type { HeadingLevel } from '../ui/heading-level'
 import { SkeletonTable } from '../components/skeletons/SkeletonTable'
 import { useTableSorting, useDataTableActions } from '../stores/datatable-store'
 import type { SortField } from '../types/pagination'
+import { sortFieldMapping } from './datatable/sort-field'
 
 export interface InfiniteListProps<TData> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- public prop; columns mix heterogeneous cell value types per-column (tanstack-table idiom), `unknown` breaks TValue-contravariant assignability for typed ColumnDef<TData, string>[] etc.
@@ -173,9 +174,16 @@ export function InfiniteList<TData>({
   const storeSorting = useTableSorting(tableId ?? '')
   const { setSorting: setStoreSorting } = useDataTableActions(tableId ?? '')
 
+  // Store holds server sort fields (dotted paths); TanStack holds column ids
+  const sortFields = useMemo(() => sortFieldMapping(columns), [columns])
+
   const sorting: SortingState = useMemo(
-    () => storeSorting.map(s => ({ id: s.field, desc: s.order === 'desc' })),
-    [storeSorting]
+    () =>
+      storeSorting.map(s => ({
+        id: sortFields.toColumnId(s.field),
+        desc: s.order === 'desc',
+      })),
+    [storeSorting, sortFields]
   )
 
   const handleSortingChange = useCallback(
@@ -183,13 +191,13 @@ export function InfiniteList<TData>({
       if (!tableId) return
       const newSorting =
         typeof updater === 'function' ? updater(sorting) : updater
-      const sortFields: SortField[] = newSorting.map(s => ({
-        field: s.id,
+      const nextSort: SortField[] = newSorting.map(s => ({
+        field: sortFields.toField(s.id),
         order: s.desc ? ('desc' as const) : ('asc' as const),
       }))
-      setStoreSorting(sortFields)
+      setStoreSorting(nextSort)
     },
-    [tableId, sorting, setStoreSorting]
+    [tableId, sorting, setStoreSorting, sortFields]
   )
 
   // eslint-disable-next-line react-hooks/incompatible-library -- useReactTable() returns functions the compiler can't memoize; 'use no memo' above documents the opt-out but this eslint-plugin-react-hooks version still reports the diagnostic regardless (verified empirically), so the disable is the only way to silence it.

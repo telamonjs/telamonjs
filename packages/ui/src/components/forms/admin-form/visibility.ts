@@ -42,9 +42,14 @@ export function collectHiddenFieldNames(
   return hidden
 }
 
+// A field name is config-controlled, but a path through these keys would
+// reach (and delete from) Object.prototype.
+const UNSAFE_PATH_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype'])
+
 /** Delete a (possibly dotted, e.g. 'pessoa.cpf') path from a plain object. */
 function deleteAtPath(obj: Record<string, unknown>, path: string) {
   const parts = path.split('.')
+  if (parts.some(p => UNSAFE_PATH_SEGMENTS.has(p))) return
   let target: Record<string, unknown> = obj
   for (let i = 0; i < parts.length - 1; i++) {
     const next = target[parts[i]]
