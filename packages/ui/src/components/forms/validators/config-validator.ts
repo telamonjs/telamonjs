@@ -10,6 +10,7 @@
 import type { FormField, FormSection } from '../AdminForm'
 import { logger } from '../../../utils/logger'
 import { fieldRegistry } from '../../../field-system/field-registry'
+import { isMaskPreset } from '../../../field-system/mask-presets'
 
 export interface ValidationResult {
   valid: boolean
@@ -89,8 +90,8 @@ export function validateFormField(field: FormField): ValidationResult {
 
   if (field.type === 'masked') {
     if (!field.mask) {
-      // maskType 'tel' picks the landline/mobile mask by itself (MaskedRenderer)
-      if (field.maskType !== 'tel') {
+      // a maskType preset ('tel', 'cpf', 'cnpj', 'cep') brings its own mask
+      if (!isMaskPreset(field.maskType)) {
         errors.push(
           `Field '${field.name}' with type 'masked' requires 'mask' prop`
         )
@@ -379,7 +380,7 @@ function isValidGrid(grid: string): boolean {
  * Validates span value
  * Valid values: 'col-span-1' through 'col-span-12'
  */
-// `span` is the class SUFFIX: the renderer (field-group.tsx) builds `col-span-${span}`.
+// `span` is the class SUFFIX: the renderer maps it through colSpanClass() (grid-classes.ts).
 // Accepts '1'..'12' and 'full'; an already-prefixed value ('col-span-2') would produce `col-span-col-span-2`.
 function isValidSpan(span: string): boolean {
   return /^([1-9]|1[0-2]|full)$/.test(span)

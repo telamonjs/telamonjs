@@ -136,7 +136,16 @@ export interface FormField<TValue = unknown> {
   resolveUrl?: (value: string) => string | Promise<string>
   Component?: ({ id }: { id: string }) => React.ReactElement
   mask?: string
-  maskType?: string
+  /**
+   * `masked` fields: a built-in mask that wins over `mask` — `'tel'`
+   * (landline/mobile by digit count), `'cpf'`, `'cnpj'`, `'cep'`. Any other
+   * value falls back to `mask`
+   */
+  // The `string & Record<never, never>` member keeps any string assignable
+  // (pre-preset configs) while the editor still suggests the presets.
+  maskType?: 'tel' | 'cpf' | 'cnpj' | 'cep' | (string & Record<never, never>)
+  /** `textarea` fields: visible text lines. Default: 4 */
+  rows?: number
   dependsOn?: string
   focus?: boolean
   readOnly?: boolean

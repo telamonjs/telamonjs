@@ -84,6 +84,7 @@ function convertSingleField(field: unknown): FormField {
   if (fieldObj.dependsOn) converted.dependsOn = fieldObj.dependsOn as string
   if (fieldObj.mask) converted.mask = fieldObj.mask as string
   if (fieldObj.maskType) converted.maskType = fieldObj.maskType as string
+  if (fieldObj.rows) converted.rows = fieldObj.rows as number
   if (fieldObj.uploadFn)
     converted.uploadFn = fieldObj.uploadFn as FormField['uploadFn']
   if (fieldObj.path) converted.path = fieldObj.path as string

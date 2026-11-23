@@ -25,6 +25,14 @@ describe('validateFormField — masked', () => {
   it("aceita maskType: 'tel' sem mask", () => {
     expect(validateFormField({ ...masked, maskType: 'tel' }).errors).toEqual([])
   })
+  it.each(['cpf', 'cnpj', 'cep'])("accepts maskType: '%s' without mask", (maskType) => {
+    expect(validateFormField({ ...masked, maskType }).errors).toEqual([])
+  })
+  it('still requires mask for an unknown maskType', () => {
+    expect(
+      validateFormField({ ...masked, maskType: 'custom' }).errors.some((e) => e.includes("'mask'"))
+    ).toBe(true)
+  })
   it('continua exigindo mask sem maskType', () => {
     expect(validateFormField(masked).errors.some((e) => e.includes("'mask'"))).toBe(true)
   })

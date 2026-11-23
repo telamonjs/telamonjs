@@ -40,7 +40,7 @@ options when another field changes.
 | `'text'` | Simple text | `placeholder` |
 | `'email'` | Validated email | `placeholder` |
 | `'password'` | Password | `placeholder` |
-| `'textarea'` | Long text | `placeholder` |
+| `'textarea'` | Long text | `placeholder`, `rows` (default 4) |
 | `'number'` | Integer | `placeholder` |
 | `'float'` | Decimal number | `placeholder` |
 | `'boolean'` | On/off switch | `default` |
@@ -52,7 +52,7 @@ options when another field changes.
 | `'multiselect'` | Multiple select | `loadField`, `dependsOn` |
 | `'image'` | Image upload | `uploadFn`, `path` |
 | `'file'` | File upload | `uploadFn`, `path`, `resolveUrl` |
-| `'masked'` | Masked input (CPF, phone) | `mask`, `maskType` |
+| `'masked'` | Masked input (CPF, phone) | `mask`, `maskType` — see [Masks](#masks) |
 | `'component'` | Custom component | `Component` |
 | `'crud'` | Nested data 1:N | See [CRUD Field Pattern](/docs/patterns/crud-field) |
 | `'hidden'` | Hidden field | - |
@@ -81,6 +81,28 @@ Every field also accepts `name`, `label`, `type`, `required`, `description`, `pl
 | `'wizard'` | Advanced | Multi-step flow inside the form |
 | `'svg'` | Special | SVG upload/preview |
 | `'space'` | Special | Layout spacer (renders no input) |
+
+---
+
+## Masks
+
+A `'masked'` field formats digits as they are typed. Give it a `maskType` preset, or your own
+`mask` where each `_` is one digit:
+
+| `maskType` | Mask |
+| --- | --- |
+| `'tel'` | `(__) ____-____`, switching to `(__) _____-____` at the 11th digit |
+| `'cpf'` | `___.___.___-__` |
+| `'cnpj'` | `__.___.___/____-__` (digits only) |
+| `'cep'` | `_____-___` |
+
+```typescript
+{ name: 'document', label: 'CPF', type: 'masked', maskType: 'cpf' }
+{ name: 'code', label: 'Code', type: 'masked', mask: '___-____' } // custom mask
+```
+
+A preset wins over `mask`; any other `maskType` value falls back to `mask`. The stored value is
+the formatted text.
 
 ---
 

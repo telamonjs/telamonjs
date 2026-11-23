@@ -26,7 +26,7 @@ export const TextareaRenderer: FieldRenderer = {
         placeholder={
           field.placeholder || t('form.enterText', { label: field.label.toLowerCase() })
         }
-        rows={4}
+        rows={field.rows ?? 4}
         readOnly={field.readOnly}
         autoFocus={field.focus}
         required={field.required}

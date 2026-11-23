@@ -409,6 +409,20 @@ describe('Field Renderers', () => {
         const textarea = screen.getByPlaceholderText('Digite test field')
         expect(textarea).toBeInTheDocument()
       })
+
+      it('renders 4 rows by default and honors field.rows', () => {
+        const { unmount } = renderWithProviders(
+          <>{TextareaRenderer.render({ t, dateFnsLocale, field: mockField, value: '' })}</>
+        )
+        expect(screen.getByRole('textbox')).toHaveAttribute('rows', '4')
+        unmount()
+
+        mockField.rows = 8
+        renderWithProviders(
+          <>{TextareaRenderer.render({ t, dateFnsLocale, field: mockField, value: '' })}</>
+        )
+        expect(screen.getByRole('textbox')).toHaveAttribute('rows', '8')
+      })
     })
 
     describe('BooleanRenderer', () => {
@@ -598,6 +612,38 @@ describe('Field Renderers', () => {
 
         const input = screen.getByRole('textbox')
         expect(input).toBeInTheDocument()
+      })
+
+      it.each([
+        ['cpf', '12345678901', '123.456.789-01'],
+        ['cnpj', '12345678000195', '12.345.678/0001-95'],
+        ['cep', '59600000', '59600-000'],
+      ])('formats the %s maskType preset without a mask', (maskType, raw, shown) => {
+        mockField.maskType = maskType
+        mockField.value = raw
+        const TestComponent = () =>
+          MaskedRenderer.render({ t, dateFnsLocale, field: mockField, value: raw })
+        renderWithProviders(<TestComponent />)
+
+        expect(screen.getByRole('textbox')).toHaveValue(shown)
+      })
+
+      it('a preset maskType wins over mask; an unknown maskType falls back to mask', () => {
+        mockField.maskType = 'cep'
+        mockField.mask = '__/__'
+        mockField.value = '59600000'
+        const { unmount } = renderWithProviders(
+          <>{MaskedRenderer.render({ t, dateFnsLocale, field: mockField, value: '59600000' })}</>
+        )
+        expect(screen.getByRole('textbox')).toHaveValue('59600-000')
+        unmount()
+
+        mockField.maskType = 'custom'
+        mockField.value = '1234'
+        renderWithProviders(
+          <>{MaskedRenderer.render({ t, dateFnsLocale, field: mockField, value: '1234' })}</>
+        )
+        expect(screen.getByRole('textbox')).toHaveValue('12/34')
       })
 
       it('uses default mask placeholder when not provided', () => {

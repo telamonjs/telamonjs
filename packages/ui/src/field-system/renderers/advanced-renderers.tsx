@@ -14,6 +14,7 @@ import {
 import { TimePicker } from '../../components/forms/TimePicker'
 import { WizardForm } from '../../components/forms/WizardForm'
 import { getFieldAccessibilityAttrs } from '../../utils/test-ids'
+import { resolveMask } from '../mask-presets'
 import type { FieldRenderer } from './types'
 
 export const RichTextRenderer: FieldRenderer = {
@@ -191,14 +192,8 @@ export const RangeRenderer: FieldRenderer = {
   },
 }
 
-const TEL_MASK_LANDLINE = '(__) ____-____'
-const TEL_MASK_MOBILE = '(__) _____-____'
 const MASK_REPLACEMENT = { _: /\d/ }
 const digitsOf = (raw: string) => raw.replace(/\D/g, '')
-// 11 raw digits = mobile (9th digit). Decided by the raw digit count, never by
-// the length of the formatted text (parens/space/dash shift it mid-keystroke).
-const telMaskFor = (digitCount: number) =>
-  digitCount > 10 ? TEL_MASK_MOBILE : TEL_MASK_LANDLINE
 
 /** Index right after the n-th digit of `text` (start of text for n = 0). */
 function caretAfterDigit(text: string, n: number): number {
@@ -295,7 +290,7 @@ export const MaskedRenderer: FieldRenderer = {
     })
 
     const maskFor = (digits: string): string =>
-      field.maskType === 'tel' ? telMaskFor(digits.length) : field.mask || ''
+      resolveMask(field.maskType, field.mask, digits.length)
     const value = String(field.value ?? '')
 
     return (
