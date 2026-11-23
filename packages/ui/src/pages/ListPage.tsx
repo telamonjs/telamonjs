@@ -285,6 +285,7 @@ export function ListPage<TData>({
     setEditDialogOpen,
     selectedEntityId,
     selectedEditRow,
+    selectedViewRow,
     viewDialogOpen,
     setViewDialogOpen,
     selectedViewEntityId,
@@ -440,6 +441,7 @@ export function ListPage<TData>({
         setEditDialogOpen={setEditDialogOpen}
         selectedEntityId={selectedEntityId}
         selectedEditRow={selectedEditRow}
+        selectedViewRow={selectedViewRow}
         fetchActionWrapper={fetchActionWrapper}
         updateSubmitValues={updateSubmitValues}
         handleEditDialogSuccess={handleEditDialogSuccess}

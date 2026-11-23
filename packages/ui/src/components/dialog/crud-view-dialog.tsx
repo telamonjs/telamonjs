@@ -32,7 +32,13 @@ export interface CrudViewDialogProps<TData> {
   /** Footer actions of the classic ViewDialog (the portal variant has no footer) */
   footer?: Pick<
     ViewDialogProps<DialogData<TData>>,
-    'onEdit' | 'onDelete' | 'deleteLabel' | 'deleteIcon' | 'deleteConfirmation'
+    | 'onEdit'
+    | 'canEdit'
+    | 'onDelete'
+    | 'canDelete'
+    | 'deleteLabel'
+    | 'deleteIcon'
+    | 'deleteConfirmation'
   >
 }
 

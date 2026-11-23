@@ -99,16 +99,25 @@ export function useListPageDialogs<TData>({
   // List row behind the edit dialog (EditDialog.headerRow): fills the header
   // fields getForEdit does not return. Undefined when the id is not on the
   // loaded page (deep link) — the header then uses the fetched record alone.
-  const selectedEditRow = useMemo(
-    () =>
-      selectedEntityId === null
+  const rowById = useCallback(
+    (id: string | null) =>
+      id === null
         ? undefined
         : data.find(
-            item =>
-              String((item as TData & { id: string | number }).id) ===
-              selectedEntityId
+            item => String((item as TData & { id: string | number }).id) === id
           ),
-    [data, selectedEntityId]
+    [data]
+  )
+  const selectedEditRow = useMemo(
+    () => rowById(selectedEntityId),
+    [rowById, selectedEntityId]
+  )
+  // List row behind the view dialog: the footer evaluates the row actions'
+  // `visible`/`enabled` against it — the same object the row buttons see.
+  // Undefined on a deep link to a record outside the loaded page.
+  const selectedViewRow = useMemo(
+    () => rowById(selectedViewEntityId),
+    [rowById, selectedViewEntityId]
   )
   const createDialogOpen = dialogState.type === 'create'
 
@@ -281,6 +290,7 @@ export function useListPageDialogs<TData>({
     setEditDialogOpen,
     selectedEntityId,
     selectedEditRow,
+    selectedViewRow,
     // View dialog
     viewDialogOpen,
     setViewDialogOpen,

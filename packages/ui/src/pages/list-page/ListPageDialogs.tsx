@@ -10,6 +10,11 @@ import {
 import type { CreateDialog as CreateDialogType } from '../../components/dialog/create-dialog'
 import type { EditDialog as EditDialogType } from '../../components/dialog/edit-dialog'
 import { CrudViewDialog } from '../../components/dialog/crud-view-dialog'
+import {
+  actionEnabled,
+  actionGranted,
+  actionVisible,
+} from '../../components/data/action-access'
 import { resolveDialogTitle } from '../../components/dialog/resolve-dialog-title'
 import { withComponent } from '../../utils/logger'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
@@ -18,7 +23,7 @@ import type {
   FormSection,
   FormActionResult,
 } from '../../components/forms/AdminForm'
-import type { DataTableActionsConfig } from '../../types/actions'
+import type { ActionConfig, DataTableActionsConfig } from '../../types/actions'
 import type {
   CrudConfigWithAnyForm,
   DialogsConfig,
@@ -72,6 +77,8 @@ interface ListPageDialogsProps<TData> {
   viewDialogOpen: boolean
   setViewDialogOpen: (open: boolean) => void
   selectedViewEntityId: string | null
+  /** List row behind the view dialog (undefined on a deep link outside the loaded page) */
+  selectedViewRow?: TData
   handleViewDialogEdit: () => void
   handleViewDialogDelete: () => Promise<void>
   // CreateDialog
@@ -107,6 +114,7 @@ export function ListPageDialogs<TData>({
   viewDialogOpen,
   setViewDialogOpen,
   selectedViewEntityId,
+  selectedViewRow,
   handleViewDialogEdit,
   handleViewDialogDelete,
   createDialogOpen,
@@ -160,6 +168,35 @@ export function ListPageDialogs<TData>({
       : undefined,
   }
 
+  // The footer follows the row action (the same rule as DataTableActions):
+  // edit shows when `dialogs.edit` exists and `standard.edit !== false` (the
+  // ListPage injects the row edit the same way), delete when `standard.delete`
+  // is set; both honor `permission` against `userPermissions`, and `visible` /
+  // `enabled` per record — against the list row, or the fetched record on a
+  // deep link outside the loaded page.
+  const standard = actionsConfig?.standard
+  const footerAction = (
+    offered: boolean,
+    action: ActionConfig<TData> | boolean | undefined
+  ) => {
+    const cfg = typeof action === 'object' ? action : undefined
+    return {
+      offered:
+        offered && actionGranted(cfg?.permission, actionsConfig?.userPermissions),
+      can: cfg
+        ? (item: DialogData) => {
+            const row = selectedViewRow ?? (item as TData)
+            return actionVisible(cfg, row) && actionEnabled(cfg, row)
+          }
+        : undefined,
+    }
+  }
+  const footerEdit = footerAction(
+    Boolean(dialogs?.edit) && standard?.edit !== false,
+    standard?.edit
+  )
+  const footerDelete = footerAction(Boolean(standard?.delete), standard?.delete)
+
   return (
     <Suspense fallback={null}>
       {/* Integrated EditDialog */}
@@ -203,10 +240,10 @@ export function ListPageDialogs<TData>({
           open={viewDialogOpen}
           onOpenChange={setViewDialogOpen}
           footer={{
-            onEdit: dialogs.edit ? handleViewDialogEdit : undefined,
-            onDelete: actionsConfig?.standard?.delete
-              ? handleViewDialogDelete
-              : undefined,
+            onEdit: footerEdit.offered ? handleViewDialogEdit : undefined,
+            canEdit: footerEdit.can,
+            onDelete: footerDelete.offered ? handleViewDialogDelete : undefined,
+            canDelete: footerDelete.can,
             ...deleteViewProps,
           }}
         />

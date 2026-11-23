@@ -2932,9 +2932,13 @@ Errors: Zod errors from `form.validation` render per field before submit; a reje
 
 - The body is `renderContent(item)`; the record comes from `mutations.getForView`, falling
   back to `getForEdit`.
-- The footer is automatic. **Edit** appears when `dialogs.edit` exists and hands over to the
-  edit dialog. **Delete** appears when `actionsConfig.standard.delete` is set and reuses its
-  label, icon and confirmation.
+- The footer is automatic and follows the row actions. **Edit** appears when `dialogs.edit`
+  exists and `actionsConfig.standard.edit` is not `false`, and hands over to the edit dialog.
+  **Delete** appears when `actionsConfig.standard.delete` is set and reuses its label, icon and
+  confirmation. Both honor the action's `permission` against `userPermissions` and its
+  `visible`/`enabled` for the record — evaluated against the list row, or against the fetched
+  record when the dialog opens from a deep link to a row outside the loaded page. A user who
+  cannot edit or delete a row from the table does not get the button in the footer either.
 
 ### Tabbed detail content
 

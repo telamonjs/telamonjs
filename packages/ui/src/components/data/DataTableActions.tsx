@@ -43,6 +43,7 @@ import {
   DataTableActionsConfig,
   TooltipConfig,
 } from '../../types/actions'
+import { actionEnabled, actionGranted, actionVisible } from './action-access'
 import { getIconFromName } from '../../utils/icon'
 import { TEST_IDS, getActionAccessibilityAttrs } from '../../utils/test-ids'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
@@ -280,16 +281,10 @@ function ActionButton<TData>({
   const resolvedLabel = text(action.label)
 
   // Check if action is visible
-  const isVisible = useMemo(() => {
-    if (visible === undefined) return true
-    return typeof visible === 'function' ? visible(row) : visible
-  }, [visible, row])
+  const isVisible = useMemo(() => actionVisible({ visible }, row), [visible, row])
 
   // Check if action is enabled
-  const isEnabled = useMemo(() => {
-    if (enabled === undefined) return true
-    return typeof enabled === 'function' ? enabled(row) : enabled
-  }, [enabled, row])
+  const isEnabled = useMemo(() => actionEnabled({ enabled }, row), [enabled, row])
 
   // Check loading state
   const isActionLoading = useMemo(() => {
@@ -580,14 +575,9 @@ export function DataTableActions<TData>({
   const { filteredInlineActions, filteredDropdownActions } = useMemo(() => {
     const granted = config.userPermissions
       ? new Set(config.userPermissions)
-      : null
-    const allowed = (action: ActionConfig<TData>) => {
-      if (!action.permission || !granted) return true
-      const required = Array.isArray(action.permission)
-        ? action.permission
-        : [action.permission]
-      return required.some(perm => granted.has(perm))
-    }
+      : undefined
+    const allowed = (action: ActionConfig<TData>) =>
+      actionGranted(action.permission, granted)
     return {
       filteredInlineActions: allActions.inline.filter(a => allowed(a.config)),
       filteredDropdownActions: allActions.dropdown.filter(a =>
@@ -691,19 +681,9 @@ export function DataTableActions<TData>({
           <DropdownMenuContent align='end'>
             {overflowActions.map(({ id, config: actionConfig }, index) => {
               // Check visibility
-              const isVisible =
-                actionConfig.visible === undefined ||
-                (typeof actionConfig.visible === 'function'
-                  ? actionConfig.visible(row.original)
-                  : actionConfig.visible)
+              if (!actionVisible(actionConfig, row.original)) return null
 
-              if (!isVisible) return null
-
-              const isEnabled =
-                actionConfig.enabled === undefined ||
-                (typeof actionConfig.enabled === 'function'
-                  ? actionConfig.enabled(row.original)
-                  : actionConfig.enabled)
+              const isEnabled = actionEnabled(actionConfig, row.original)
 
               // Same tooltip forms the inline button accepts (string, msg(),
               // function of the row, TooltipConfig) — used as the item's name.

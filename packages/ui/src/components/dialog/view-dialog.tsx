@@ -97,8 +97,16 @@ export interface ViewDialogProps<T extends Record<string, unknown>> {
   forceDesktopMode?: boolean
   /** Optional edit action - opens EditDialog and closes ViewDialog */
   onEdit?: () => void
+  /**
+   * Per-record gate for the Edit button (with `onEdit`): it shows only when this
+   * returns true for the viewed item, and stays hidden while it loads. The
+   * ListPage passes the row edit action's `visible`/`enabled` here.
+   */
+  canEdit?: (item: T) => boolean
   /** Optional delete action - shows confirmation before deleting */
   onDelete?: () => Promise<void>
+  /** Per-record gate for the Delete button (with `onDelete`), like `canEdit` */
+  canDelete?: (item: T) => boolean
   /** Delete confirmation config (if onDelete is provided) */
   deleteConfirmation?: {
     /** String, or a function that receives the viewed item */
@@ -175,7 +183,9 @@ export function ViewDialog<T extends Record<string, unknown>>({
   size = 'full',
   forceDesktopMode = false,
   onEdit,
+  canEdit,
   onDelete,
+  canDelete,
   deleteConfirmation,
   deleteLabel,
   deleteIcon: DeleteIcon = Trash2,
@@ -203,6 +213,12 @@ export function ViewDialog<T extends Record<string, unknown>>({
     }
     return title
   }, [title, data, t])
+
+  // A gated action waits for the record: never offer what the gate would refuse
+  const gate = (can: ((item: T) => boolean) | undefined) =>
+    !can || (data ? can(data) : false)
+  const showEdit = Boolean(onEdit) && gate(canEdit)
+  const showDelete = Boolean(onDelete) && gate(canDelete)
 
   // Action handlers
   const handleEdit = () => {
@@ -263,7 +279,7 @@ export function ViewDialog<T extends Record<string, unknown>>({
   // Render footer with actions
   const renderFooter = () => {
     // Only render if at least one action is provided
-    if (!onDelete && !onEdit) {
+    if (!showDelete && !showEdit) {
       return null
     }
 
@@ -280,7 +296,7 @@ export function ViewDialog<T extends Record<string, unknown>>({
       <div className='flex items-center justify-between border-t bg-muted/50 px-6 py-4'>
         {/* Delete button (left) */}
         <div>
-          {onDelete ? (
+          {showDelete ? (
             <AlertDialog
               open={confirmDialogOpen}
               onOpenChange={setConfirmDialogOpen}
@@ -336,7 +352,7 @@ export function ViewDialog<T extends Record<string, unknown>>({
             <X className='mr-2 h-4 w-4' />
             {t('common.close')}
           </Button>
-          {onEdit && (
+          {showEdit && (
             <Button onClick={handleEdit} data-testid='view-dialog-edit-button'>
               <Pencil className='mr-2 h-4 w-4' />
               {t('common.edit')}
