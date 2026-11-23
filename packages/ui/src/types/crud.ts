@@ -65,7 +65,7 @@ import type {
   QueryKey,
 } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
-import type { DataTableActionsConfig } from './actions'
+import type { ActionConfig, DataTableActionsConfig } from './actions'
 import type { PaginationParams, PaginatedResponse } from './pagination'
 import type { FormSection } from './forms/admin-form'
 import type { DialogHeaderConfig } from './dialog-header'
@@ -252,8 +252,8 @@ export interface ListConfig<T> {
 export interface FormConfig {
   /** Form sections with fields */
   sections: FormSection | FormSection[]
-  /** Zod validation schema */
-  validation: z.ZodSchema
+  /** Zod validation schema (optional: without it the form submits unvalidated) */
+  validation?: z.ZodSchema
   /** Use tabs for sections (default: false for create, true for edit) */
   useTabs?: boolean
   /**
@@ -542,6 +542,28 @@ export interface PagesConfig<T> {
 }
 
 /**
+ * Permission model of a CrudConfig. Each operation names the permission(s) it
+ * needs (any of them, like an action's `permission`); an operation without
+ * one stays allowed.
+ *
+ * Checked with `can` when set (bypass roles, wildcards: pass
+ * `perm => checker.can(user, perm)` from `@telamonjs/permissions`), else against
+ * `actionsConfig.userPermissions`; with neither, everything is allowed.
+ */
+export interface CrudPermissions {
+  /** Permission checker; wins over `actionsConfig.userPermissions` */
+  can?: (permission: string) => boolean
+  /** The "New" button and the create dialog */
+  create?: ActionConfig['permission']
+  /** The row edit, the view dialog's Edit, the edit dialog and portal section saving */
+  edit?: ActionConfig['permission']
+  /** The row delete and the view dialog's Delete */
+  delete?: ActionConfig['permission']
+  /** The row view and the view dialog (row click included) */
+  view?: ActionConfig['permission']
+}
+
+/**
  * Complete CRUD configuration
  *
  * This is the main interface that consolidates all CRUD-related configuration
@@ -586,8 +608,12 @@ export interface CrudConfig<T = any, TFormData = T> {
   /** List page configuration */
   list: ListConfig<T>
 
-  /** Form configuration (shared by create/edit/dialogs) */
-  form: FormConfig
+  /**
+   * Form configuration (shared by create/edit/dialogs). Optional: a read-only
+   * list omits it, and then no create or edit dialog is offered even when
+   * `dialogs.create` / `dialogs.edit` are set.
+   */
+  form?: FormConfig
 
   /**
    * React Query configuration for data fetching
@@ -609,6 +635,13 @@ export interface CrudConfig<T = any, TFormData = T> {
 
   /** Dedicated pages configuration (optional) */
   pages?: PagesConfig<T>
+
+  /**
+   * Who may create, edit, delete and view. Gates the "New" button, the row
+   * actions, the view dialog footer, the create/edit dialogs and portal
+   * section saving. Omit it and nothing changes.
+   */
+  permissions?: CrudPermissions
 }
 
 /**

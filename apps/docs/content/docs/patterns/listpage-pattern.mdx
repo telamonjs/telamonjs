@@ -298,6 +298,11 @@ hide the actions column.
 `ActionConfig` also takes `href`, `onClick`, `enabled`, `tooltip`, `variant`, `permission`,
 `successMessage` and `errorMessage`.
 
+`permission` is checked against `actionsConfig.userPermissions` by exact name. Set
+`actionsConfig.can` (or `config.permissions.can`, see
+[Permissions](/docs/getting-started/crud-config#permissions)) to decide it with your own
+checker instead, so a bypass role with no listed permissions still sees the actions.
+
 ---
 
 ## Bulk Actions

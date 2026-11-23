@@ -128,10 +128,12 @@ export function withScope<C extends CrudConfig<any, any>>(
       }),
       ...(toolbar && { toolbar }),
     },
-    form: {
-      ...config.form,
-      sections: stripFields(config.form.sections, lockedKeys),
-    },
+    ...(config.form && {
+      form: {
+        ...config.form,
+        sections: stripFields(config.form.sections, lockedKeys),
+      },
+    }),
     query: {
       ...config.query,
       queryKey: [...config.query.queryKey, filters],

@@ -25,16 +25,60 @@ reads it all from a single prop.
 | --- | --- | --- | --- |
 | `module` | `ModuleMetadata` | Yes | Identification: `name`, `title`, `description`, `route` (all required) |
 | `list` | `ListConfig<T>` | Yes | `title`, `description` (required), columns, search placeholder, sorting, page size, toolbar |
-| `form` | `FormConfig` | Yes | Form `sections` + Zod `validation`, shared by the create and edit dialogs |
+| `form` | `FormConfig` | No | Form `sections` + Zod `validation` (optional), shared by the create and edit dialogs. Omit it for a read-only list |
 | `query` | `QueryConfig<T>` | Yes | React Query: `queryKey`, `queryFn`, `staleTime?`, `refetchInterval?` |
 | `mutations` | `MutationsConfig<T, TFormData>` | Yes | `create`/`update`/`delete` (each a `MutationConfig`) with declarative `invalidates`, plus `getForEdit`/`getForView` |
 | `actionsConfig` | `DataTableActionsConfig<T> \| false` | No | Row action buttons: `standard: { view, edit, delete }` + custom actions |
 | `dialogs` | `DialogsConfig<T>` | No | View/edit/create dialogs: rich headers, the view body, deep links via `urlParam` |
 | `pages` | `PagesConfig<T>` | No | Dedicated pages instead of dialogs (see [Standalone form pages](/docs/patterns/edit-page)) |
+| `permissions` | `CrudPermissions` | No | Who may create, edit, delete and view (see [Permissions](#permissions)) |
 
 `create`, `update` and `delete` are each optional: an omitted one resolves
 `{ success: false }` instead of throwing, so a read-only module needs no stub
 mutations.
+
+A read-only list also needs no form: without `form`, `ListPage` offers no "New"
+button and no create or edit dialog, even if `dialogs.create` / `dialogs.edit`
+are set. The view dialog keeps working.
+
+### Permissions
+
+`permissions` names the permission each operation needs (a string, or an array
+meaning any of them). An operation without one stays allowed:
+
+```tsx
+import { createPermissionChecker } from '@telamonjs/permissions'
+import type { AuthUser } from '@telamonjs/auth'
+
+const checker = createPermissionChecker({ bypassRoles: ['superadmin'] })
+
+export function usuariosConfigFor(user: AuthUser): CrudConfig<Usuario, UsuarioFormData> {
+  return {
+    ...usuariosConfig,
+    permissions: {
+      can: perm => checker.can(user, perm),
+      create: 'usuarios.create',
+      edit: 'usuarios.update',
+      delete: 'usuarios.delete',
+      view: 'usuarios.read',
+    },
+  }
+}
+```
+
+| Operation | Gates |
+| --- | --- |
+| `create` | the "New" button and the create dialog (`?create=1` included) |
+| `edit` | the row edit, the view dialog's Edit, the edit dialog and `dialogs.view.portal.onSaveSection` |
+| `delete` | the row delete and the view dialog's Delete |
+| `view` | the row view and the view dialog (row click included) |
+
+The checker is `can` when set, so bypass roles and wildcards work as your
+checker defines them. Without `can`, the names are looked up in
+`actionsConfig.userPermissions`; with neither, everything is allowed. The row
+view/edit/delete inherit the operation's permission unless their own
+`ActionConfig` declares a `permission`, and `permissions.can` also decides the
+`permission` of custom actions (it becomes `actionsConfig.can`).
 
 ---
 
@@ -372,6 +416,7 @@ All exported from `@telamonjs/ui`:
 - `ModuleMetadata`, `ListConfig<T>`, `FormConfig`
 - `QueryConfig<T>`, `MutationConfig<TInput, TOutput>`, `MutationsConfig<T, TFormData>`
 - `DialogConfig<T>`, `DialogsConfig<T>`, `PagesConfig<T>`
+- `CrudPermissions` — the `permissions` key
 - `CrudConfigWithAnyForm<T>` — alias for `CrudConfig<T, any>` when a context must accept any config (`TFormData` is invariant)
 
 ---

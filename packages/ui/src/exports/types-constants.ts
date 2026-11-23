@@ -30,6 +30,7 @@ export type {
   PagesConfig,
   CrudConfig,
   CrudConfigWithAnyForm,
+  CrudPermissions,
   ToolbarFilterOption,
   ToolbarFilterConfig,
   ToolbarConfig,

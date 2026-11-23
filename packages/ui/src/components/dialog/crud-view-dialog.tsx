@@ -10,6 +10,7 @@ import type {
 } from './view-dialog'
 import type { ViewPortalDialog as ViewPortalDialogType } from './view-portal-dialog'
 import { resolveDialogTitle } from './resolve-dialog-title'
+import { crudGranted } from '../data/action-access'
 
 const logger = withComponent('CrudViewDialog')
 
@@ -24,8 +25,15 @@ const ViewPortalDialog = lazy(() =>
 type DialogData<T> = T & Record<string, unknown>
 
 export interface CrudViewDialogProps<TData> {
-  /** The module's CrudConfig — uses `dialogs.view`, `mutations.getForView ?? getForEdit` and `form.validation` */
-  config: Pick<CrudConfigWithAnyForm<TData>, 'dialogs' | 'mutations' | 'form'>
+  /**
+   * The module's CrudConfig — uses `dialogs.view`, `mutations.getForView ?? getForEdit`,
+   * `form.validation`, and `permissions.edit` (checked like the row actions) to
+   * gate `portal.onSaveSection`
+   */
+  config: Pick<
+    CrudConfigWithAnyForm<TData>,
+    'dialogs' | 'mutations' | 'form' | 'permissions' | 'actionsConfig'
+  >
   id: string | null
   open: boolean
   onOpenChange: (open: boolean) => void
@@ -103,8 +111,10 @@ export function CrudViewDialog<TData>({
           sections={view.portal.sections}
           defaultSection={view.portal.defaultSection}
           columns={view.portal.columns}
-          validation={form.validation}
-          onSaveSection={view.portal.onSaveSection}
+          validation={form?.validation}
+          onSaveSection={
+            crudGranted(config, 'edit') ? view.portal.onSaveSection : undefined
+          }
         />
       ) : (
         <ViewDialog<DialogData<TData>>

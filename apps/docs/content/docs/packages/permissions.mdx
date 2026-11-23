@@ -142,6 +142,10 @@ All are pure and null-safe (`user` may be `null`/`undefined` → `false`). The
 `UserWithPermissions` type is structural on purpose: the `AuthUser` from the
 auth package satisfies it by shape, with no dependency between the packages.
 
+A `CrudConfig` takes the same checker: `permissions: { can: p => can(session?.user, p), create:
+'clientes.create', … }` gates the list's "New" button, row actions and dialogs (see
+[Permissions](/docs/getting-started/crud-config#permissions)).
+
 </Step>
 </Steps>
 

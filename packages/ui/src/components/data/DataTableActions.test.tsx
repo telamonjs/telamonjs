@@ -396,6 +396,20 @@ describe('DataTableActions', () => {
       expect(screen.getByText('Allowed')).toBeInTheDocument()
     })
 
+    it('`can` decides instead of the exact lookup: a bypass role with empty permissions sees the actions', () => {
+      renderActions({
+        userPermissions: [],
+        can: perm => perm !== 'items:forbidden',
+        custom: [
+          { id: 'priv', label: 'Priv', onClick: vi.fn(), permission: 'items:admin' },
+          { id: 'no', label: 'No', onClick: vi.fn(), permission: 'items:forbidden' },
+        ],
+      })
+
+      expect(screen.getByText('Priv')).toBeInTheDocument()
+      expect(screen.queryByText('No')).not.toBeInTheDocument()
+    })
+
     it('display.mode=dropdown moves ALL inline actions into the overflow menu', () => {
       renderActions({
         standard: { view: true, edit: true },

@@ -26,6 +26,7 @@ import type {
 import type { ActionConfig, DataTableActionsConfig } from '../../types/actions'
 import type {
   CrudConfigWithAnyForm,
+  CrudPermissions,
   DialogsConfig,
   FormConfig,
 } from '../../types/crud'
@@ -57,7 +58,10 @@ function useEverOpened(open: boolean): boolean {
 interface ListPageDialogsProps<TData> {
   dialogs: DialogsConfig<TData> | undefined
   mutations: CrudConfigWithAnyForm<TData>['mutations']
-  form: FormConfig
+  /** Undefined for a read-only list (create/edit dialogs are already dropped) */
+  form: FormConfig | undefined
+  /** `config.permissions` (section saving in the portal view dialog) */
+  permissions?: CrudPermissions
   /** form.sections normalized to an array (existing runtime contract) */
   formSections: FormSection[]
   /** Normalized actionsConfig (false already mapped to undefined) */
@@ -102,6 +106,7 @@ export function ListPageDialogs<TData>({
   dialogs,
   mutations,
   form,
+  permissions,
   formSections,
   actionsConfig,
   editDialogOpen,
@@ -182,7 +187,12 @@ export function ListPageDialogs<TData>({
     const cfg = typeof action === 'object' ? action : undefined
     return {
       offered:
-        offered && actionGranted(cfg?.permission, actionsConfig?.userPermissions),
+        offered &&
+        actionGranted(
+          cfg?.permission,
+          actionsConfig?.userPermissions,
+          actionsConfig?.can
+        ),
       can: cfg
         ? (item: DialogData) => {
             const row = selectedViewRow ?? (item as TData)
@@ -214,7 +224,7 @@ export function ListPageDialogs<TData>({
             fetchAction={fetchActionWrapper}
             onSubmitValues={updateSubmitValues}
             sections={formSections}
-            validation={form.validation}
+            validation={form?.validation}
             title={resolveDialogTitle(dialogs.edit.title, text)}
             description={text(dialogs.edit.description)}
             renderHeader={dialogs.edit.renderHeader}
@@ -226,7 +236,7 @@ export function ListPageDialogs<TData>({
             dialogHeight={dialogs.edit.dialogHeight}
             useTabs={dialogs.edit.useTabs}
             lockedFields={dialogs.edit.lockedFields}
-            onFieldChange={form.onFieldChange}
+            onFieldChange={form?.onFieldChange}
             onSuccess={handleEditDialogSuccess}
           />
         </>
@@ -235,7 +245,7 @@ export function ListPageDialogs<TData>({
       {/* ViewDialog / ViewPortalDialog (integrated modal for view action) */}
       {dialogs?.view && mutations && viewMounted && (
         <CrudViewDialog<TData>
-          config={{ dialogs, mutations, form }}
+          config={{ dialogs, mutations, form, permissions, actionsConfig }}
           id={selectedViewEntityId}
           open={viewDialogOpen}
           onOpenChange={setViewDialogOpen}
@@ -256,7 +266,7 @@ export function ListPageDialogs<TData>({
           onOpenChange={setCreateDialogOpen}
           onSubmitValues={createSubmitValues}
           sections={formSections}
-          validation={form.validation}
+          validation={form?.validation}
           title={resolveDialogTitle(dialogs.create.title, text)}
           description={text(dialogs.create.description)}
           renderHeader={
@@ -269,7 +279,7 @@ export function ListPageDialogs<TData>({
           dialogHeight={dialogs.create.dialogHeight}
           useTabs={dialogs.create.useTabs}
           defaultValues={dialogs.create.defaultValues}
-          onFieldChange={form.onFieldChange}
+          onFieldChange={form?.onFieldChange}
           onSuccess={() => {
             // Close first; the refresh runs in the background and its failure is
             // only logged (the record was already created).

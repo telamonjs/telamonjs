@@ -107,7 +107,10 @@ export interface ActionConfig<TData = any> {
   onError?: (error: Error, row: TData) => void
 
   // Permissions
-  /** Required permission(s) to show this action */
+  /**
+   * Required permission(s) to show this action (any of them). Checked with
+   * `DataTableActionsConfig.can` when set, else against `userPermissions`.
+   */
   permission?: string | string[]
 
   // Visual feedback
@@ -188,4 +191,11 @@ export interface DataTableActionsConfig<TData = any> {
   // Global permissions
   /** Current user permissions for permission checking */
   userPermissions?: string[]
+  /**
+   * Permission checker. When set it decides every `permission` instead of the
+   * exact lookup in `userPermissions`, so bypass roles and wildcards work, e.g.
+   * `can: perm => checker.can(user, perm)` with `createPermissionChecker` from
+   * `@telamonjs/permissions`.
+   */
+  can?: (permission: string) => boolean
 }

@@ -371,7 +371,8 @@ Errors: Zod errors from `form.validation` render per field before submit; a reje
 - The footer is automatic and follows the row actions. **Edit** appears when `dialogs.edit`
   exists and `actionsConfig.standard.edit` is not `false`, and hands over to the edit dialog.
   **Delete** appears when `actionsConfig.standard.delete` is set and reuses its label, icon and
-  confirmation. Both honor the action's `permission` against `userPermissions` and its
+  confirmation. Both honor the action's `permission` (checked with `actionsConfig.can` or
+  `config.permissions`, else against `userPermissions`) and its
   `visible`/`enabled` for the record — evaluated against the list row, or against the fetched
   record when the dialog opens from a deep link to a row outside the loaded page. A user who
   cannot edit or delete a row from the table does not get the button in the footer either.
@@ -480,6 +481,8 @@ dialogs: {
 - `portal` and `renderContent` are mutually exclusive; with both, `portal` wins and a dev
   warning is logged.
 - The portal has **no footer**: editing is per section, deleting lives in the row actions.
+- With `config.permissions.edit` set, only users granted it get the section pencils
+  (`onSaveSection` is dropped otherwise) — in `ListPage` and in `CrudViewDialog`.
 - Leaving a dirty section (switching, back to the grid, closing) asks to discard first.
 - Sections also accept `description` (shown on the grid card), `group` and `padded`
   (default `true`; pass `false` for lists and full-bleed content). `defaultSection` skips the

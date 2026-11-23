@@ -577,14 +577,14 @@ export function DataTableActions<TData>({
       ? new Set(config.userPermissions)
       : undefined
     const allowed = (action: ActionConfig<TData>) =>
-      actionGranted(action.permission, granted)
+      actionGranted(action.permission, granted, config.can)
     return {
       filteredInlineActions: allActions.inline.filter(a => allowed(a.config)),
       filteredDropdownActions: allActions.dropdown.filter(a =>
         allowed(a.config)
       ),
     }
-  }, [allActions, config.userPermissions])
+  }, [allActions, config.userPermissions, config.can])
 
   // Menu action awaiting confirmation. Its dialog lives outside the
   // DropdownMenu: the menu unmounts its content as soon as an item is picked.

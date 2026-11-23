@@ -24,6 +24,7 @@ import { useListPageActions } from './list-page/useListPageActions'
 import { ListPageToolbar } from './list-page/ListPageToolbar'
 import { ListPageTable } from './list-page/ListPageTable'
 import { ListPageDialogs } from './list-page/ListPageDialogs'
+import { applyCrudPermissions } from './list-page/apply-crud-permissions'
 
 const logger = withComponent('ListPage')
 
@@ -98,20 +99,24 @@ export function ListPage<TData>({
   dialogUrlSync = true,
 }: ListPageProps<TData>) {
   // Destructure config for easier access
-  const {
-    module,
-    list,
-    form,
-    mutations,
-    actionsConfig: rawActionsConfig,
-    dialogs,
-  } = config
+  const { module, list, form, mutations, actionsConfig: rawActionsConfig } =
+    config
   const actionsDisabled = rawActionsConfig === false
-  const actionsConfig = actionsDisabled ? undefined : rawActionsConfig
+  // `config.permissions` and a missing `form` applied once: denied (or
+  // formless create/edit) dialogs dropped, row actions carrying the
+  // operation's permission (identity when there is neither)
+  const { dialogs, actionsConfig } = useMemo(
+    () =>
+      applyCrudPermissions(
+        config,
+        actionsDisabled ? undefined : rawActionsConfig
+      ),
+    [config, actionsDisabled, rawActionsConfig]
+  )
 
   // FormConfig accepts `FormSection | FormSection[]`; the integrated dialogs
   // expect an array (existing runtime contract — type-level cast only).
-  const formSections = form.sections as FormSection[]
+  const formSections = (form?.sections ?? []) as FormSection[]
 
   const [filterOptions, setFilterOptions] = useState<ColumnFilterConfig>(
     initialFilterOptions || {}
@@ -435,6 +440,7 @@ export function ListPage<TData>({
         dialogs={dialogs}
         mutations={mutations}
         form={form}
+        permissions={config.permissions}
         formSections={formSections}
         actionsConfig={actionsConfig}
         editDialogOpen={editDialogOpen}

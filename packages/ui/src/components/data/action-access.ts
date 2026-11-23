@@ -1,4 +1,5 @@
 import type { ActionConfig } from '../../types/actions'
+import type { CrudConfig, CrudPermissions } from '../../types/crud'
 
 /**
  * Access rules of a row action, shared by every surface that offers it: the row
@@ -6,16 +7,39 @@ import type { ActionConfig } from '../../types/actions'
  * One rule, so the footer never offers what the row hides.
  */
 
-/** `permission` against `userPermissions` (any of them). No `userPermissions` = everything allowed. */
+/**
+ * `permission` (any of them) against `can` when given, else against
+ * `userPermissions`. Neither = everything allowed.
+ */
 export function actionGranted(
   permission: ActionConfig['permission'],
-  userPermissions: readonly string[] | ReadonlySet<string> | undefined
+  userPermissions: readonly string[] | ReadonlySet<string> | undefined,
+  can?: (permission: string) => boolean
 ): boolean {
-  if (!permission || !userPermissions) return true
+  if (!permission) return true
+  const required = Array.isArray(permission) ? permission : [permission]
+  if (can) return required.some(perm => can(perm))
+  if (!userPermissions) return true
   const granted =
     userPermissions instanceof Set ? userPermissions : new Set(userPermissions)
-  const required = Array.isArray(permission) ? permission : [permission]
   return required.some(perm => granted.has(perm))
+}
+
+/**
+ * A CrudConfig operation (`permissions.create`, …) against the same checker the
+ * row actions use: `permissions.can` or `actionsConfig.can`, else
+ * `actionsConfig.userPermissions`.
+ */
+export function crudGranted(
+  config: Pick<CrudConfig, 'permissions' | 'actionsConfig'>,
+  operation: keyof Omit<CrudPermissions, 'can'>
+): boolean {
+  const actions = config.actionsConfig || undefined
+  return actionGranted(
+    config.permissions?.[operation],
+    actions?.userPermissions,
+    actions?.can ?? config.permissions?.can
+  )
 }
 
 /** `visible` for this row (`undefined` = visible). */

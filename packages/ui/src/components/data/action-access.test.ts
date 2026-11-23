@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
-import { actionEnabled, actionGranted, actionVisible } from './action-access'
+import {
+  actionEnabled,
+  actionGranted,
+  actionVisible,
+  crudGranted,
+} from './action-access'
 
 describe('action-access', () => {
   it('actionGranted: no permission or no userPermissions = allowed; any of the listed permissions', () => {
@@ -9,6 +14,41 @@ describe('action-access', () => {
     expect(actionGranted('a', ['b'])).toBe(false)
     expect(actionGranted(['a', 'b'], new Set(['b']))).toBe(true)
     expect(actionGranted(['a', 'b'], [])).toBe(false)
+  })
+
+  it('actionGranted: `can` decides instead of the exact lookup (bypass with empty permissions)', () => {
+    const superadmin = () => true
+    expect(actionGranted('a', [], superadmin)).toBe(true)
+    expect(actionGranted(['a', 'b'], ['a'], perm => perm === 'b')).toBe(true)
+    expect(actionGranted('a', ['a'], () => false)).toBe(false)
+    expect(actionGranted(undefined, [], () => false)).toBe(true)
+  })
+
+  it('crudGranted: permissions.<op> against permissions.can, actionsConfig.can or userPermissions', () => {
+    expect(crudGranted({}, 'create')).toBe(true)
+    expect(crudGranted({ permissions: { create: 'x.create' } }, 'create')).toBe(true)
+    expect(
+      crudGranted(
+        { permissions: { create: 'x.create' }, actionsConfig: { userPermissions: [] } },
+        'create'
+      )
+    ).toBe(false)
+    expect(
+      crudGranted(
+        { permissions: { edit: 'x.edit', can: p => p === 'x.edit' }, actionsConfig: false },
+        'edit'
+      )
+    ).toBe(true)
+    // actionsConfig.can wins over permissions.can
+    expect(
+      crudGranted(
+        {
+          permissions: { delete: 'x.delete', can: () => true },
+          actionsConfig: { can: () => false },
+        },
+        'delete'
+      )
+    ).toBe(false)
   })
 
   it('actionVisible / actionEnabled: undefined = true; boolean; function of the row', () => {
