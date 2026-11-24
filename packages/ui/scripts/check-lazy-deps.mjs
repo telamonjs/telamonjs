@@ -11,12 +11,18 @@
  * (tsup custom plugin), so static imports are parseable with a simple regex.
  * Dynamic import() calls are intentionally NOT followed.
  *
+ * Optional peers (`peerDependenciesMeta.optional` in package.json) are stricter:
+ * NO file in dist/ may import them statically, since an app that never installed
+ * them must still build. They load through `import()` inside a `try`, which
+ * bundlers treat as optional.
+ *
  * Usage: node scripts/check-lazy-deps.mjs   (after `pnpm build`)
- * Exits 1 if a heavy dep is statically reachable from any entry.
+ * Exits 1 if a heavy dep is statically reachable from any entry, or an
+ * optional peer is statically imported anywhere.
  */
 
-import { readFileSync, existsSync } from 'node:fs'
-import { dirname, resolve, relative } from 'node:path'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
+import { dirname, resolve, relative, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -42,9 +48,8 @@ const ENTRIES = [
 const FORBIDDEN = [
   /^@tiptap\//,
   /^recharts(\/|$)/,
-  // Export stack: loaded on demand by ExportMenu via import('./exportUtils')
+  // PDF export: optional peers, also checked across all of dist/ below
   /^jspdf(-autotable)?(\/|$)/,
-  /^papaparse(\/|$)/,
 ]
 
 /**
@@ -150,6 +155,35 @@ for (const entry of ENTRIES) {
       `✓ ${entry}: ${visited.size} modules traversed, no static heavy-dep imports`
     )
   }
+}
+
+const pkg = JSON.parse(readFileSync(resolve(__dirname, '..', 'package.json'), 'utf8'))
+const optionalPeers = Object.keys(pkg.peerDependencies ?? {}).filter(
+  name => pkg.peerDependenciesMeta?.[name]?.optional === true
+)
+const isOptionalPeer = spec =>
+  optionalPeers.some(name => spec === name || spec.startsWith(`${name}/`))
+
+function* jsFiles(dir) {
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) yield* jsFiles(path)
+    else if (entry.name.endsWith('.js')) yield path
+  }
+}
+
+const peerHits = []
+for (const file of jsFiles(DIST)) {
+  for (const spec of staticImports(file)) {
+    if (isOptionalPeer(spec)) peerHits.push(`${spec} in ${relative(DIST, file)}`)
+  }
+}
+if (peerHits.length > 0) {
+  failed = true
+  console.error('✗ optional peers imported statically (use import() inside try):')
+  for (const hit of peerHits) console.error(`    ${hit}`)
+} else {
+  console.log(`✓ optional peers (${optionalPeers.join(', ')}): no static import in dist/`)
 }
 
 process.exit(failed ? 1 : 0)

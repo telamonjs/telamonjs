@@ -18,6 +18,7 @@ export const data = {
   noDataToExport: 'Sin datos para exportar',
   exportSuccess: '{format} exportado con éxito ({scope})',
   exportError: 'Error al exportar datos',
+  exportMissingPeer: 'Esta exportación necesita paquetes que la app no instaló: {packages}',
   exportFetching: 'Buscando registros para exportar: {loaded, number} de {total, number}',
   exportCancelled: 'Exportación cancelada',
   exportTruncated:

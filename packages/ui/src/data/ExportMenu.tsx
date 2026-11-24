@@ -32,8 +32,9 @@ import {
   DropdownMenuSubContent,
 } from '../ui/dropdown-menu'
 import { ColumnDef } from '@tanstack/react-table'
-// Type-only: exportUtils pulls jspdf/papaparse, loaded on demand in handleExport
+// Type-only: exportUtils (and the jspdf peer behind it) loads on demand in handleExport
 import type { PDFExportOptions } from './exportUtils'
+import { MissingPeerError } from './missing-peer'
 import { toast } from 'sonner'
 
 export type ExportFormat = 'excel' | 'csv' | 'pdf'
@@ -240,7 +241,7 @@ export function ExportMenu<T>({
         return
       }
 
-      // Load the heavy export stack only when the user actually exports
+      // Load the export stack only when the user actually exports
       const { exportToExcel, exportToCSV, exportToPDF } = await import(
         './exportUtils'
       )
@@ -258,7 +259,7 @@ export function ExportMenu<T>({
           exportToCSV(dataToExport, columns, filename, common)
           break
         case 'pdf':
-          exportToPDF(dataToExport, columns, filename, {
+          await exportToPDF(dataToExport, columns, filename, {
             ...common,
             ...pdfOptions,
             orientation: pdfOptions.orientation || 'landscape',
@@ -274,7 +275,11 @@ export function ExportMenu<T>({
       logger.error('Export error', {
         error: error instanceof Error ? error : String(error),
       })
-      toast.error(t('data.exportError'))
+      toast.error(
+        error instanceof MissingPeerError
+          ? t('data.exportMissingPeer', { packages: error.packages.join(', ') })
+          : t('data.exportError')
+      )
       onExportError?.(error as Error)
     } finally {
       setIsExporting(false)

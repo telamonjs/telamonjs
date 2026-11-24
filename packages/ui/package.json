@@ -158,7 +158,6 @@
     "jspdf-autotable": "^5.0.7",
     "next": "^15.5.29 || ^16.4.6",
     "next-auth": "^5.0.0-beta.20",
-    "papaparse": "^5.5.0",
     "react": "^18.0.0 || ^19.0.0",
     "react-dom": "^18.0.0 || ^19.0.0",
     "react-hook-form": "^7.0.0",
@@ -169,6 +168,12 @@
   },
   "peerDependenciesMeta": {
     "@prisma/client": {
+      "optional": true
+    },
+    "jspdf": {
+      "optional": true
+    },
+    "jspdf-autotable": {
       "optional": true
     }
   },
@@ -187,7 +192,6 @@
     "@testing-library/react": "catalog:",
     "@testing-library/user-event": "catalog:",
     "@types/node": "catalog:",
-    "@types/papaparse": "^5.3.16",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "@types/react-grid-layout": "^2.1.0",

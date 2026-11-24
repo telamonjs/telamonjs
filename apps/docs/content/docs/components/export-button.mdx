@@ -14,7 +14,8 @@ Export UI for tabular data. Two complementary surfaces exist in the library:
 - **`ExportMenu`** + **`exportToCSV` / `exportToExcel` / `exportToPDF` /
   `exportTableData`** — batteries-included export for TanStack
   `ColumnDef`-based tables (used by DataTable), generating the files
-  client-side: Excel is written in-house, CSV via `papaparse`, PDF via `jspdf`.
+  client-side. Excel and CSV need no extra package; PDF loads the optional
+  `jspdf` + `jspdf-autotable` peers on first use.
 
 <ExportButtonPreview />
 
@@ -146,8 +147,8 @@ import type { ColumnDef } from '@tanstack/react-table'
 
 ```typescript
 await exportToExcel(data, columns, filename, options)  // .xlsx, written in-house (bold header row)
-exportToCSV(data, columns, filename, options)    // .csv via papaparse (BOM included)
-exportToPDF(data, columns, filename, options)    // .pdf via jspdf-autotable
+exportToCSV(data, columns, filename, options)          // .csv, UTF-8 with BOM
+await exportToPDF(data, columns, filename, options)    // .pdf via the optional jspdf + jspdf-autotable peers
 await exportTableData(data, columns, format, filename, options) // dispatch by format
 
 interface ExportOptions {
@@ -172,9 +173,11 @@ interface PDFExportOptions extends ExportOptions {
 All take TanStack `ColumnDef<T>[]` and download client-side with a
 date-stamped filename (`users_2026-08-18.csv`). `options` is required because
 headers and values are localized: pass the library translator and the active locale.
-`exportToExcel` and `exportTableData` return a promise that resolves once the download
-starts; await it to catch failures. Excel sheet names follow Excel's rules: at most 31
-characters, and `\ / ? * [ ] :` become spaces.
+`exportToExcel`, `exportToPDF` and `exportTableData` return a promise that
+resolves once the download starts; await it to catch failures. Without the
+`jspdf` peers, `exportToPDF` rejects with an error naming both packages
+(`ExportMenu` shows it as a toast). Excel sheet names follow Excel's rules: at
+most 31 characters, and `\ / ? * [ ] :` become spaces.
 
 Wiring them into `ExportButtons` handlers:
 

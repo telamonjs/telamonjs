@@ -5,15 +5,12 @@
  * with proper formatting and encoding.
  */
 
-import Papa from 'papaparse'
-const unparseCsv = Papa.unparse
-import { jsPDF } from 'jspdf'
-import autoTable from 'jspdf-autotable'
 import { ColumnDef } from '@tanstack/react-table'
 import { logger } from '../utils/logger'
 import type { useTelamonjsT } from '../i18n/use-t'
 import { getColumnLabel } from './column-label'
 import { writeXlsx } from './xlsx-writer'
+import { MissingPeerError, isModuleNotFound } from './missing-peer'
 
 export interface ExportOptions {
   includeHiddenColumns?: boolean
@@ -66,6 +63,30 @@ function downloadBlob(blob: Blob, filename: string): void {
   link.click()
   document.body.removeChild(link)
   setTimeout(() => URL.revokeObjectURL(url))
+}
+
+/** RFC 4180 field: quoted when it holds a delimiter, quote, line break, BOM or edge space. */
+function csvField(value: unknown): string {
+  const text = String(value)
+  return /[",\r\n\uFEFF]|^ | $/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
+}
+
+/**
+ * The optional PDF peers, loaded on first use. The `import()` calls stay inside
+ * `try` so bundlers treat them as optional: an app without the packages still
+ * builds, and the export fails with a `MissingPeerError` naming them.
+ */
+async function loadPdfPeers() {
+  try {
+    const [{ jsPDF }, { default: autoTable }] = await Promise.all([
+      import('jspdf'),
+      import('jspdf-autotable'),
+    ])
+    return { jsPDF, autoTable }
+  } catch (error) {
+    if (!isModuleNotFound(error)) throw error
+    throw new MissingPeerError(['jspdf', 'jspdf-autotable'], { cause: error })
+  }
 }
 
 /**
@@ -234,46 +255,24 @@ export function exportToCSV<T>(
   // Filter exportable columns
   const exportColumns = getExportableColumns(columns, includeHiddenColumns)
 
-  // Prepare data for export
   const headers = exportColumns.map(col => getColumnHeader(col))
   const rows = data.map(row =>
-    exportColumns.reduce(
-      (acc, col) => {
-        const header = getColumnHeader(col)
-        acc[header] = formatValueForExport(getCellValue(row, col), t, locale)
-        return acc
-      },
-      {} as Record<string, unknown>
-    )
+    exportColumns.map(col => formatValueForExport(getCellValue(row, col), t, locale))
   )
+  const csv = [headers, ...rows].map(r => r.map(csvField).join(',')).join('\r\n')
 
-  // Generate CSV
-  const csv = unparseCsv(rows, {
-    columns: headers,
-    delimiter: ',',
-    header: true,
-    skipEmptyLines: true,
-  })
-
-  // Add UTF-8 BOM for Excel compatibility
-  const BOM = '\uFEFF'
-  const csvWithBOM = BOM + csv
-
-  // Create blob and download
-  const blob = new Blob([csvWithBOM], { type: 'text/csv;charset=utf-8;' })
-  const link = document.createElement('a')
-  const url = URL.createObjectURL(blob)
-
-  link.setAttribute('href', url)
-  link.setAttribute('download', buildFilename(filename, 'csv', appendDate))
-  link.style.visibility = 'hidden'
-  document.body.appendChild(link)
-  link.click()
-  document.body.removeChild(link)
+  // UTF-8 BOM so Excel detects the encoding
+  downloadBlob(
+    new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }),
+    buildFilename(filename, 'csv', appendDate)
+  )
 }
 
 /**
  * Export data to PDF format
+ *
+ * Needs the optional peers `jspdf` and `jspdf-autotable`, loaded on first use;
+ * without them it rejects with an error naming both packages.
  *
  * Features:
  * - Landscape or portrait orientation
@@ -283,7 +282,7 @@ export function exportToCSV<T>(
  * - Optional logo and title
  *
  * @example
- * exportToPDF(data, columns, 'customers', {
+ * await exportToPDF(data, columns, 'customers', {
  *   t,
  *   locale,
  *   orientation: 'landscape',
@@ -292,12 +291,12 @@ export function exportToCSV<T>(
  *   subtitle: 'January 2025'
  * })
  */
-export function exportToPDF<T>(
+export async function exportToPDF<T>(
   data: T[],
   columns: ColumnDef<T>[],
   filename: string = 'export',
   options: PDFExportOptions
-): void {
+): Promise<void> {
   const {
     includeHiddenColumns = false,
     orientation = 'landscape',
@@ -310,6 +309,8 @@ export function exportToPDF<T>(
     t,
     locale,
   } = options
+
+  const { jsPDF, autoTable } = await loadPdfPeers()
 
   // Filter exportable columns
   const exportColumns = getExportableColumns(columns, includeHiddenColumns)

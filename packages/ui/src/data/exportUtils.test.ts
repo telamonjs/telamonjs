@@ -26,7 +26,7 @@ vi.mock('jspdf', () => ({
   },
 }))
 
-import { exportToExcel, exportToPDF, exportTableData } from './exportUtils'
+import { exportToExcel, exportToPDF, exportToCSV, exportTableData } from './exportUtils'
 
 const t = ((k: string, v?: Record<string, unknown>) =>
   k === 'data.sheetName' ? 'Dados' : `${k}${v?.date ? `:${v.date}` : ''}`) as never
@@ -51,6 +51,16 @@ function captureDownloads() {
     names.push(this.getAttribute('download') ?? '')
   })
   return { blobs, names }
+}
+
+/** The text of a Blob, BOM included (jsdom's Blob has no text()). */
+function readBlob(blob: Blob): Promise<string> {
+  return new Promise(resolve => {
+    const reader = new FileReader()
+    reader.onload = () =>
+      resolve(new TextDecoder('utf-8', { ignoreBOM: true }).decode(reader.result as ArrayBuffer))
+    reader.readAsArrayBuffer(blob)
+  })
 }
 
 describe('exportUtils', () => {
@@ -116,6 +126,22 @@ describe('exportUtils', () => {
       })
       expect(blobs[0]?.type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
       expect(names).toEqual([`x_${TODAY}.xlsx`])
+    })
+  })
+
+  describe('csv', () => {
+    it('writes a BOM, CRLF lines and RFC 4180 quoting, one column per header', async () => {
+      const { blobs, names } = captureDownloads()
+      type Row = { a: string; b: string | null }
+      const columns: ColumnDef<Row>[] = [
+        { header: 'Same', accessorKey: 'a' },
+        { header: 'Same', accessorKey: 'b' },
+      ]
+      exportToCSV([{ a: 'say "hi", ok', b: null }, { a: ' pad', b: 'l1\nl2' }], columns, 'x', base)
+      expect(names).toEqual([`x_${TODAY}.csv`])
+      expect(await readBlob(blobs[0] as Blob)).toBe(
+        '\uFEFFSame,Same\r\n"say ""hi"", ok",\r\n" pad","l1\nl2"'
+      )
     })
   })
 

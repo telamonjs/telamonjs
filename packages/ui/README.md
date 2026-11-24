@@ -15,17 +15,14 @@ existing Next.js app:
 
 <!-- generated:peers -->
 ```bash
-pnpm add @telamonjs/ui framer-motion jspdf jspdf-autotable next next-auth papaparse react react-dom react-hook-form sonner zod next-intl @tanstack/react-query
+pnpm add @telamonjs/ui framer-motion next next-auth react react-dom react-hook-form sonner zod next-intl @tanstack/react-query
 ```
 
 | Peer dependency | Range |
 | --- | --- |
 | `framer-motion` | `^11.0.0 \|\| ^12.0.0` |
-| `jspdf` | `^4.2.1` |
-| `jspdf-autotable` | `^5.0.7` |
 | `next` | `^15.5.29 \|\| ^16.4.6` |
 | `next-auth` | `^5.0.0-beta.20` |
-| `papaparse` | `^5.5.0` |
 | `react` | `^18.0.0 \|\| ^19.0.0` |
 | `react-dom` | `^18.0.0 \|\| ^19.0.0` |
 | `react-hook-form` | `^7.0.0` |
@@ -34,11 +31,14 @@ pnpm add @telamonjs/ui framer-motion jspdf jspdf-autotable next next-auth papapa
 | `next-intl` | `^4.14.0` |
 | `@tanstack/react-query` | `^5.90.2` |
 | `@prisma/client` (optional) | `^5.0.0 \|\| ^6.0.0` |
+| `jspdf` (optional) | `^4.2.1` |
+| `jspdf-autotable` (optional) | `^5.0.7` |
 <!-- /generated:peers -->
 
 `DashboardGrid` needs the `react-grid-layout` stylesheet
-(`import 'react-grid-layout/css/styles.css'`), and `@prisma/client` is only needed for the
-`./server` pagination helpers. Then load the styles and the Tailwind preset:
+(`import 'react-grid-layout/css/styles.css'`), `@prisma/client` is only needed for the
+`./server` pagination helpers, and `jspdf` + `jspdf-autotable` only for PDF export (Excel and
+CSV export need no extra package). Then load the styles and the Tailwind preset:
 
 ```tsx
 // app/layout.tsx
