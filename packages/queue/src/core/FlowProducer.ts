@@ -1,7 +1,12 @@
 import { FlowProducer as BullFlowProducer } from 'bullmq'
 import type { FlowJob, ConnectionOptions, JobNode } from 'bullmq'
 import type { QueueManager } from './QueueManager.js'
-import type { FlowDefinition, FlowChildJob, JobConstructor } from './types.js'
+import type {
+  FlowDefinition,
+  FlowChildJob,
+  JobConstructor,
+  JobOptions,
+} from './types.js'
 import type { ILogger } from '@telamonjs/logger'
 
 /**
@@ -71,7 +76,7 @@ export class FlowProducer {
       name: flow.name,
       queueName: this.getQueueName(flow.job),
       data: flow.data,
-      opts: flow.options,
+      opts: this.getOptions(flow.job, flow.options),
       children: this.buildChildren(flow.children),
     }
 
@@ -90,9 +95,31 @@ export class FlowProducer {
       name: this.getJobName(child.job),
       queueName: this.getQueueName(child.job),
       data: child.data,
-      opts: child.options,
+      opts: this.getOptions(child.job, child.options),
       children: this.buildChildren(child.children),
     }))
+  }
+
+  /**
+   * Same precedence as QueueManager.add(): manager defaults < the job
+   * class's own options < the flow node's options. A string job uses the
+   * registered class, when there is one.
+   */
+  private getOptions(
+    job: JobConstructor | string | undefined,
+    options?: JobOptions
+  ): JobOptions {
+    const classOptions =
+      typeof job === 'function'
+        ? new job().options
+        : job
+          ? this.queueManager['registry'].get(job)?.options
+          : undefined
+    return {
+      ...this.queueManager['config'].defaultJobOptions,
+      ...classOptions,
+      ...options,
+    }
   }
 
   /**
