@@ -1,5 +1,6 @@
 'use client'
 
+/* eslint-disable react-refresh/only-export-components -- compound component: Object.assign(Root, { ...parts }) is the public shape */
 import * as React from 'react'
 import {
   Search,

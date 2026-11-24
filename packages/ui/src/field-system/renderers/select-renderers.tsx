@@ -5,6 +5,7 @@ import { MultiSelect } from '../../components/selectors/MultiSelect'
 import { getFieldAccessibilityAttrs } from '../../utils/test-ids'
 import type { FieldRenderer } from './types'
 
+// eslint-disable-next-line react-refresh/only-export-components -- private lazy component behind the exported renderer object
 const Combobox = lazy(() =>
   import('../../components/selectors/combobox').then(module => ({
     default: module.Combobox,

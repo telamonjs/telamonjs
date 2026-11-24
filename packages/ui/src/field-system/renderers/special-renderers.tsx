@@ -4,6 +4,7 @@ import { lazy, Suspense } from 'react'
 import { getFieldAccessibilityAttrs } from '../../utils/test-ids'
 import type { FieldRenderer } from './types'
 
+// eslint-disable-next-line react-refresh/only-export-components -- private lazy component behind the exported renderer object
 const CrudField = lazy(() => import('../../components/crud/crud-field'))
 
 export const ComponentRenderer: FieldRenderer = {

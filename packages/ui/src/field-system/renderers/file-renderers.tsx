@@ -7,6 +7,7 @@ import { getFieldAccessibilityAttrs } from '../../utils/test-ids'
 import type { FieldRenderer, FieldRendererProps } from './types'
 import { useTelamonjsT } from '../../i18n/use-t'
 
+// eslint-disable-next-line react-refresh/only-export-components -- private lazy component behind the exported renderer object
 const FileField = lazy(() =>
   import('../../components/FileField').then(module => ({
     default: module.FileField,
