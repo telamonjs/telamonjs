@@ -73,8 +73,9 @@ function csvField(value: unknown): string {
 
 /**
  * The optional PDF peers, loaded on first use. The `import()` calls stay inside
- * `try` so bundlers treat them as optional: an app without the packages still
- * builds, and the export fails with a `MissingPeerError` naming them.
+ * `try` so webpack and Turbopack treat them as optional: an app without the
+ * packages still builds (a warning), and the export fails with a
+ * `MissingPeerError` naming them. check-lazy-deps enforces the `try`.
  */
 async function loadPdfPeers() {
   try {

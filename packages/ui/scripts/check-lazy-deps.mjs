@@ -13,8 +13,10 @@
  *
  * Optional peers (`peerDependenciesMeta.optional` in package.json) are stricter:
  * NO file in dist/ may import them statically, since an app that never installed
- * them must still build. They load through `import()` inside a `try`, which
- * bundlers treat as optional.
+ * them must still build. They load through `import()` whose nearest enclosing
+ * block is a `try`: webpack and Turbopack then downgrade the missing module to a
+ * build warning and emit a stub that throws MODULE_NOT_FOUND at runtime
+ * (verified with next build/dev, webpack and Turbopack, Next 15.5 and 16.4).
  *
  * Usage: node scripts/check-lazy-deps.mjs   (after `pnpm build`)
  * Exits 1 if a heavy dep is statically reachable from any entry, or an
@@ -172,18 +174,36 @@ function* jsFiles(dir) {
   }
 }
 
+/** Whether the nearest block enclosing `index` is a `try { … }`. */
+function insideTry(code, index) {
+  let depth = 0
+  for (let i = index - 1; i >= 0; i--) {
+    if (code[i] === '}') depth++
+    else if (code[i] === '{' && depth-- === 0) return /\btry\s*$/.test(code.slice(0, i))
+  }
+  return false
+}
+
+const DYNAMIC_RE = /\bimport\(\s*['"]([^'"]+)['"]\s*\)/g
+
 const peerHits = []
 for (const file of jsFiles(DIST)) {
   for (const spec of staticImports(file)) {
     if (isOptionalPeer(spec)) peerHits.push(`${spec} in ${relative(DIST, file)}`)
   }
+  const code = readFileSync(file, 'utf8')
+  for (const m of code.matchAll(DYNAMIC_RE)) {
+    if (isOptionalPeer(m[1]) && !insideTry(code, m.index)) {
+      peerHits.push(`import('${m[1]}') outside a try block in ${relative(DIST, file)}`)
+    }
+  }
 }
 if (peerHits.length > 0) {
   failed = true
-  console.error('✗ optional peers imported statically (use import() inside try):')
+  console.error('✗ optional peers must load through import() directly inside try { }:')
   for (const hit of peerHits) console.error(`    ${hit}`)
 } else {
-  console.log(`✓ optional peers (${optionalPeers.join(', ')}): no static import in dist/`)
+  console.log(`✓ optional peers (${optionalPeers.join(', ')}): no static import, every import() inside try`)
 }
 
 process.exit(failed ? 1 : 0)
