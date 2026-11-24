@@ -1,52 +1,11 @@
 /**
- * Types for server-side pagination
+ * The list wire contract. It lives in `@telamonjs/data`, the package a
+ * backend installs, so the front and the endpoint share one definition.
  */
+import type { PaginatedResponse, PaginationParams } from '@telamonjs/data'
 
-/**
- * Sort field for multi-column sorting
- */
-export interface SortField {
-  field: string
-  order: 'asc' | 'desc'
-}
-
-export interface PaginationParams {
-  page: number
-  pageSize: number
-  search?: string
-  sortBy?: string | SortField[] // Suporta single ou multi-column sorting
-  sortOrder?: 'asc' | 'desc' // Used only when sortBy is a string
-  // `any` kept intentionally: consumer-defined filter values are heterogeneous
-  // and get spread directly into query-layer where clauses (e.g. Prisma).
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  filters?: Record<string, any> // Filtros customizados (ex: clienteId, status, etc)
-}
-
-export interface PaginatedResponse<T> {
-  data: T[]
-  total: number
-  page: number
-  pageSize: number
-  totalPages: number
-}
-
-/**
- * Helper para criar resposta paginada
- */
-export function createPaginatedResponse<T>(
-  data: T[],
-  total: number,
-  page: number,
-  pageSize: number
-): PaginatedResponse<T> {
-  return {
-    data,
-    total,
-    page,
-    pageSize,
-    totalPages: Math.ceil(total / pageSize),
-  }
-}
+export type { SortField, PaginationParams, PaginatedResponse } from '@telamonjs/data'
+export { createPaginatedResponse } from '@telamonjs/data'
 
 /**
  * Adapts a query function to the `queryFn` shape `CrudConfig.query` expects.
