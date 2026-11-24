@@ -92,7 +92,7 @@ async `loadField`), `'multiselect'`, `'richtext'` and 31 more; there is no
 | Data | `DataTable`, `VirtualDataTable`, `InfiniteList`, bulk actions, Excel/CSV/PDF export, `QueryErrorState` (error + pending "Try again" for your own `useQuery`) |
 | Dashboards and charts | `DashboardGrid`, `DashboardShell`, `StatCard`, `ChartWidget`, `LineChart`, `BarChart`, `PieChart`, `AreaChart`, `KPICard` |
 | Queue UI | `@telamonjs/ui/queue`: `QueueTabbedDashboard`, `QueueApiProvider`, `createNestJSAdapter`, a frontend for `@telamonjs/queue` |
-| Server | `@telamonjs/ui/server`: `createPaginationContext`, `buildPrismaOrderBy`, `createPaginatedResponse`, `revalidatePathAction` |
+| Server | `@telamonjs/ui/server`: `createPaginationContext`, `buildPrismaOrderBy` (both `list.sortParam` wire forms, `_count.<relation>`), `createPaginatedResponse`, `revalidatePathAction` |
 | i18n | `@telamonjs/ui/i18n`: `msg`, `useText`, `LocaleSwitcher`; UI copy ships in pt-BR (default), en and es |
 
 Menu icons are strings resolved through `setIconResolver()`: the icon registry

@@ -46,15 +46,60 @@ describe('prisma-helpers', () => {
       expect(result).toEqual({ createdAt: 'desc' })
     })
 
-    it('handles mixed dots and underscores', () => {
-      const result = buildPrismaOrderBy('categoria_unidade.nome', 'asc')
+    it('takes a dotted path verbatim, underscores included', () => {
+      // A dot means the client sent a data path (`list.sortParam: 'path'`),
+      // never a TanStack column id, so its underscores are part of the names
+      expect(buildPrismaOrderBy('order_item.created_at', 'asc')).toEqual({
+        order_item: { created_at: 'asc' },
+      })
+    })
 
-      expect(result).toEqual({
-        categoria: {
-          unidade: {
-            nome: 'asc',
-          },
-        },
+    it('orders by a relation count', () => {
+      expect(buildPrismaOrderBy('_count.items', 'asc')).toEqual({
+        items: { _count: 'asc' },
+      })
+      expect(buildPrismaOrderBy('customer._count.orders', 'desc')).toEqual({
+        customer: { orders: { _count: 'desc' } },
+      })
+    })
+
+    it('decodes the TanStack id of a relation count', () => {
+      expect(buildPrismaOrderBy('_count_items', 'asc')).toEqual({
+        items: { _count: 'asc' },
+      })
+      expect(buildPrismaOrderBy('customer__count_orders', 'desc')).toEqual({
+        customer: { orders: { _count: 'desc' } },
+      })
+    })
+
+    it('keeps a leading underscore as part of the name', () => {
+      expect(buildPrismaOrderBy('_id', 'asc')).toEqual({ _id: 'asc' })
+    })
+
+    describe('with sortableFields', () => {
+      it('keeps a listed snake_case field intact', () => {
+        expect(buildPrismaOrderBy('created_at', 'asc', ['created_at'])).toEqual(
+          { created_at: 'asc' }
+        )
+      })
+
+      it('decodes a TanStack id whose dotted form is listed', () => {
+        expect(
+          buildPrismaOrderBy('customer_name', 'asc', ['customer.name'])
+        ).toEqual({ customer: { name: 'asc' } })
+      })
+
+      it('keeps an unlisted underscored value intact instead of guessing', () => {
+        expect(buildPrismaOrderBy('created_at', 'asc', ['name'])).toEqual({
+          created_at: 'asc',
+        })
+      })
+    })
+
+    it('still decodes underscores without sortableFields (legacy ids)', () => {
+      // Ambiguous on purpose: list snake_case fields in sortableFields
+      expect(buildPrismaOrderBy('created_at', 'asc')).toEqual({
+        created: { at: 'asc' },
       })
     })
   })
@@ -109,6 +154,22 @@ describe('prisma-helpers', () => {
             },
           },
         },
+      ])
+    })
+
+    it('resolves each field against sortableFields', () => {
+      const sorting: SortField[] = [
+        { field: 'created_at', order: 'desc' },
+        { field: 'customer_name', order: 'asc' },
+        { field: '_count.items', order: 'desc' },
+      ]
+
+      expect(
+        buildPrismaOrderByMulti(sorting, ['created_at', 'customer.name'])
+      ).toEqual([
+        { created_at: 'desc' },
+        { customer: { name: 'asc' } },
+        { items: { _count: 'desc' } },
       ])
     })
 

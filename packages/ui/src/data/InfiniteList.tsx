@@ -43,6 +43,7 @@ import type { HeadingLevel } from '../ui/heading-level'
 import { SkeletonTable } from '../components/skeletons/SkeletonTable'
 import { useTableSorting, useDataTableActions } from '../stores/datatable-store'
 import type { SortField } from '../types/pagination'
+import { resolveSortColumnId } from './datatable/sort-field'
 
 export interface InfiniteListProps<TData> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- public prop; columns mix heterogeneous cell value types per-column (tanstack-table idiom), `unknown` breaks TValue-contravariant assignability for typed ColumnDef<TData, string>[] etc.
@@ -174,9 +175,14 @@ export function InfiniteList<TData>({
   const storeSorting = useTableSorting(tableId ?? '')
   const { setSorting: setStoreSorting } = useDataTableActions(tableId ?? '')
 
+  // A stored data path (dotted defaultSortBy, saved view) resolves to its column id
   const sorting: SortingState = useMemo(
-    () => storeSorting.map(s => ({ id: s.field, desc: s.order === 'desc' })),
-    [storeSorting]
+    () =>
+      storeSorting.map(s => ({
+        id: resolveSortColumnId(s.field, columns),
+        desc: s.order === 'desc',
+      })),
+    [storeSorting, columns]
   )
 
   const handleSortingChange = useCallback(

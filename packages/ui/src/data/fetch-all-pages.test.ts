@@ -69,6 +69,12 @@ describe('fetchAllPages', () => {
       expect(queryFn.mock.calls[1]?.[0]).toMatchObject({ sortBy: undefined, sortOrder: undefined })
     })
 
+    it("sends a data-path sort field verbatim (list.sortParam: 'path')", async () => {
+      const queryFn = backend(1)
+      await fetchAllPages({ queryFn, params: { page: 1, pageSize: 5, sortBy: [{ field: 'customer.name', order: 'asc' }] }, pageSize: 5, maxRows: 10 })
+      expect(queryFn.mock.calls[0]?.[0]).toMatchObject({ sortBy: 'customer.name', sortOrder: 'asc' })
+    })
+
     it('stops on an empty page even if totalPages lies (no endless loop)', async () => {
       const queryFn = vi.fn(async (p: PaginationParams) => ({
         data: p.page === 1 ? [{ id: 1 }] : [],

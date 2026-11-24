@@ -79,4 +79,44 @@ describe('createPaginatedService sorting', () => {
       await orderByFor({ sortBy: [{ field: 'secret', order: 'desc' }] })
     ).toEqual({ name: 'asc' })
   })
+
+  describe('sort field forms', () => {
+    it('accepts a legacy TanStack id whose dotted form is listed', async () => {
+      const { orderByFor } = setup({ sortableFields: ['customer.name'] })
+      expect(
+        await orderByFor({ sortBy: 'customer_name', sortOrder: 'desc' })
+      ).toEqual({ customer: { name: 'desc' } })
+      expect(
+        await orderByFor({ sortBy: [{ field: 'customer_name', order: 'asc' }] })
+      ).toEqual([{ customer: { name: 'asc' } }])
+    })
+
+    it('keeps a listed snake_case field as a scalar', async () => {
+      const { orderByFor } = setup({ sortableFields: ['created_at'] })
+      expect(
+        await orderByFor({ sortBy: 'created_at', sortOrder: 'asc' })
+      ).toEqual({ created_at: 'asc' })
+    })
+
+    it('orders by a listed relation count in either form', async () => {
+      const { orderByFor } = setup({ sortableFields: ['_count.items'] })
+      const expected = { items: { _count: 'desc' } }
+      expect(
+        await orderByFor({ sortBy: '_count.items', sortOrder: 'desc' })
+      ).toEqual(expected)
+      expect(
+        await orderByFor({ sortBy: '_count_items', sortOrder: 'desc' })
+      ).toEqual(expected)
+    })
+
+    it('does not decode a snake_case default sort that is not listed', async () => {
+      const { orderByFor } = setup({
+        defaultOrderBy: 'created_at',
+        sortableFields: ['name'],
+      })
+      expect(await orderByFor({ sortBy: 'secret' })).toEqual({
+        created_at: 'asc',
+      })
+    })
+  })
 })

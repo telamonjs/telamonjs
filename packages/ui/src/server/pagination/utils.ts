@@ -6,7 +6,11 @@
  */
 
 import { createTranslator } from 'next-intl'
-import { buildPrismaOrderBy, buildPrismaOrderByMulti } from '../prisma-helpers'
+import {
+  buildPrismaOrderBy,
+  buildPrismaOrderByMulti,
+  resolveSortPath,
+} from '../prisma-helpers'
 import type { SortField } from '../../types/pagination'
 import type {
   FilterFieldConfig,
@@ -205,7 +209,9 @@ const isSortOrder = (value: unknown): value is 'asc' | 'desc' =>
 /**
  * Sanitize a client-supplied sort: an invalid direction becomes the default
  * one, and with `sortableFields` set, fields outside it are dropped (an empty
- * result falls back to the default sort).
+ * result falls back to the default sort). A field passes when it is listed
+ * as sent or, for a legacy TanStack id (`customer_name`), when its dotted
+ * form (`customer.name`) is listed; the returned field is the listed form.
  */
 export function resolveSort(
   sortBy: string | string[] | SortField[],
@@ -218,15 +224,19 @@ export function resolveSort(
 ): { sortBy: string | string[] | SortField[]; sortOrder: 'asc' | 'desc' } {
   const { defaultOrderBy, defaultOrderDirection, sortableFields } = defaults
   const fallback = { sortBy: defaultOrderBy, sortOrder: defaultOrderDirection }
+  const resolve = (field: string) =>
+    sortableFields ? resolveSortPath(field, sortableFields) : field
   const allowed = (field: string) =>
-    !sortableFields || sortableFields.includes(field)
+    !sortableFields || sortableFields.includes(resolve(field))
   const order = isSortOrder(sortOrder) ? sortOrder : defaultOrderDirection
 
   // The configured default is trusted; everything else came from the client
   if (sortBy === defaultOrderBy) return { sortBy, sortOrder: order }
 
   if (typeof sortBy === 'string') {
-    return allowed(sortBy) ? { sortBy, sortOrder: order } : fallback
+    return allowed(sortBy)
+      ? { sortBy: resolve(sortBy), sortOrder: order }
+      : fallback
   }
 
   const fields = (sortBy as unknown[])
@@ -238,30 +248,33 @@ export function resolveSort(
         allowed((s as SortField).field)
     )
     .map(s => ({
-      field: s.field,
+      field: resolve(s.field),
       order: isSortOrder(s.order) ? s.order : defaultOrderDirection,
     }))
   return fields.length > 0 ? { sortBy: fields, sortOrder: order } : fallback
 }
 
 /**
- * Build orderBy clause from sortBy and sortOrder
+ * Build orderBy clause from sortBy and sortOrder (`sortableFields`: see
+ * `buildPrismaOrderBy`)
  */
 export function buildOrderByClause(
   sortBy?: string | string[] | SortField[],
-  sortOrder?: string
+  sortOrder?: string,
+  sortableFields?: readonly string[]
 ): PrismaWhereClause | PrismaWhereClause[] | undefined {
   if (!sortBy) {
     return undefined
   }
 
   if (Array.isArray(sortBy)) {
-    return buildPrismaOrderByMulti(sortBy as SortField[])
+    return buildPrismaOrderByMulti(sortBy as SortField[], sortableFields)
   }
 
   return buildPrismaOrderBy(
     sortBy as string,
-    (sortOrder || 'asc') as 'asc' | 'desc'
+    (sortOrder || 'asc') as 'asc' | 'desc',
+    sortableFields
   )
 }
 
@@ -293,8 +306,7 @@ export async function getFilterOptionsForField(
 
   // Get all records with just the field we need
   const findMany = (model as Record<string, unknown>).findMany as
-    | ((args: unknown) => Promise<Record<string, unknown>[]>)
-    | undefined
+    ((args: unknown) => Promise<Record<string, unknown>[]>) | undefined
 
   if (!findMany) {
     throw new Error(`Model ${modelName} does not support findMany operation`)

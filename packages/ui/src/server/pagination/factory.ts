@@ -184,7 +184,11 @@ export function createPaginationContext(context: PaginationContext) {
         defaultOrderDirection,
         sortableFields,
       })
-      const orderBy = buildOrderByClause(sort.sortBy, sort.sortOrder)
+      const orderBy = buildOrderByClause(
+        sort.sortBy,
+        sort.sortOrder,
+        sortableFields
+      )
 
       // Build include clause with counts
       const includeClause = buildIncludeClause(include, counts)

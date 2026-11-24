@@ -26,6 +26,7 @@ import { ListPageTable } from './list-page/ListPageTable'
 import { ListPageDialogs } from './list-page/ListPageDialogs'
 import { useListPageExport } from './list-page/useListPageExport'
 import { applyCrudPermissions } from './list-page/apply-crud-permissions'
+import { toSortParam } from '../data/datatable/sort-field'
 
 const logger = withComponent('ListPage')
 
@@ -157,7 +158,13 @@ export function ListPage<TData>({
 
   // Get state from Zustand store
   const columnFilters = useTableColumnFilters(tableId)
-  const sorting = useTableSorting(tableId)
+  // The store keeps what the table works with (column ids, or a dotted
+  // defaultSortBy/saved view); everything sent out uses `list.sortParam`
+  const storeSorting = useTableSorting(tableId)
+  const sorting = useMemo(
+    () => toSortParam(storeSorting, list.columns, list.sortParam),
+    [storeSorting, list.columns, list.sortParam]
+  )
   const search = useTableGlobalFilter(tableId)
   const page = useTablePage(tableId)
   const pageSize = useTablePageSize(tableId)

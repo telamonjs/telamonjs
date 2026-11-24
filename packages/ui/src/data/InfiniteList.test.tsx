@@ -53,10 +53,14 @@ vi.mock('@tanstack/react-virtual', () => ({
 }))
 
 // ── Stores mock (useTableSorting + useDataTableActions) ────────────────────
+const storeSorting = vi.hoisted(() => ({
+  current: [] as { field: string; order: 'asc' | 'desc' }[],
+  setSorting: vi.fn(),
+}))
 vi.mock('../stores/datatable-store', () => ({
-  useTableSorting: () => [],
+  useTableSorting: () => storeSorting.current,
   useDataTableActions: () => ({
-    setSorting: vi.fn(),
+    setSorting: storeSorting.setSorting,
   }),
 }))
 
@@ -640,4 +644,48 @@ describe('InfiniteList scroll container a11y', () => {
     expect(region).toHaveAttribute('tabindex', '0')
     expect(region.className).toContain('overflow-auto')
   })
+})
+
+describe('InfiniteList sort field round-trip', () => {
+  type Order = { id: string; customer: { name: string } }
+  const columns: ColumnDef<Order>[] = [
+    { accessorKey: 'customer.name', header: 'Cliente' },
+  ]
+  const data: Order[] = [{ id: '1', customer: { name: 'Ana' } }]
+
+  afterEach(() => {
+    storeSorting.current = []
+    storeSorting.setSorting.mockClear()
+  })
+
+  const renderSorted = () =>
+    render(
+      <InfiniteList
+        columns={columns}
+        data={data}
+        total={1}
+        isLoading={false}
+        isFetchingNextPage={false}
+        hasNextPage={false}
+        fetchNextPage={vi.fn()}
+        tableId='orders'
+      />
+    )
+
+  it.each(['customer.name', 'customer_name'])(
+    'shows the sort arrow for a stored %s and toggles that same column',
+    async field => {
+      storeSorting.current = [{ field, order: 'desc' }]
+      renderSorted()
+      const header = screen.getByRole('columnheader', { name: 'Cliente' })
+      expect(header.querySelector('[data-icon="ArrowDown"]')).not.toBeNull()
+
+      await userEvent.click(header)
+
+      // A header click stores the TanStack column id; ListPage maps it to the wire form
+      expect(storeSorting.setSorting).toHaveBeenCalledWith([
+        { field: 'customer_name', order: 'asc' },
+      ])
+    }
+  )
 })

@@ -32,6 +32,7 @@ import {
 } from '../../stores/datatable-store'
 import { useResponsiveViewMode } from '../../hooks/useResponsiveViewMode'
 import { ViewMode } from './types'
+import { resolveSortColumnId } from './sort-field'
 import type { ExpandTableMeta } from './useSpecialColumns'
 
 export interface UseDataTableInstanceOptions<TData, TValue> {
@@ -151,13 +152,14 @@ export function useDataTableInstance<TData, TValue>({
     }))
   }, [storeColumnFilters])
 
-  // Convert store sorting to TanStack Table format
+  // Convert store sorting to TanStack Table format (a stored data path, e.g.
+  // a dotted defaultSortBy, resolves to its column id)
   const sorting: SortingState = useMemo(() => {
     return storeSorting.map(s => ({
-      id: s.field,
+      id: resolveSortColumnId(s.field, columns),
       desc: s.order === 'desc',
     }))
-  }, [storeSorting])
+  }, [storeSorting, columns])
 
   // Auto-detect responsive view mode (cards on mobile, table on desktop)
   const responsiveMode = useResponsiveViewMode(defaultViewMode)

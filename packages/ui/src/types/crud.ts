@@ -243,10 +243,23 @@ export interface ListConfig<T> {
   emptyDescription?: I18nText
   /** Table columns definition */
   columns: CrudColumnDef<T>[]
-  /** Default sort field */
+  /** Default sort field: the column id or its data path (`'customer.name'`) */
   defaultSortBy?: string
   /** Default sort order (default: 'asc') */
   defaultSortOrder?: 'asc' | 'desc'
+  /**
+   * What the list sends as `sortBy` to `query.queryFn` (and `list.onExport`,
+   * `toolbarContent`, the URL with `urlSync`, `exportAll`).
+   * - `'id'` (default): the TanStack column id. A dotted `accessorKey` arrives
+   *   with every `.` turned into `_` (`customer.name` → `customer_name`).
+   * - `'path'`: the column's `accessorKey` with its dots (`customer.name`,
+   *   `_count.items`); a column without one (`accessorFn`, display) sends its `id`.
+   *
+   * Stored sorts (saved views, `defaultSortBy`) work in either form in both modes.
+   * `'path'` becomes the default in the next major.
+   * @default 'id'
+   */
+  sortParam?: 'id' | 'path'
   /** Default page size */
   defaultPageSize?: number
   /** Enable server-side pagination */

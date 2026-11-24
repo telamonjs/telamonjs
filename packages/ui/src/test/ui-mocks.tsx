@@ -498,7 +498,8 @@ vi.mock('../ui/table', () => ({
     React.createElement('thead', { 'data-testid': 'table-header' }, children),
   TableBody: ({ children }: any) =>
     React.createElement('tbody', { 'data-testid': 'table-body' }, children),
-  TableHead: ({ children }: any) => React.createElement('th', null, children),
+  TableHead: ({ children, onClick }: any) =>
+    React.createElement('th', { onClick }, children),
   TableRow: ({ children, onClick }: any) =>
     React.createElement('tr', { onClick }, children),
   TableCell: ({ children }: any) => React.createElement('td', null, children),

@@ -79,9 +79,13 @@ export interface PaginatedServiceConfig<TModel extends string = string> {
   defaultOrderDirection?: 'asc' | 'desc'
 
   /**
-   * Fields the client may sort by (as sent in `sortBy`, e.g. `'customer.name'`).
+   * Fields the client may sort by, as data paths (`'customer.name'`,
+   * `'created_at'`, `'_count.items'`). A legacy TanStack column id
+   * (`'customer_name'`, the default wire format) passes when its dotted form
+   * is listed; a listed value always wins, so `'created_at'` stays a scalar.
    * When set, any other `sortBy` is ignored and the default sort applies.
-   * When absent, any field is accepted.
+   * When absent, any field is accepted and underscores are decoded as
+   * legacy ids (`created_at` → `created.at`): list snake_case fields.
    */
   sortableFields?: string[]
 

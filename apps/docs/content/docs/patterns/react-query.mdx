@@ -105,15 +105,57 @@ import { asQueryFn } from '@telamonjs/ui'
 query: { queryKey: ['orders'], queryFn: asQueryFn<Order>(ordersApi.list) },
 ```
 
-On the server, `createPaginatedResponse(data, total, page, pageSize)` builds the response, and
-`buildPrismaOrderBy(sortBy, sortOrder)` / `buildPrismaOrderByMulti(sortFields)` turn sort params
-into a Prisma `orderBy` (dotted fields such as `customer.name` become nested objects; underscores
-are kept, so `created_at` stays a column). `ListPage` sends a nested column's dotted `accessorKey`,
-not TanStack's underscored column id.
+### What `sortBy` carries
+
+`list.sortParam` picks what a column's sort looks like on the wire. It applies everywhere the list
+sends its sort: `queryFn`, `exportAll`, `list.onExport`, `toolbarContent` and the URL (`urlSync`).
+
+| Column | `sortParam: 'id'` (default) | `sortParam: 'path'` |
+| --- | --- | --- |
+| `accessorKey: 'name'` | `name` | `name` |
+| `accessorKey: 'created_at'` | `created_at` | `created_at` |
+| `accessorKey: 'customer.name'` | `customer_name` | `customer.name` |
+| `accessorKey: '_count.items'` | `_count_items` | `_count.items` |
+| `id: 'owner', accessorKey: 'owner.name'` | `owner` | `owner.name` |
+| `id: 'total', accessorFn` (no `accessorKey`) | `total` | `total` |
+
+In `'id'` mode the field is TanStack's column id: a dotted `accessorKey` arrives with every `.`
+turned into `_`, so a backend cannot tell `customer_name` (nested) from `created_at` (snake_case).
+`'path'` sends the data path itself. Saved views and `defaultSortBy` may hold either form in both
+modes (`defaultSortBy: 'customer.name'` highlights the right header).
+
+```ts
+list: { columns, sortParam: 'path' }, // opt in per list; the default in the next major
+```
+
+<Callout type='info' title="Before turning on 'path'">
+  Check that the endpoint accepts the dotted form. A backend that whitelists `customer_name` will
+  silently fall back to its default order for `customer.name`: add the dotted key next to the old
+  one (`customer.name` and `customer_name`) and keep both while old clients are around. Order by a
+  relation count with `{ items: { _count: 'asc' } }` for `_count.items`.
+</Callout>
+
+### Server helpers
+
+`createPaginatedResponse(data, total, page, pageSize)` builds the response.
+`buildPrismaOrderBy(sortBy, sortOrder, sortableFields?)` and
+`buildPrismaOrderByMulti(sortFields, sortableFields?)` turn either wire form into a Prisma
+`orderBy`:
+
+- A value with a dot is a data path, used as-is: `customer.name` → `{ customer: { name } }`,
+  `order_item.created_at` → `{ order_item: { created_at } }`.
+- `_count.items` → `{ items: { _count: 'asc' } }` (also `customer._count.orders`), in either form.
+- A value listed in `sortableFields` is used as-is, so `created_at` stays a column.
+- Any other underscored value is decoded as a legacy column id (`customer_name` →
+  `customer.name`); with `sortableFields`, only when the decoded path is listed. Without
+  `sortableFields`, `created_at` becomes `created.at`: pass the list when you have snake_case
+  fields.
 
 `createPaginationContext(...).createPaginatedService(config)` accepts any `sortBy` the client sends
-unless you set `sortableFields: ['name', 'customer.name']`; then any other `sortBy` is ignored in
-favour of `defaultOrderBy`. An invalid `sortOrder` always falls back to `defaultOrderDirection`.
+unless you set `sortableFields: ['name', 'customer.name', 'created_at']` (data paths). A legacy id
+passes when its dotted form is listed (`customer_name` for `customer.name`), so one whitelist serves
+both modes; anything else falls back to `defaultOrderBy`. An invalid `sortOrder` always falls back
+to `defaultOrderDirection`.
 
 ---
 
