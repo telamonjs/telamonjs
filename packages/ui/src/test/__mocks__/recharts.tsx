@@ -43,10 +43,11 @@ export const Line = ({ dataKey, stroke }: any) =>
     'data-stroke': stroke,
   })
 
-export const Bar = ({ dataKey, fill }: any) =>
+export const Bar = ({ dataKey, fill, radius }: any) =>
   React.createElement('div', {
     'data-testid': `bar-${dataKey}`,
     'data-fill': fill,
+    'data-radius': radius === undefined ? undefined : JSON.stringify(radius),
   })
 
 export const Area = ({ dataKey, fill }: any) =>

@@ -40,6 +40,13 @@ export interface BarChartProps {
   categoryAxisWidth?: number
 }
 
+// Round only the bar's end: the top in `horizontal` layout (vertical bars), the
+// right in `vertical` layout (horizontal bars). Recharts order: TL, TR, BR, BL.
+const BAR_RADIUS = {
+  horizontal: [4, 4, 0, 0],
+  vertical: [0, 4, 4, 0],
+} satisfies Record<NonNullable<BarChartProps['layout']>, [number, number, number, number]>
+
 const DEFAULT_COLORS = [
   '#3b82f6', // blue
   '#10b981', // green
@@ -155,7 +162,7 @@ export function BarChart({
               key={key}
               dataKey={key}
               fill={colors[index % colors.length]}
-              radius={[4, 4, 0, 0]}
+              radius={BAR_RADIUS[layout]}
             />
           ))}
         </RechartsBarChart>

@@ -43,6 +43,36 @@ describe('BarChart', () => {
     })
   })
 
+  describe('Bar corner radius', () => {
+    it('rounds the top corners in horizontal layout (vertical bars)', () => {
+      render(<BarChart data={mockData} dataKeys={['vendas']} />)
+
+      expect(screen.getByTestId('bar-vendas')).toHaveAttribute(
+        'data-radius',
+        '[4,4,0,0]'
+      )
+    })
+
+    it('rounds the end (right) corners in vertical layout (horizontal bars)', () => {
+      render(
+        <BarChart
+          data={mockData}
+          dataKeys={['vendas', 'lucro']}
+          layout='vertical'
+        />
+      )
+
+      expect(screen.getByTestId('bar-vendas')).toHaveAttribute(
+        'data-radius',
+        '[0,4,4,0]'
+      )
+      expect(screen.getByTestId('bar-lucro')).toHaveAttribute(
+        'data-radius',
+        '[0,4,4,0]'
+      )
+    })
+  })
+
   describe('Data Handling', () => {
     it('handles empty data', () => {
       render(<BarChart data={[]} dataKeys={['vendas']} />)
