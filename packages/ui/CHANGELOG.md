@@ -1,5 +1,38 @@
 # Changelog
 
+## 1.3.0
+
+### Minor Changes
+
+- 5a8b1b6: `ConfirmActionDialog` and `confirmDialog.inputs`: length, date and native field options, and an opt-in "disabled until valid" mode.
+
+  - `ConfirmDialogInput` gains `minLength`/`maxLength` (on the trimmed value; `minLength` checks an optional field only once it is filled), `min`/`max` for `date` (set on the native input and validated), `options` as `{ value, label }` (new `ConfirmDialogOption`; plain strings still work), `placeholder`, `description` (help text announced with the field), `rows` for `textarea`, `suggestions` for `text` (a native `<datalist>`) and the native `inputMode`/`autoComplete`.
+  - A `minLength`/`maxLength` input shows how many characters are missing or over as the user types, before any confirm attempt (new `validation.charactersMissing`/`charactersOver` messages in pt-BR, en and es).
+  - New `disableUntilValid` (on `ConfirmActionDialog` and on `ConfirmDialogConfig`): the confirm stays disabled while any input fails, and every failing field shows its message live — muted until edited, as an error once edited or after an attempt — so the reason is always visible. Without it, nothing changes: the confirm stays enabled and messages show from the first attempt, as in 1.2.
+
+- 0429b6c: `CrudConfig.permissions` no longer fails open silently.
+
+  - In development, `ListPage` warns once per config when `permissions` declares operations but there is no way to check them (neither `permissions.can`, `actionsConfig.can` nor `actionsConfig.userPermissions`), which means every write button shows. Production behaviour is unchanged.
+  - New opt-in `permissions.failClosed` (same name and meaning as in `@telamonjs/permissions`): with no checker, every declared operation and every action `permission` is denied instead of allowed — useful while the session that feeds `can` is still loading. Default `false`.
+  - `applyCrudPermissions` now checks against the `actionsConfig` the list actually uses (it read `config.actionsConfig` for the dialogs only).
+
+- 6349bde: `ListPage` export can cover every matching row, or hand the export to the app. The default is unchanged: "All" exports the rows already loaded.
+
+  - `list.exportAll: true | { pageSize?, maxRows? }`: "All" fetches every row matching the current search, filters and sort through `query.queryFn`, page by page and sequentially, honoring `totalPages`. A progress toast offers Cancel. Rows are capped at `maxRows` (default 10 000), with a warning when the file holds fewer rows than the server total. Requests use `exportAll.pageSize`, else `defaultPageSize` (50).
+  - `list.onExport(state: ListQueryState, format)`: an app-side export (e.g. a server-generated file). The menu lists the formats only and calls it with the same query `toolbarContent` receives. It wins over `exportAll`, shows the menu without `enableExport`, and errors show the export error toast.
+  - `list.exportFormats` picks the formats offered.
+  - `ExportMenu` gains `loadAll` (+ `allCount`) and `onServerExport`, and `DataTable` gains `exportMenuProps` to pass them through. New public `fetchAllPages()` helper and `ExportFormat`, `ExportLoadAllContext`, `ExportAllOptions`, `FetchAllPagesOptions`, `DataTableExportMenuProps` types.
+
+  Fix: the paginated `ListPage` (`infiniteScroll: false`) no longer exports through a raw `Object.values` CSV without headers. It uses the same Excel/CSV/PDF menu as the infinite list, with the list's columns and filename, now also available below `lg` through a compact trigger.
+
+- df92415: New public `QueryErrorState`: the error state for screens that run their own `useQuery`, so apps stop keeping a local `QueryErrorAlert`.
+
+  - `error` (an `Error`, a string or any object with a string `message`) becomes the description; `title` and `description` take `I18nText`, with a localized "Failed to load data" default.
+  - `onRetry` shows a "Try again" button, called with no arguments (`onRetry={refetch}` is safe), pending (disabled, spinner, `aria-busy`) while the promise it returns runs; `retrying` drives the same state from the caller. The button is `type="button"`.
+  - It is now the single implementation behind the CRUD view/edit dialogs' load error, which gain a working "Try again" (they had none). The internal `DialogErrorState` is gone, and so is the never-set error branch of `CreateDialog`.
+
+  Migrating a local `QueryErrorAlert({ message, onRetry })`: `message` → `title` (or `description`), `onRetry={() => refetch()}` → `onRetry={refetch}`, and add `className='mb-4'` where the layout relied on the local copy's margin.
+
 ## 1.2.1
 
 ### Patch Changes

@@ -1,5 +1,29 @@
 # Changelog
 
+## ui 1.3.0 (2026-11-24)
+
+More consumer-driven additions; `packages/ui/CHANGELOG.md` has the details. Everything is opt-in,
+except the paginated export fix noted below.
+
+- `@telamonjs/ui` 1.3.0:
+  - **`QueryErrorState`:** a public error state with a pending "Try again", for screens with their
+    own `useQuery`. View and edit dialogs use it and gain a working retry.
+  - **ListPage export:**
+    - `list.exportAll` exports every matching row through the config's own `queryFn`, with
+      progress, cancel and a row cap.
+    - `list.onExport(state, format)` hands the export to the app (for example to the server).
+    - `fetchAllPages` is public.
+    - The paginated list's headerless CSV export is replaced by the regular Excel/CSV/PDF menu.
+  - **`CrudConfig.permissions`:** a development warning when nothing can check them, and an opt-in
+    `failClosed`.
+  - **Confirm inputs:**
+    - `minLength`/`maxLength` with a live character count;
+    - date `min`/`max`;
+    - `{ value, label }` options;
+    - `placeholder`, `description`, `rows`, `suggestions`, `inputMode`, `autoComplete`;
+    - opt-in `disableUntilValid`.
+- `@telamonjs/cli` 1.1.2: scaffolded apps start on ui ^1.3.0.
+
 ## ui 1.2.1 (2026-11-24)
 
 `@telamonjs/ui`: queue Real-time timeline rows no longer overlap when a job label is long; the
