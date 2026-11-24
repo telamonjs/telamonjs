@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.2.0
+
+### Minor Changes
+
+- edf44c2: Job contracts take an optional short `label`. The HTTP handlers serve `displayName` as `label`, else `description`, else the job name, so apps that set no label see no change.
+
 ## 1.1.0
 
 ### Minor Changes

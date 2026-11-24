@@ -1,5 +1,33 @@
 # Changelog
 
+## ui 1.2.0 (2026-11-24)
+
+Driven by consumer feedback on 1.1; each package's `CHANGELOG.md` has the details. Everything new
+is opt-in, and nothing breaks.
+
+- `@telamonjs/ui` 1.2.0:
+  - Fixes:
+    - Clicking inside a row action's confirm dialog no longer triggers the row click, which used to
+      open the view dialog behind it and lock the confirm buttons. Clicks on links and form fields
+      inside a row no longer trigger it either.
+    - A deep-linked dialog (`?view=`) no longer reopens on the first Escape when permissions load late.
+    - Multi-section forms without tabs have spacing between sections.
+    - Horizontal bars round their end.
+    - The queue Real-time tables fit their panel.
+    - pt-BR accents in the queue dispatch dialog.
+  - `ConfirmActionDialog`:
+    - caller-controlled `pending`/`pendingText`, `confirmDisabled` and a free `body` slot;
+    - ReactNode titles and descriptions;
+    - `date` inputs and per-input `validate`, which also work in `confirmDialog.inputs`.
+
+    Local copies migrate by renaming their body `children` to `body`.
+  - Lists that can't create show a neutral empty-state message.
+  - `JobDetailPage` and the queue toasts use `jobLabel`/`moduleLabels`.
+  - The `next-auth` peer accepts `^5.0.0-beta.20`.
+- `@telamonjs/queue` 1.2.0: job contracts take a short `label`, served as `displayName` before
+  `description`.
+- `@telamonjs/cli` 1.1.1: scaffolded apps start on ui/queue ^1.2.0.
+
 ## 2026-11-24
 
 Minor release driven by what consumer apps had to work around; each package's `CHANGELOG.md`

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.1
+
+### Patch Changes
+
+- Scaffolded apps start on `@telamonjs/ui` ^1.2.0 and `@telamonjs/queue` ^1.2.0.
+
 ## 1.1.0
 
 ### Minor Changes

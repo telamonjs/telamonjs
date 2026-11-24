@@ -1,5 +1,46 @@
 # Changelog
 
+## 1.2.0
+
+### Minor Changes
+
+- 575bf56: `ConfirmActionDialog` covers what apps kept local copies for. All additions are optional; `children` is still the trigger.
+
+  - `body`: free content between the description and the buttons.
+  - `confirmDisabled`: disables only the confirm button, from the caller's state.
+  - `pending` + `pendingText`: caller-controlled pending. Passing `pending` (even `false`) means confirming never closes the dialog; the caller closes it when its mutation settles. While `true`, both buttons are disabled, the confirm shows a spinner and `pendingText`, and the dialog cannot be dismissed. Without `pending` the dialog keeps awaiting `onConfirm` and closing on success; `pendingText` labels that pending state too.
+  - `title` / `description` accept JSX as well as text or `msg()`.
+  - `ConfirmDialogInput` (also used by `confirmDialog.inputs` on row and menu actions) gains `type: 'date'` (native input, `YYYY-MM-DD`) and `validate(value, values) => I18nText | undefined`, shown as the field error and blocking the confirm.
+
+  Migrating a local `ConfirmActionDialog` / `ConfirmFormDialog` copy (open/onOpenChange, pending, JSX title):
+
+  | Local prop                                                                                                                         | Public prop                                          |
+  | ---------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------- |
+  | `open`, `onOpenChange`, `title`, `description`, `confirmText`, `pendingText`, `pending`, `variant`, `confirmDisabled`, `onConfirm` | same name, same meaning                              |
+  | `children` (content between description and buttons)                                                                               | `body`                                               |
+  | hard-coded "Confirmar" / "Cancelar"                                                                                                | localized defaults (or `confirmText` / `cancelText`) |
+
+  Behaviour differences: with `pending` set, ESC and the overlay no longer dismiss the dialog while pending (the local copies only disabled Cancel), and a promise rejected by `onConfirm` is shown inside the dialog.
+
+- 3276e93: `JobDetailPage` takes `moduleLabels` and `jobLabel`, like `QueueTabbedDashboard`. Its title and module badge now resolve through the dashboard's label precedence (`jobLabel` > contract `displayName` > formatted name), and the contract's `description` shows below the title. The page's enable switch also gets an accessible name.
+
+### Patch Changes
+
+- b44aa68: Four fixes reported by consumer apps:
+
+  - `BarChart` rounds the bar's end in `layout='vertical'` (horizontal bars): `[0, 4, 4, 0]` instead of the top corners.
+  - `ListPage`'s empty state no longer says "Start by adding a new item" when the "New" button is hidden (no `form`, no `dialogs.create`, or `permissions.create` denied). It shows the neutral `list.emptyDescriptionNoCreate` message instead; an explicit `list.emptyDescription` still wins and the search/filter "no results" copy is unchanged.
+  - The `next-auth` peer is widened from exactly `5.0.0-beta.31` to `^5.0.0-beta.20`, the first v5 beta that accepts Next 15 and React 19 and already has every `next-auth/react` API the package uses.
+  - `AdminForm` now spaces its sections in the non-flush layout without tabs (a `display: contents` wrapper kept the form's `space-y-6` from reaching them).
+
+- 48df933: ListPage: closing a deep-linked dialog (`?view=<id>`) no longer reopens it when the
+  set of dialog URL params changes during the close — e.g. `permissions` enabling
+  `edit`/`create` as the session arrives. The first Escape now always closes the dialog
+  and clears the param. The URL ↔ dialog sync compares what the URL asks for, not the
+  spelling of the configured params.
+- 1a6d140: Queue dashboard polish. The Real-time queue tables fit their panel: they no longer force a 704px minimum width (horizontal scroll, "Actions" cut off, job name hidden next to the "Late" badge); the job name truncates with a tooltip, status badges wrap below it and the action buttons wrap inside their column. Toasts and the Run Job dialog name the job through `jobLabel` instead of the raw id (enable/disable, settings saved, queue actions, dispatch). pt-BR: missing accents in the Run Job dialog messages.
+- 339b47f: Clicking inside a row action's confirm dialog (its title, an `inputs` field) no longer opens the row's view dialog behind it, which left the confirm buttons unclickable. React bubbles clicks from portaled content (dialogs, the "..." menu, popovers) through the component tree, so they reached the row's click handler. `InfiniteList`, `DataTable` (table rows), `VirtualDataTable` and `MobileCard` now only treat clicks inside the row's own DOM as row clicks, and ignore links and form fields as well as buttons and checkboxes. `VirtualDataTable` rows previously reacted to every click, buttons included.
+
 ## 1.1.0
 
 ### Minor Changes
