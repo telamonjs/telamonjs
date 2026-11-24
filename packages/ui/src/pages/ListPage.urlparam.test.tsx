@@ -603,6 +603,58 @@ describe('ListPage - dialog URL sync (v4.28.0)', () => {
     }
   })
 
+  // Regression (consumer QA, ~3/40 runs): the session arrives while the close
+  // is pending. `permissions` gate edit/create until the role is known, so the
+  // set of configured dialog params grows from {view} to {view, edit, create}
+  // mid-close. No navigation happened — the URL still asks for the same dialog —
+  // so that must not be read as "the URL changed" and reopen the view.
+  it('a dialog param that becomes configured mid-close does not reopen the dialog', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      currentSearch = 'view=42'
+      const withRole = (role: string | undefined) => ({
+        ...makeFullConfig({
+          view: { title: 'Detalhes', urlParam: 'view', renderContent: () => null },
+          edit: { title: 'Editar', urlParam: 'edit' },
+          create: { title: 'Novo', urlParam: 'create' },
+        }),
+        permissions: {
+          can: () => role === 'ADMIN',
+          create: 'users.create',
+          edit: 'users.update',
+        },
+      })
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      })
+      const element = (config: CrudConfig<MockUser, Partial<MockUser>>) => (
+        <QueryClientProvider client={queryClient}>
+          <ListPage<MockUser> config={config} />
+        </QueryClientProvider>
+      )
+      // Session still loading: only `view` is a configured dialog param.
+      const { rerender } = render(element(withRole(undefined)))
+      await waitFor(() => expect(viewProps().open).toBe(true))
+
+      act(() => viewProps().onOpenChange(false))
+      expect(viewProps().open).toBe(false)
+
+      // The role arrives inside the close delay → edit/create become configured.
+      rerender(element(withRole('ADMIN')))
+      expect(viewProps().open).toBe(false)
+
+      act(() => {
+        vi.advanceTimersByTime(DIALOG_CLOSE_URL_DELAY_MS + 50)
+      })
+      expect(viewProps().open).toBe(false)
+      expect(routerReplaceSpy).toHaveBeenCalledWith('/admin/users', {
+        scroll: false,
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('deep-link on mount neither pushes nor replaces (URL is already the entry)', async () => {
     currentSearch = 'view=42'
     renderFull(

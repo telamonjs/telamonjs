@@ -56,17 +56,6 @@ function deriveStateFromUrl(
   return { type: null, id: null }
 }
 
-/** Serialize only the dialog-owned params into a stable comparison key. */
-function urlKeyFor(
-  params: DialogUrlParams,
-  getParam: (key: string) => string | null
-): string {
-  return [params.view, params.edit, params.create]
-    .filter((p): p is string => Boolean(p))
-    .map(p => `${p}=${getParam(p) ?? ''}`)
-    .join('&')
-}
-
 interface UseDialogUrlSyncParams {
   /** Resolved param names (empty object disables the whole mechanism). */
   params: DialogUrlParams
@@ -97,10 +86,16 @@ interface UseDialogUrlSyncParams {
  *   via `router.replace` (no history spam), merging into existing params so
  *   `?tab`/`?page`/`?sort`/filters are never clobbered.
  *
- * Arbitration uses `prevUrlKey`: if the URL changed since the last run the URL
- * wins; otherwise the state changed and we write it out. The equality guard
- * short-circuits every potential ping-pong. The mount/deep-link case falls out
- * for free (the URL leads, state catches up) — no mount-only effect, no ref hack.
+ * Arbitration compares what the URL *asks for* (the dialog state derived from
+ * it) with what it asked for at the last reconciliation: if that request changed
+ * the URL wins; otherwise the state changed and we write it out. The equality
+ * guard short-circuits every potential ping-pong. The mount/deep-link case falls
+ * out for free (the URL leads, state catches up) — no mount-only effect.
+ *
+ * The comparison is on the request, not on the spelling of the params: the set
+ * of configured params can change without any navigation (`permissions` adding
+ * `edit`/`create` once the session arrives), and that must not be read as "the
+ * URL moved" — it reopened a dialog the user had just closed.
  *
  * @internal Sibling of useListPageUrlSync (which owns page/sort/filter params).
  */
@@ -113,11 +108,12 @@ export function useDialogUrlSync({
   const { getParam, setParams } = useUrlSync()
 
   const hasAnyParam = Boolean(params.view || params.edit || params.create)
-  const urlKey = hasAnyParam ? urlKeyFor(params, getParam) : ''
+  const desiredFromUrl = deriveStateFromUrl(params, getParam)
 
-  // Sentinel `undefined` on first run so the initial URL is always treated as an
-  // external change → a deep-link param opens its dialog on mount.
-  const prevUrlKey = useRef<string | undefined>(undefined)
+  // What the URL asked for at the last reconciliation. Sentinel `undefined` on
+  // first run so the initial URL is always treated as an external change → a
+  // deep-link param opens its dialog on mount.
+  const prevFromUrl = useRef<DialogState | undefined>(undefined)
 
   // The deferred close write must use the CURRENT params (a sibling `?tab`/`?page`
   // may have changed during the delay), not the snapshot of the closing render.
@@ -129,19 +125,19 @@ export function useDialogUrlSync({
   useEffect(() => {
     if (!hasAnyParam) return undefined
 
-    const desiredFromUrl = deriveStateFromUrl(params, getParam)
-
     if (dialogStateEquals(desiredFromUrl, state)) {
-      prevUrlKey.current = urlKey
+      prevFromUrl.current = desiredFromUrl
       return undefined
     }
 
-    const urlChanged = urlKey !== prevUrlKey.current
+    const urlChanged =
+      !prevFromUrl.current ||
+      !dialogStateEquals(desiredFromUrl, prevFromUrl.current)
 
     if (urlChanged) {
       // URL moved (deep-link, back/forward, link, tab nav) → URL is authoritative.
       //
-      // We intentionally do NOT advance `prevUrlKey` here. The URL is only marked
+      // We intentionally do NOT advance `prevFromUrl` here. The URL is only marked
       // as "consumed" once the state actually reconciles to it (the equality
       // branch above). Advancing now would break arbitration whenever this effect
       // runs again before the `dispatch` has committed — React StrictMode double-
@@ -149,7 +145,7 @@ export function useDialogUrlSync({
       // opening — because the next pass would see `urlChanged === false` with the
       // dialog still closed and fall into the `else` branch, deleting the param
       // that just arrived from the URL (so a deep-link wouldn't open on mount).
-      // Leaving `prevUrlKey` untouched makes re-runs simply repeat the idempotent
+      // Leaving `prevFromUrl` untouched makes re-runs simply repeat the idempotent
       // dispatch until the state catches up.
       //
       // The gate: only *open* a dialog from the URL if this ListPage is visible.
@@ -167,7 +163,7 @@ export function useDialogUrlSync({
       // which strips `?view`, and that strip must NOT then be read back as "close
       // the edit". Keep the dialog open; just consume the URL change.
       if (!isOpening && state.type !== null && !params[state.type]) {
-        prevUrlKey.current = urlKey
+        prevFromUrl.current = desiredFromUrl
         return undefined
       }
 
@@ -178,7 +174,7 @@ export function useDialogUrlSync({
       return undefined
     } else {
       // Only the dialog state moved → write it into the URL atomically.
-      prevUrlKey.current = urlKey
+      prevFromUrl.current = desiredFromUrl
       const updates: Record<string, string | undefined> = {}
       if (params.view) {
         updates[params.view] = state.type === 'view' ? state.id : undefined
@@ -213,7 +209,9 @@ export function useDialogUrlSync({
     }
     // getParam/setParams come from useUrlSync, whose identity changes on every
     // searchParams update; depending on them would re-run this effect after each
-    // write. We intentionally key on the serialized `urlKey` + `state` instead.
+    // write. We intentionally key on what the URL asks for (`desiredFromUrl.type`/`.id`)
+    // + `state` instead: a param-set change that asks for the same dialog does not
+    // re-run the effect, so it can't cancel a pending deferred close either.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [urlKey, state, hasAnyParam])
+  }, [desiredFromUrl.type, desiredFromUrl.id, state, hasAnyParam])
 }
