@@ -86,10 +86,17 @@ const initialValues = (inputs: ConfirmDialogInput[] = []) =>
 const asOption = (o: string | ConfirmDialogOption): ConfirmDialogOption =>
   typeof o === 'string' ? { value: o, label: o } : o
 
-/** `YYYY-MM-DD` as a LOCAL date (`new Date(iso)` is UTC midnight: the day before west of Greenwich) */
-const localDate = (iso: string) => {
+/**
+ * `YYYY-MM-DD` as a Date that renders as that same calendar day. The message
+ * formatter applies the app's `timeZone`, not the browser's, so neither UTC
+ * midnight (`new Date(iso)`) nor local midnight is safe: one of them shows the
+ * day before whenever the two zones differ.
+ * ponytail: noon UTC holds for every zone from UTC-11 to UTC+11; format with an
+ * explicit `timeZone: 'UTC'` if an app ever runs in UTC+12..+14.
+ */
+const calendarDate = (iso: string) => {
   const [y, m, d] = iso.split('-').map(Number)
-  return new Date(y, m - 1, d)
+  return new Date(Date.UTC(y, m - 1, d, 12))
 }
 
 /**
@@ -194,9 +201,9 @@ export function ConfirmActionDialog({
     if (input.required && !value.trim()) return t('validation.required')
     if (input.type === 'date' && value) {
       if (input.min && value < input.min)
-        return t('validation.tooSmallDate', { min: localDate(input.min) })
+        return t('validation.tooSmallDate', { min: calendarDate(input.min) })
       if (input.max && value > input.max)
-        return t('validation.tooBigDate', { max: localDate(input.max) })
+        return t('validation.tooBigDate', { max: calendarDate(input.max) })
     }
     return input.validate?.(value, values)
   }
