@@ -14,6 +14,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import React from 'react'
 import {
+  isRepeatJob,
   timelinePollInterval,
   useQueueEventsTimeline,
 } from './use-queue-events-timeline'
@@ -191,5 +192,18 @@ describe('timelinePollInterval', () => {
 
   it('does not poll when the page is hidden', () => {
     expect(timelinePollInterval({ ...base, isVisible: false })).toBe(false)
+  })
+})
+
+describe('isRepeatJob', () => {
+  it('detects job scheduler and legacy repeatable iterations', () => {
+    expect(isRepeatJob({ id: '1', opts: { repeatJobKey: 'nightly' } })).toBe(true)
+    expect(isRepeatJob({ id: '1', opts: { repeat: { pattern: '0 * * * *' } } })).toBe(true)
+    expect(isRepeatJob({ id: 'repeat:nightly:1700000000000' })).toBe(true)
+  })
+
+  it('leaves one-off jobs alone', () => {
+    expect(isRepeatJob({ id: '42' })).toBe(false)
+    expect(isRepeatJob({ id: '42', opts: { attempts: 3 } })).toBe(false)
   })
 })

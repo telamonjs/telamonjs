@@ -8,7 +8,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useQueueApi } from '../api/provider'
 import { usePageVisibility } from '../../hooks/usePageVisibility'
-import type { TimelineJob } from '../types'
+import type { JobInfo, TimelineJob } from '../types'
 import { LIB_QUERY_META } from '../../utils/query-meta'
 
 export interface TimelineData {
@@ -25,6 +25,15 @@ export interface QueueEventsTimelineOptions {
   active?: boolean
   /** Poll interval in ms while SSE is down (default: 2000) */
   pollInterval?: number
+}
+
+/**
+ * A job scheduler / repeatable iteration: BullMQ sets `opts.repeatJobKey`
+ * (job schedulers) or `opts.repeat` (legacy repeatables) and ids them
+ * `repeat:<key>:<millis>`.
+ */
+export function isRepeatJob(job: Pick<JobInfo, 'id' | 'opts'>): boolean {
+  return Boolean(job.opts?.repeatJobKey || job.opts?.repeat) || job.id.startsWith('repeat:')
 }
 
 /**
@@ -94,69 +103,32 @@ export function useQueueEventsTimeline({
           ),
         ])
 
-      // Combine results and tag status
-      // Use a Map to guarantee unique IDs (avoids duplicates if a job transitioned from active→completed)
+      // Combine results and tag status. A Map keeps IDs unique: a job seen
+      // in several states (it moved on between the calls) keeps the first
+      // one - 'active' over 'completed' over 'failed'.
       const jobsMap = new Map<string, TimelineJob>()
-
-      if (activeJobsResp?.jobs) {
-        for (const job of activeJobsResp.jobs) {
+      const add = (jobs: JobInfo[] | undefined, status: TimelineJob['status']) => {
+        for (const job of jobs ?? []) {
+          if (jobsMap.has(job.id)) continue
           jobsMap.set(job.id, {
             id: job.id,
             name: job.name,
             queueName: job.queueName,
             queueDisplayName: job.queueName,
-            status: 'active' as const,
+            status,
             timestamp: job.timestamp,
             processedOn: job.processedOn,
             finishedOn: job.finishedOn,
             attemptsMade: job.attemptsMade,
             failedReason: job.failedReason,
             returnvalue: job.returnvalue,
+            repeat: isRepeatJob(job),
           })
         }
       }
-
-      if (completedJobsResp?.jobs) {
-        for (const job of completedJobsResp.jobs) {
-          // Only add if not present ('active' takes precedence over 'completed')
-          if (!jobsMap.has(job.id)) {
-            jobsMap.set(job.id, {
-              id: job.id,
-              name: job.name,
-              queueName: job.queueName,
-              queueDisplayName: job.queueName,
-              status: 'completed' as const,
-              timestamp: job.timestamp,
-              processedOn: job.processedOn,
-              finishedOn: job.finishedOn,
-              attemptsMade: job.attemptsMade,
-              failedReason: job.failedReason,
-              returnvalue: job.returnvalue,
-            })
-          }
-        }
-      }
-
-      if (failedJobsResp?.jobs) {
-        for (const job of failedJobsResp.jobs) {
-          // Only add if not present ('active'/'completed' take precedence over 'failed')
-          if (!jobsMap.has(job.id)) {
-            jobsMap.set(job.id, {
-              id: job.id,
-              name: job.name,
-              queueName: job.queueName,
-              queueDisplayName: job.queueName,
-              status: 'failed' as const,
-              timestamp: job.timestamp,
-              processedOn: job.processedOn,
-              finishedOn: job.finishedOn,
-              attemptsMade: job.attemptsMade,
-              failedReason: job.failedReason,
-              returnvalue: job.returnvalue,
-            })
-          }
-        }
-      }
+      add(activeJobsResp?.jobs, 'active')
+      add(completedJobsResp?.jobs, 'completed')
+      add(failedJobsResp?.jobs, 'failed')
 
       // Convert Map to array and sort by most recent timestamp
       const allJobs = Array.from(jobsMap.values())

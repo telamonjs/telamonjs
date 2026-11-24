@@ -264,6 +264,18 @@ describe('DispatchJobModal', () => {
       await waitFor(() => expect(toast.success).toHaveBeenCalled())
     })
 
+    it('closes on Escape', async () => {
+      const { user, onClose } = setup()
+      await user.keyboard('{Escape}')
+      expect(onClose).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not listen for Escape without a job', async () => {
+      const { user, onClose } = setup({ job: null })
+      await user.keyboard('{Escape}')
+      expect(onClose).not.toHaveBeenCalled()
+    })
+
     it('closes from the X button, Cancel and the backdrop', async () => {
       const { user, onClose, container } = setup()
 
@@ -298,6 +310,11 @@ describe('DispatchJobModal', () => {
         rules: { 'color-contrast': { enabled: false }, region: { enabled: false } },
       })
       expect(results).toHaveNoViolations()
+    })
+
+    it('is a modal dialog named by its title', () => {
+      setup()
+      expect(screen.getByRole('dialog', { name: 'Executar Job' })).toHaveAttribute('aria-modal', 'true')
     })
 
     it('labels each input with its field name', () => {

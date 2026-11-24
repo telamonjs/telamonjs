@@ -6,14 +6,18 @@
  * Features:
  * - Auto-polling every 2s with useQueueEventsTimeline hook
  * - Timeline of active/completed jobs
- * - Clickable job cards showing details
+ * - Job rows are buttons (keyboard + screen reader) opening the details
+ * - Row actions: retry a failed job, remove a job (confirmed), hidden when
+ *   the dashboard is readOnly; retry also hidden for `manualRetry: false`
  * - Status indicators (active, completed, failed)
  * - Duration/processing time display
  * - Expandable full-screen mode
  * - Token authentication via cookies
  */
 
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useId, useMemo } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
+import { toast } from 'sonner'
 import {
   Wifi,
   WifiOff,
@@ -34,7 +38,17 @@ import {
 } from 'lucide-react'
 import { useFormatter, useLocale } from 'next-intl'
 import { cn } from '../../utils/cn'
-import { useQueueEventsTimeline, useQueueStats, useCopyToClipboard } from '../hooks'
+import {
+  useQueueEventsTimeline,
+  useQueueStats,
+  useQueueHealth,
+  useCopyToClipboard,
+} from '../hooks'
+import { useEscapeToClose } from '../hooks/use-escape-to-close'
+import { useQueueApi } from '../api/provider'
+import { logger } from '../../utils/logger'
+import { useQueueReadOnly } from './read-only-context'
+import type { TimelineJob } from '../types'
 import { useTelamonjsT } from '../../i18n/use-t'
 import { useFormat } from '../../i18n/use-format'
 import { formatDuration } from './job-shared'
@@ -76,7 +90,18 @@ export default function JobEventTimeline({
   const locale = useLocale()
   const [isExpanded, setIsExpanded] = useState(false)
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null)
+  const [pendingId, setPendingId] = useState<string | null>(null)
   const { copied, copy: copyToClipboard, reset: resetCopied } = useCopyToClipboard()
+  const api = useQueueApi()
+  const queryClient = useQueryClient()
+  const readOnly = useQueueReadOnly()
+  const { data: health } = useQueueHealth()
+  const detailTitleId = useId()
+
+  // ESC closes the innermost layer: the details, then the expanded view
+  useEscapeToClose(selectedJobId !== null, () => setSelectedJobId(null))
+  useEscapeToClose(isExpanded, () => setIsExpanded(false))
 
   // Fetch jobs timeline
   const {
@@ -117,6 +142,37 @@ export default function JobEventTimeline({
     if (!timelineData?.jobs) return []
     return timelineData.jobs.slice(0, maxItems)
   }, [timelineData, maxItems])
+
+  const runJobAction = async (job: TimelineJob, action: 'retry' | 'remove') => {
+    setPendingId(job.id)
+    try {
+      const params = { jobId: job.id, queueName: job.queueName }
+      if (action === 'retry') await api.retryJob(params)
+      else await api.removeJob(params)
+      toast.success(
+        t(action === 'retry' ? 'queue.jobsListModal.retrySent' : 'queue.jobsListModal.removed')
+      )
+      if (action === 'remove' && selectedJobId === job.id) setSelectedJobId(null)
+      await Promise.all(
+        [['queue', 'events-timeline'], ['queue', 'stats'], ['queue', 'jobs'], ['queue', 'history']].map(
+          queryKey => queryClient.invalidateQueries({ queryKey })
+        )
+      )
+    } catch (err) {
+      logger.error(action === 'retry' ? 'Error retrying job' : 'Error removing job', {
+        error: err instanceof Error ? err : String(err),
+      })
+      toast.error(
+        t(action === 'retry' ? 'queue.jobsListModal.retryError' : 'queue.jobsListModal.removeError')
+      )
+    } finally {
+      setPendingId(null)
+      setConfirmRemoveId(null)
+    }
+  }
+
+  const canRetry = (job: TimelineJob) =>
+    !readOnly && job.status === 'failed' && health?.get(job.queueName)?.manualRetry !== false
 
   const isConnected = !isError && !isLoading
   const statusText = isLoading
@@ -251,52 +307,60 @@ export default function JobEventTimeline({
 
         {/* Jobs timeline */}
         {!isLoading && !isError && jobs.length > 0 && (
-          <div className='space-y-2'>
-            {jobs.map(job => (
-              <div
-                key={job.id}
-                onClick={() => setSelectedJobId(job.id)}
-                className={cn(
-                  'w-full rounded border p-4 text-left transition-colors group',
-                  getJobStatusColor(job.status),
-                  'cursor-pointer'
-                )}
-              >
-                {/* Job header */}
-                <div className='flex items-start justify-between gap-3'>
-                  <div className='flex-1 min-w-0'>
-                    <div className='flex items-center gap-2'>
-                      {getStatusIcon(job.status)}
-                      <h4 className='font-medium text-foreground truncate'>
-                        {job.name}
-                      </h4>
-                      <span className='text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded'>
-                        #REPEAT
+          <ul className='space-y-2'>
+            {jobs.map(job => {
+              const confirming = confirmRemoveId === job.id
+              const pending = pendingId === job.id
+              return (
+                <li
+                  key={job.id}
+                  className={cn(
+                    'flex w-full items-start gap-2 rounded border transition-colors group',
+                    getJobStatusColor(job.status)
+                  )}
+                >
+                  <button
+                    type='button'
+                    onClick={() => setSelectedJobId(job.id)}
+                    aria-haspopup='dialog'
+                    data-testid='job-timeline-row'
+                    className='flex flex-1 min-w-0 items-start justify-between gap-3 rounded p-4 text-left cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset'
+                  >
+                    <span className='flex-1 min-w-0'>
+                      <span className='flex items-center gap-2'>
+                        {getStatusIcon(job.status)}
+                        <span className='font-medium text-foreground truncate'>
+                          {job.name}
+                        </span>
+                        {job.repeat && (
+                          <span
+                            className='text-xs font-mono text-muted-foreground bg-muted px-2 py-0.5 rounded'
+                            title={t('queue.eventTimeline.repeatHint')}
+                          >
+                            {t('queue.eventTimeline.repeat')}
+                          </span>
+                        )}
                       </span>
-                    </div>
-                    <p className='text-xs text-muted-foreground mt-1 truncate'>
-                      {job.queueName}
-                    </p>
-                  </div>
+                      <span className='block text-xs text-muted-foreground mt-1 truncate'>
+                        {job.queueName}
+                      </span>
+                    </span>
 
-                  {/* Duration/Status */}
-                  <div className='flex items-center gap-3 text-right'>
-                    <div className='text-sm'>
+                    {/* Duration/Status */}
+                    <span className='text-sm text-right'>
                       {job.status === 'active' ? (
                         <span className='text-blue-600 dark:text-blue-400 font-medium'>
                           {t('queue.eventTimeline.inProgress')}
                         </span>
-                      ) : job.status === 'failed' ? (
-                        <span className='text-red-600 dark:text-red-400 font-medium'>
-                          {formatEventDuration(
-                            job.processedOn,
-                            job.finishedOn,
-                            job.timestamp,
-                            locale
-                          )}
-                        </span>
                       ) : (
-                        <span className='text-green-700 dark:text-green-400 font-medium'>
+                        <span
+                          className={cn(
+                            'font-medium',
+                            job.status === 'failed'
+                              ? 'text-red-600 dark:text-red-400'
+                              : 'text-green-700 dark:text-green-400'
+                          )}
+                        >
                           {formatEventDuration(
                             job.processedOn,
                             job.finishedOn,
@@ -305,42 +369,78 @@ export default function JobEventTimeline({
                           )}
                         </span>
                       )}
-                    </div>
+                    </span>
+                  </button>
 
-                    {/* Action icons */}
-                    <div className='flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity'>
-                      {job.status === 'failed' && (
-                        <button
-                          onClick={e => {
-                            e.stopPropagation()
-                            // Retry action would go here
-                          }}
-                          className='p-1 hover:bg-gray-300 rounded'
-                          title={t('queue.eventTimeline.retryJob')}
-                          aria-label={t('queue.eventTimeline.retryJob')}
-                          type='button'
-                        >
-                          <RotateCcw className='h-3.5 w-3.5' />
-                        </button>
+                  {/* Row actions: shown on hover and on keyboard focus */}
+                  {!readOnly && (
+                    <div
+                      className={cn(
+                        'flex items-center gap-1 self-center pr-3 transition-opacity',
+                        confirming || pending
+                          ? 'opacity-100'
+                          : 'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100'
                       )}
-                      <button
-                        onClick={e => {
-                          e.stopPropagation()
-                          // Delete action would go here
-                        }}
-                        className='p-1 hover:bg-gray-300 rounded'
-                        title={t('queue.eventTimeline.removeJob')}
-                        aria-label={t('queue.eventTimeline.removeJob')}
-                        type='button'
-                      >
-                        <Trash2 className='h-3.5 w-3.5' />
-                      </button>
+                    >
+                      {confirming ? (
+                        <>
+                          <span className='text-xs text-muted-foreground'>
+                            {t('queue.detail.confirmDeleteQuestion')}
+                          </span>
+                          <button
+                            type='button'
+                            onClick={() => runJobAction(job, 'remove')}
+                            disabled={pending}
+                            data-testid='job-timeline-remove-confirm'
+                            className='rounded px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-100 dark:text-red-300 dark:hover:bg-red-900/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+                          >
+                            {t('queue.actions.yes')}
+                          </button>
+                          <button
+                            type='button'
+                            onClick={() => setConfirmRemoveId(null)}
+                            disabled={pending}
+                            data-testid='job-timeline-remove-cancel'
+                            className='rounded px-2 py-1 text-xs font-medium hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+                          >
+                            {t('queue.actions.no')}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          {canRetry(job) && (
+                            <button
+                              type='button'
+                              onClick={() => runJobAction(job, 'retry')}
+                              disabled={pending}
+                              className='p-1 rounded hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+                              title={t('queue.eventTimeline.retryJob')}
+                              aria-label={t('queue.eventTimeline.retryJob')}
+                            >
+                              <RotateCcw className='h-3.5 w-3.5' />
+                            </button>
+                          )}
+                          {/* An active job is locked by its worker: nothing to remove yet */}
+                          {job.status !== 'active' && (
+                            <button
+                              type='button'
+                              onClick={() => setConfirmRemoveId(job.id)}
+                              disabled={pending}
+                              className='p-1 rounded hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50'
+                              title={t('queue.eventTimeline.removeJob')}
+                              aria-label={t('queue.eventTimeline.removeJob')}
+                            >
+                              <Trash2 className='h-3.5 w-3.5' />
+                            </button>
+                          )}
+                        </>
+                      )}
                     </div>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+                  )}
+                </li>
+              )
+            })}
+          </ul>
         )}
 
         {/* Job details modal */}
@@ -396,7 +496,12 @@ export default function JobEventTimeline({
                 />
 
                 {/* Modal */}
-                <div className='fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl md:max-h-[85vh] bg-card rounded-xl shadow-2xl z-50 flex flex-col animate-in zoom-in-95 duration-200'>
+                <div
+                  role='dialog'
+                  aria-modal='true'
+                  aria-labelledby={detailTitleId}
+                  className='fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-2xl md:max-h-[85vh] bg-card rounded-xl shadow-2xl z-50 flex flex-col animate-in zoom-in-95 duration-200'
+                >
                   {/* Header */}
                   <div className='flex items-center justify-between px-6 py-4 border-b'>
                     <div className='flex items-center gap-3'>
@@ -410,7 +515,7 @@ export default function JobEventTimeline({
                         {config.icon}
                       </div>
                       <div>
-                        <h2 className='text-lg font-semibold'>
+                        <h2 id={detailTitleId} className='text-lg font-semibold'>
                           {config.label}
                         </h2>
                         <p className='text-sm text-muted-foreground'>

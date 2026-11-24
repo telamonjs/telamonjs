@@ -16,6 +16,7 @@ import { useQueueConfigApi } from '../api/provider'
 import type { QueueConfigApiAdapter } from '../api/types'
 import { logger } from '../../utils/logger'
 import type { SSEStatus, TimelineJob, TimelineData } from '../types'
+import { isRepeatJob } from './use-queue-events-timeline'
 
 interface JobEvent {
   type:
@@ -85,7 +86,8 @@ function handleJobEventImpl(
         processedOn: jobStatus === 'active' ? ts : undefined,
         finishedOn: jobStatus !== 'active' ? ts : undefined,
         failedReason: event.error,
-        returnvalue: event.result
+        returnvalue: event.result,
+        repeat: isRepeatJob({ id: event.jobId })
       }
 
       return { jobs: [newJob, ...prev.jobs].slice(0, 100) }

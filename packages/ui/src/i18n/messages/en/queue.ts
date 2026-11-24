@@ -150,6 +150,8 @@ export const queue = {
     removeJob: 'Remove job',
     noJobsProcessing: 'No jobs processing',
     statusInProgress: 'In progress',
+    repeat: 'Recurring',
+    repeatHint: 'Iteration of a scheduled (repeating) job',
   },
   history: {
     title: 'Execution History',

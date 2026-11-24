@@ -182,6 +182,8 @@ export interface TimelineJob {
   attemptsMade?: number
   failedReason?: string
   returnvalue?: unknown
+  /** Iteration of a job scheduler / repeatable (BullMQ `opts.repeatJobKey`) */
+  repeat?: boolean
 }
 
 // ============================================

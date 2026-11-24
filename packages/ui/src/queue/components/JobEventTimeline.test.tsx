@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
@@ -8,8 +8,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { axe } from 'vitest-axe'
 import * as axeMatchers from 'vitest-axe/matchers'
 import type { AxeMatchers } from 'vitest-axe/matchers'
+import { toast } from 'sonner'
 import { QueueApiProvider } from '../api/provider'
 import type { QueueApiAdapter } from '../api/types'
+import type { QueueHealth } from '../types'
+import { QueueReadOnlyContext } from './read-only-context'
 import JobEventTimeline from './JobEventTimeline'
 
 expect.extend(axeMatchers)
@@ -31,6 +34,7 @@ interface ApiJob {
   attemptsMade?: number
   failedReason?: string
   returnvalue?: unknown
+  opts?: Record<string, unknown>
 }
 
 const completed: ApiJob = {
@@ -63,7 +67,18 @@ const active: ApiJob = {
 
 function setup(
   byStatus: Partial<Record<'active' | 'completed' | 'failed', ApiJob[]>> | Error,
-  props: { maxItems?: number } = {}
+  props: { maxItems?: number } = {},
+  {
+    readOnly = false,
+    health,
+    retryJob = vi.fn().mockResolvedValue(undefined),
+    removeJob = vi.fn().mockResolvedValue(undefined),
+  }: {
+    readOnly?: boolean
+    health?: Array<Pick<QueueHealth, 'name' | 'manualRetry'>>
+    retryJob?: ReturnType<typeof vi.fn>
+    removeJob?: ReturnType<typeof vi.fn>
+  } = {}
 ) {
   const getJobsAll = vi.fn((params: URLSearchParams) => {
     if (byStatus instanceof Error) return Promise.reject(byStatus)
@@ -73,19 +88,33 @@ function setup(
   const adapter = {
     getJobsAll,
     getStats: vi.fn().mockResolvedValue({ queues: [] }),
+    retryJob,
+    removeJob,
+    ...(health && { getHealth: vi.fn().mockResolvedValue({ queues: health }) }),
   } as unknown as QueueApiAdapter
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   const utils = render(
     <QueryClientProvider client={queryClient}>
       <QueueApiProvider adapter={adapter}>
-        <JobEventTimeline {...props} />
+        <QueueReadOnlyContext.Provider value={readOnly}>
+          <JobEventTimeline {...props} />
+        </QueueReadOnlyContext.Provider>
       </QueueApiProvider>
     </QueryClientProvider>
   )
-  return { ...utils, getJobsAll, user: userEvent.setup() }
+  return { ...utils, getJobsAll, retryJob, removeJob, user: userEvent.setup() }
 }
 
-const dialogHeading = () => screen.getAllByRole('heading', { level: 2 })[0]
+const JOB_NAMES = ['import-csv', 'send-sms', 'sync-clientes']
+/** Job names in row order */
+const rowNames = async () =>
+  (await screen.findAllByRole('listitem')).map(row =>
+    JOB_NAMES.find(name => row.textContent?.includes(name))
+  )
+const row = (name: string) =>
+  screen.getAllByRole('listitem').find(r => r.textContent?.includes(name)) as HTMLElement
+
+const dialogHeading = () => within(screen.getByRole('dialog')).getAllByRole('heading', { level: 2 })[0]
 
 describe('JobEventTimeline', () => {
   describe('Rendering', () => {
@@ -114,8 +143,7 @@ describe('JobEventTimeline', () => {
     it('lists jobs newest first with their queue and a count', async () => {
       setup({ active: [active], completed: [completed], failed: [failed] })
 
-      const names = await screen.findAllByRole('heading', { level: 4 })
-      expect(names.map(n => n.textContent)).toEqual(['import-csv', 'send-sms', 'sync-clientes'])
+      expect(await rowNames()).toEqual(['import-csv', 'send-sms', 'sync-clientes'])
       expect(screen.getByText('imports_csv')).toBeInTheDocument()
       expect(screen.getByText('3')).toBeInTheDocument()
     })
@@ -133,8 +161,7 @@ describe('JobEventTimeline', () => {
     it('caps the list at maxItems', async () => {
       setup({ completed: [completed], failed: [failed], active: [active] }, { maxItems: 2 })
 
-      const names = await screen.findAllByRole('heading', { level: 4 })
-      expect(names).toHaveLength(2)
+      expect(await rowNames()).toHaveLength(2)
     })
 
     it('shows the disconnected state and the error when the API fails', async () => {
@@ -207,14 +234,130 @@ describe('JobEventTimeline', () => {
       expect(writeText).toHaveBeenCalledWith('job-1')
     })
 
-    it('the row action buttons do not open the details', async () => {
-      const { user } = setup({ failed: [failed] })
+    it('opens the details from the keyboard (Tab, then Enter or Space)', async () => {
+      const { user } = setup({ completed: [completed] })
+      await screen.findByText('sync-clientes')
+
+      await user.tab() // expand button in the header
+      await user.tab()
+      expect(screen.getByRole('button', { name: /sync-clientes/ })).toHaveFocus()
+      await user.keyboard('{Enter}')
+      expect(screen.getByRole('dialog', { name: 'Concluído' })).toBeInTheDocument()
+
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+
+      screen.getByRole('button', { name: /sync-clientes/ }).focus()
+      await user.keyboard(' ')
+      expect(screen.getByRole('dialog')).toBeInTheDocument()
+    })
+
+    it('Escape closes the details first, then the expanded view', async () => {
+      const { user } = setup({ completed: [completed] })
+      await user.click(screen.getByRole('button', { name: 'Expandir timeline' }))
+      await user.click(await screen.findByText('sync-clientes'))
+
+      await user.keyboard('{Escape}')
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Recolher timeline' })).toBeInTheDocument()
+
+      await user.keyboard('{Escape}')
+      expect(screen.getByRole('button', { name: 'Expandir timeline' })).toBeInTheDocument()
+    })
+  })
+
+  describe('Row actions', () => {
+    beforeEach(() => {
+      vi.mocked(toast.success).mockClear()
+      vi.mocked(toast.error).mockClear()
+    })
+
+    it('retries a failed job, confirms with a toast and refreshes the timeline', async () => {
+      const { user, retryJob, getJobsAll } = setup({ failed: [failed] })
+      await screen.findByText('send-sms')
+      const fetches = getJobsAll.mock.calls.length
+
+      await user.click(within(row('send-sms')).getByRole('button', { name: 'Reprocessar job' }))
+
+      expect(retryJob).toHaveBeenCalledWith({ jobId: 'job-2', queueName: 'sms_send' })
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Job enviado para reprocessamento'))
+      await waitFor(() => expect(getJobsAll.mock.calls.length).toBeGreaterThan(fetches))
+      // The action does not open the details
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    })
+
+    it('reports a failed retry', async () => {
+      const { user } = setup({ failed: [failed] }, {}, { retryJob: vi.fn().mockRejectedValue(new Error('x')) })
       await screen.findByText('send-sms')
 
       await user.click(screen.getByRole('button', { name: 'Reprocessar job' }))
-      await user.click(screen.getByRole('button', { name: 'Remover job' }))
 
-      expect(screen.queryByText('job-2')).not.toBeInTheDocument()
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Erro ao reprocessar job'))
+    })
+
+    it('offers retry only on failed jobs of queues that allow a manual retry', async () => {
+      setup(
+        { completed: [completed], failed: [failed, { ...failed, id: 'job-4', name: 'auto-retry', queueName: 'owns_retries' }] },
+        {},
+        { health: [{ name: 'owns_retries', manualRetry: false }, { name: 'sms_send', manualRetry: true }] }
+      )
+      await screen.findByText('auto-retry')
+
+      await waitFor(() =>
+        expect(within(row('auto-retry')).queryByRole('button', { name: 'Reprocessar job' })).not.toBeInTheDocument()
+      )
+      expect(within(row('send-sms')).getByRole('button', { name: 'Reprocessar job' })).toBeInTheDocument()
+      expect(within(row('sync-clientes')).queryByRole('button', { name: 'Reprocessar job' })).not.toBeInTheDocument()
+    })
+
+    it('removes a job only after the confirmation', async () => {
+      const { user, removeJob } = setup({ completed: [completed] })
+      await screen.findByText('sync-clientes')
+
+      await user.click(screen.getByRole('button', { name: 'Remover job' }))
+      expect(screen.getByText('Confirmar exclusão?')).toBeInTheDocument()
+      expect(removeJob).not.toHaveBeenCalled()
+
+      await user.click(screen.getByRole('button', { name: 'Sim' }))
+
+      expect(removeJob).toHaveBeenCalledWith({ jobId: 'job-1', queueName: 'sync_clientes' })
+      await waitFor(() => expect(toast.success).toHaveBeenCalledWith('Job removido com sucesso'))
+      expect(screen.queryByText('Confirmar exclusão?')).not.toBeInTheDocument()
+    })
+
+    it('cancelling the confirmation removes nothing', async () => {
+      const { user, removeJob } = setup({ completed: [completed] })
+      await screen.findByText('sync-clientes')
+
+      await user.click(screen.getByRole('button', { name: 'Remover job' }))
+      await user.click(screen.getByRole('button', { name: 'Não' }))
+
+      expect(removeJob).not.toHaveBeenCalled()
+      expect(screen.getByRole('button', { name: 'Remover job' })).toBeInTheDocument()
+    })
+
+    it('reports a failed removal', async () => {
+      const { user } = setup({ completed: [completed] }, {}, { removeJob: vi.fn().mockRejectedValue(new Error('x')) })
+      await screen.findByText('sync-clientes')
+
+      await user.click(screen.getByRole('button', { name: 'Remover job' }))
+      await user.click(screen.getByRole('button', { name: 'Sim' }))
+
+      await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Erro ao remover job'))
+    })
+
+    it('cannot remove an active job (its worker holds the lock)', async () => {
+      setup({ active: [active] })
+      await screen.findByText('import-csv')
+      expect(screen.queryByRole('button', { name: 'Remover job' })).not.toBeInTheDocument()
+    })
+
+    it('hides every action when the dashboard is read-only', async () => {
+      setup({ completed: [completed], failed: [failed] }, {}, { readOnly: true })
+      await screen.findByText('send-sms')
+
+      expect(screen.queryByRole('button', { name: 'Reprocessar job' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remover job' })).not.toBeInTheDocument()
     })
 
     it('expands to full screen and collapses back', async () => {
@@ -233,11 +376,26 @@ describe('JobEventTimeline', () => {
   })
 
   describe('Edge Cases', () => {
+    it('tags only scheduler/repeatable iterations as recurring', async () => {
+      setup({
+        completed: [
+          completed,
+          { ...completed, id: 'repeat:abc:1700000000000', name: 'cron-by-id', timestamp: T0 - 1 },
+          { ...completed, id: '77', name: 'cron-by-opts', timestamp: T0 - 2, opts: { repeatJobKey: 'abc' } },
+        ],
+      })
+      await screen.findByText('cron-by-id')
+
+      expect(within(row('cron-by-id')).getByText('Recorrente')).toBeInTheDocument()
+      expect(within(row('cron-by-opts')).getByText('Recorrente')).toBeInTheDocument()
+      expect(within(row('sync-clientes')).queryByText('Recorrente')).not.toBeInTheDocument()
+      expect(screen.queryByText('#REPEAT')).not.toBeInTheDocument()
+    })
+
     it('keeps the active entry when a job shows up as active and completed', async () => {
       setup({ active: [{ ...completed, finishedOn: undefined }], completed: [completed] })
 
-      const names = await screen.findAllByRole('heading', { level: 4 })
-      expect(names).toHaveLength(1)
+      expect(await rowNames()).toHaveLength(1)
       expect(screen.getByText('Em andamento...')).toBeInTheDocument()
     })
 

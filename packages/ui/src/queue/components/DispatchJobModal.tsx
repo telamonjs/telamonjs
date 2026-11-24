@@ -12,6 +12,7 @@ import { toast } from 'sonner'
 import { useQueueApi } from '../api/provider'
 import { useTelamonjsT } from '../../i18n/use-t'
 import { useQueueLabels } from './labels-context'
+import { useEscapeToClose } from '../hooks/use-escape-to-close'
 
 interface JobContractInfo {
   name: string
@@ -122,6 +123,7 @@ export default function DispatchJobModal({
   const [jsonData, setJsonData] = useState('{}')
   const [jsonError, setJsonError] = useState<string | null>(null)
   const fieldIdPrefix = useId()
+  useEscapeToClose(!!job, onClose)
 
   const schemaFields = job ? resolvedSchemaFields[job.name] : undefined
   const hasRequiredFields = schemaFields && schemaFields.some((f) => f.required)
@@ -244,7 +246,12 @@ export default function DispatchJobModal({
       />
 
       {/* Modal */}
-      <div className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-background rounded-xl shadow-2xl z-50 flex flex-col animate-in zoom-in-95 duration-200 max-h-[90vh]">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={`${fieldIdPrefix}-title`}
+        className="fixed inset-4 md:inset-auto md:left-1/2 md:top-1/2 md:-translate-x-1/2 md:-translate-y-1/2 md:w-full md:max-w-lg bg-background rounded-xl shadow-2xl z-50 flex flex-col animate-in zoom-in-95 duration-200 max-h-[90vh]"
+      >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b">
           <div className="flex items-center gap-3">
@@ -252,7 +259,9 @@ export default function DispatchJobModal({
               <Zap className="h-5 w-5 text-blue-600 dark:text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold">{t('queue.dispatch.title')}</h2>
+              <h2 id={`${fieldIdPrefix}-title`} className="text-lg font-semibold">
+                {t('queue.dispatch.title')}
+              </h2>
               <p className="text-sm text-muted-foreground">{t('queue.dispatch.subtitle')}</p>
             </div>
           </div>
@@ -342,7 +351,7 @@ export default function DispatchJobModal({
                     {schemaFields?.map((field) => (
                       <div key={field.name} className="space-y-1">
                         <label
-                          htmlFor={`${fieldIdPrefix}-${field.name}`}
+                          htmlFor={`${fieldIdPrefix}-field-${field.name}`}
                           className="text-sm font-medium flex items-center gap-1"
                         >
                           {field.name}
@@ -356,7 +365,7 @@ export default function DispatchJobModal({
                           </p>
                         )}
                         <input
-                          id={`${fieldIdPrefix}-${field.name}`}
+                          id={`${fieldIdPrefix}-field-${field.name}`}
                           type="text"
                           value={formData[field.name] || ''}
                           onChange={(e) =>
