@@ -53,6 +53,7 @@ vi.mock('next/navigation', () => ({
 describe('useListPageUrlSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReplace.mockReset() // drop a `setUrl` implementation left by a test
     currentSearchParams = new URLSearchParams()
   })
 
@@ -443,6 +444,30 @@ describe('useListPageUrlSync', () => {
       )
 
       expect(mockReplace).toHaveBeenCalledTimes(1)
+    })
+
+    it('writes the settled state when it matches the URL a pending replace is leaving', () => {
+      // Deep link already carrying the final state; the store starts on its
+      // defaults and applies the config one render later
+      currentSearchParams = new URLSearchParams(
+        'page=1&pageSize=50&sortBy=start&sortOrder=desc&status=ATIVO'
+      )
+      const props = {
+        urlSync: true,
+        urlFilters: { status: 'string' as const },
+        page: 1,
+        pageSize: 10,
+        search: '',
+        sorting: [] as Array<{ field: string; order: 'asc' | 'desc' }>,
+      }
+      const { rerender } = renderHook(p => useListPageUrlSync(p), { initialProps: props })
+      // the first replace has not landed yet: searchParams is still the deep link
+      rerender({ ...props, pageSize: 50, sorting: [{ field: 'start', order: 'desc' }] })
+
+      const last = new URLSearchParams(String(mockReplace.mock.calls.at(-1)?.[0]).split('?')[1])
+      expect(last.get('pageSize')).toBe('50')
+      expect(last.get('sortBy')).toBe('start')
+      expect(last.get('sortOrder')).toBe('desc')
     })
 
     it('does not navigate when the URL already matches the state', () => {

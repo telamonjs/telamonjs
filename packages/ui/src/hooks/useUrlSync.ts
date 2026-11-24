@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 /**
  * Hook to sync state with URL query params
@@ -12,15 +12,27 @@ export function useUrlSync() {
   const router = useRouter()
   const pathname = usePathname()
 
+  // The last query this hook asked for, and the searchParams it saw then.
+  // Until searchParams changes, that request is still in flight.
+  const pending = useRef<{ from: URLSearchParams; query: string } | null>(null)
+
   /**
    * Navigates to `params`, or does nothing when the query would not change.
    * A same-URL navigation still updates `searchParams`, which re-renders the
    * caller; an effect that writes the URL on render would then loop forever.
+   * "Would not change" counts a request still in flight: a write back to the
+   * current URL right after another write must still go out, or the earlier
+   * one wins.
    */
   const navigate = useCallback(
     (params: URLSearchParams, options?: { replace?: boolean }) => {
       const query = params.toString()
-      if (query === searchParams.toString()) return
+      const current =
+        pending.current?.from === searchParams
+          ? pending.current.query
+          : searchParams.toString()
+      if (query === current) return
+      pending.current = { from: searchParams, query }
       const newUrl = query ? `${pathname}?${query}` : pathname
       if (options?.replace) {
         router.replace(newUrl, { scroll: false })
