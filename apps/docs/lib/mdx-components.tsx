@@ -8,8 +8,12 @@ import { PeerDeps, PkgVersion, VersionMatrix } from './version-components'
 import { ComponentPreview } from '@/components/component-preview'
 import * as previews from '@/components/previews'
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any -- MDX's own component-map type (mdx/types MDXComponents) is `Record<string, ComponentType<any>>`; each entry has its own incompatible props shape, so a narrower type rejects every real component (see fumadocs-ui/mdx, Accordion, TypeTable, etc.)
-type MDXComponents = Record<string, React.ComponentType<any>>
+// Function components only: mdx/types `MDXComponents` (what `<MDX components>` takes) rejects
+// `ComponentClass`, so `ComponentType` no longer fits. Props stay `any` because each entry has its
+// own incompatible props shape and a narrower type rejects every real component (see
+// fumadocs-ui/mdx, Accordion, TypeTable, etc.)
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- see above
+type MDXComponents = Record<string, React.FC<any>>
 
 export function useMDXComponents(
   components: MDXComponents = {}
