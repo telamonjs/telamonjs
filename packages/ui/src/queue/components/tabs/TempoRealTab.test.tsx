@@ -54,6 +54,7 @@ vi.mock('@tanstack/react-virtual', () => ({
         size: opts.estimateSize(),
       })),
     getTotalSize: () => opts.count * opts.estimateSize(),
+    measureElement: () => {},
   }),
 }))
 
@@ -73,6 +74,7 @@ import { QueueApiProvider } from '../../api/provider'
 import type { QueueApiAdapter, QueueConfigApiAdapter } from '../../api/types'
 import type { DashboardStats, TimelineJob } from '../../types'
 import TempoRealTab from './TempoRealTab'
+import { QueueLabelsProvider } from '../labels-provider'
 import { useQueueSSE } from '../../hooks/use-queue-sse'
 
 // ============================================================================
@@ -553,6 +555,56 @@ describe('TempoRealTab', () => {
   })
 
   describe('Edge Cases', () => {
+    it('a long job label truncates instead of squeezing the duration (rows must not overlap)', async () => {
+      const long =
+        'Selects new GPS data from the gateway, marks it as processing and hands it to the parser'
+      const adapter = makeMockAdapter({
+        getStats: vi.fn().mockResolvedValue({
+          ...dashboardStats,
+          queues: dashboardStats.queues.map(q => ({ ...q, displayName: long })),
+        }),
+        getJobsAll: vi.fn().mockResolvedValue({
+          jobs: [
+            {
+              id: activeJob.id,
+              name: activeJob.name,
+              queueName: activeJob.queueName,
+              data: {},
+              progress: 0,
+              attemptsMade: 1,
+              attemptsMax: 3,
+              timestamp: activeJob.timestamp,
+              processedOn: activeJob.processedOn,
+              finishedOn: activeJob.processedOn + 4,
+              status: 'completed',
+            },
+          ],
+          total: 1,
+        }),
+      })
+      render(
+        <QueryClientProvider
+          client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}
+        >
+          <QueueApiProvider adapter={adapter}>
+            <QueueLabelsProvider>
+              <TempoRealTab />
+            </QueueLabelsProvider>
+          </QueueApiProvider>
+        </QueryClientProvider>
+      )
+      const label = await screen.findByTitle(long)
+      expect(label.className).toMatch(/\bmin-w-0\b/)
+      expect(label.className).toMatch(/\bflex-1\b/)
+      expect(label.className).toMatch(/\btruncate\b/)
+      const duration = label.nextElementSibling as HTMLElement
+      expect(duration.className).toMatch(/\bflex-shrink-0\b/)
+      expect(duration.className).toMatch(/\bwhitespace-nowrap\b/)
+      // the virtual row is measured, not pinned to the 52px estimate
+      const virtualRow = label.closest('[data-index]') as HTMLElement
+      expect(virtualRow.style.height).toBe('')
+    })
+
     it('renders without crashing when queues array is empty', async () => {
       renderTab({
         getStats: vi.fn().mockResolvedValue({

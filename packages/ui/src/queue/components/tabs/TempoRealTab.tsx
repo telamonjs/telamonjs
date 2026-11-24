@@ -320,11 +320,21 @@ const JobRow = React.memo(({ job, isSelected, onClick }: JobRowProps) => {
           {timeAgo}
         </span>
       </div>
-      <div className='ml-[22px] mt-0.5 flex items-center gap-2'>
-        <span className='text-muted-foreground truncate text-[11px]'>
+      <div className='ml-[22px] mt-0.5 flex min-w-0 items-center gap-2'>
+        {/* the label can be a long contract description: it truncates, the
+            duration and badge keep their width, the row stays one line */}
+        <span
+          className='text-muted-foreground min-w-0 flex-1 truncate text-[11px]'
+          title={queueDisplay}
+        >
           {queueDisplay}
         </span>
-        <span className={cn('font-mono text-[11px]', config.textLight)}>
+        <span
+          className={cn(
+            'flex-shrink-0 whitespace-nowrap font-mono text-[11px]',
+            config.textLight
+          )}
+        >
           {duration}
         </span>
         <Badge
@@ -736,12 +746,15 @@ export default function TempoRealTab({
                     return (
                       <div
                         key={job.id}
+                        // measured, not fixed: a row taller than the estimate
+                        // pushes the next one down instead of overlapping it
+                        data-index={virtualRow.index}
+                        ref={rowVirtualizer.measureElement}
                         style={{
                           position: 'absolute',
                           top: 0,
                           left: 0,
                           width: '100%',
-                          height: `${virtualRow.size}px`,
                           transform: `translateY(${virtualRow.start}px)`,
                         }}
                       >
