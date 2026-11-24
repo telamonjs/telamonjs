@@ -28,6 +28,12 @@ export function cleanContext(context: LogContext): LogContext {
       continue
     }
 
+    // JSON.stringify throws on BigInt (e.g. Prisma BigInt ids)
+    if (typeof value === 'bigint') {
+      cleaned[key] = value.toString()
+      continue
+    }
+
     // Handle Error objects
     if (value instanceof Error) {
       cleaned[key] = {

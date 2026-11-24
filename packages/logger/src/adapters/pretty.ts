@@ -4,6 +4,7 @@
 
 import type { LogContext, LogLevel, LoggerConfig } from '../core/types.js'
 import { BaseLogger } from './base.js'
+import { cleanContext } from '../core/context.js'
 
 // ponytail: raw ANSI codes instead of chalk (ESM-only, and the barrel made
 // every consumer load it). Only the styles below are used.
@@ -100,8 +101,9 @@ export class PrettyLogger extends BaseLogger {
     // Context (if present)
     if (context && Object.keys(context).length > 0) {
       const { level: _level, ...restContext } = context
-      if (Object.keys(restContext).length > 0) {
-        const contextStr = JSON.stringify(restContext, null, 2)
+      const cleaned = cleanContext(restContext)
+      if (Object.keys(cleaned).length > 0) {
+        const contextStr = JSON.stringify(cleaned, null, 2)
         parts.push(paint(contextStr, 'gray'))
       }
     }
