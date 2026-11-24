@@ -47,6 +47,15 @@ describe('useQueueLabels', () => {
     })
   })
 
+  describe('jobDescription', () => {
+    it('is the contract description; undefined when empty or unknown', () => {
+      const r = resolvers({ descriptions: { a_one: 'Does one thing', a_two: '' } })
+      expect(r.jobDescription('a_one')).toBe('Does one thing')
+      expect(r.jobDescription('a_two')).toBeUndefined()
+      expect(r.jobDescription('a_three')).toBeUndefined()
+    })
+  })
+
   describe('moduleLabel', () => {
     it('is undefined without an entry, resolves literals and msg()', () => {
       const r = resolvers(

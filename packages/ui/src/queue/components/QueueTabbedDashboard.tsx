@@ -11,8 +11,7 @@
  * - syncTabWithUrl: reads/writes active tab to URL searchParams
  */
 
-import { useState, useMemo, lazy, Suspense, useCallback, type ReactNode } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useState, useMemo, lazy, Suspense, useCallback } from 'react'
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
 import { getSession } from 'next-auth/react'
 import { Radio, Settings, Database, History } from 'lucide-react'
@@ -21,15 +20,13 @@ import { AdminHeader } from '../../layouts/shell/AdminHeader'
 import { AdminTabs } from '../../layouts/shell/AdminTabs'
 import { PageSkeleton } from '../../components/skeletons'
 import { useTelamonjsT } from '../../i18n/use-t'
-import { QueueApiProvider, useQueueApi, useQueueApiOptional } from '../api/provider'
+import { QueueApiProvider, useQueueApiOptional } from '../api/provider'
 import { createNestJSAdapter } from '../api/adapters/nestjs-adapter'
 import type { TabItem } from '../../layouts/content-tabs'
 import { QueueReadOnlyContext } from './read-only-context'
 import type { IconComponent } from '../../types/menu'
 import type { I18nText } from '../../i18n/msg'
-import { LIB_QUERY_META } from '../../utils/query-meta'
-import type { DashboardStats } from '../types'
-import { QueueLabelsContext, type QueueLabels } from './labels-context'
+import { QueueLabelsProvider } from './labels-provider'
 import type { QueueModuleIcon } from './module-icon'
 
 // Lazy-loaded tabs (heavy components)
@@ -67,7 +64,8 @@ export interface QueueTabbedDashboardProps {
   moduleLabels?: Record<string, I18nText>
   /**
    * Job label override: job name → label, or `undefined` to fall back to the
-   * job contract's `displayName`, then to the name formatted by the dashboard.
+   * job contract's `displayName` (contract `label`, else its `description`),
+   * then to the name formatted by the dashboard.
    * Used in queue rows, timeline and history rows, job details and modal titles.
    */
   jobLabel?: (jobName: string) => I18nText | undefined
@@ -234,35 +232,6 @@ function QueueTabbedDashboardWithUrlSync(props: CoreProps) {
       onTabChange={handleTabChange}
     />
   )
-}
-
-/** Job name → contract display name, as served by the stats endpoint. */
-const toDisplayNames = (stats: DashboardStats): Record<string, string> =>
-  Object.fromEntries(stats.queues.map(q => [q.name, q.displayName]))
-
-/**
- * Provides `moduleLabels`/`jobLabel` plus the contracts' display names to
- * every tab. Same key as `useQueueStats`: it reads the Real-time tab's cache,
- * fetches once when another tab opens first, and never polls on its own.
- */
-function QueueLabelsProvider({
-  moduleLabels,
-  jobLabel,
-  children
-}: Omit<QueueLabels, 'displayNames'> & { children: ReactNode }) {
-  const api = useQueueApi()
-  const { data: displayNames } = useQuery({
-    meta: LIB_QUERY_META,
-    queryKey: ['queue', 'stats'],
-    queryFn: () => api.getStats(),
-    select: toDisplayNames,
-    staleTime: Infinity
-  })
-  const value = useMemo(
-    () => ({ moduleLabels, jobLabel, displayNames }),
-    [moduleLabels, jobLabel, displayNames]
-  )
-  return <QueueLabelsContext.Provider value={value}>{children}</QueueLabelsContext.Provider>
 }
 
 /**

@@ -16,6 +16,7 @@ export type JobState = 'waiting' | 'active' | 'delayed' | 'completed' | 'failed'
 
 export interface QueueStats {
   name: string
+  /** Served by the API: contract `label` → contract `description` → `name`. */
   displayName: string
   module: string
   description: string
@@ -74,6 +75,7 @@ export type QueueHealthStatus = 'ok' | 'late' | 'failing' | 'paused'
 /** Per-queue health — mirrors `QueueHealthEntry` from `@telamonjs/queue`. */
 export interface QueueHealth {
   name: string
+  /** Served by the API: contract `label` → contract `description` → `name`. */
   displayName: string
   module: string
   dispatchable: boolean
@@ -264,6 +266,7 @@ export interface TimelineData {
 
 export interface DispatchableJob {
   name: string
+  /** Served by the API: contract `label` → contract `description` → `name`. */
   displayName: string
   module: string
   description: string

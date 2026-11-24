@@ -92,11 +92,16 @@ carry accents or spaces. Three props turn them into real names:
   order is also the group order in both tabs. Modules it does not list follow,
   alphabetically by label. Without it, groups show the raw key, capitalized, in
   alphabetical order.
-- Job labels use the job contract's `displayName` (the `description` of the contract in
-  `@telamonjs/queue`). When a job has none, the job name is formatted: the module prefix is
-  removed and the words are capitalized, so `comunicacoes_enviar-email` becomes "Enviar Email".
-  `jobLabel` overrides both. Return `undefined` to keep the default. The label is used in
-  queue rows, timeline and history rows, job details and modal titles.
+- Job labels follow one precedence, first match wins:
+  1. `jobLabel(jobName)`, when it returns something other than `undefined`;
+  2. the job contract's `displayName`, which `@telamonjs/queue` serves as the contract's
+     short `label`, else its `description`;
+  3. the formatted job name: the module prefix is removed and the words are capitalized,
+     so `comunicacoes_enviar-email` becomes "Enviar Email".
+
+  Set `label` on the contract to keep long `description` sentences out of the rows. The
+  label is used in queue rows, timeline and history rows, job details, modal titles and
+  the `JobDetailPage` title, which also shows the contract's `description` below it.
 - `moduleIcons` takes an emoji, any React node, or an icon component such as a Lucide icon.
 
 Text values are `I18nText`: a literal, or `msg('key')` resolved in the active locale.
@@ -283,6 +288,7 @@ import { QueueDashboard, JobDetailPage } from '@telamonjs/ui/queue'
 | `config` / `history` | `JobConfig` / `JobHistoryEntry[]` | Pre-fetched data; skips the fetch |
 | `backHref` / `onBack` | `string` / `() => void` | Back navigation |
 | `onRefresh` | `() => void` | Called after a successful update |
+| `moduleLabels` / `jobLabel` | as on `QueueTabbedDashboard` | Module badge and title; pass the dashboard's values |
 
 Types (`QueueStats`, `DashboardStats`, `JobInfo`, `JobConfig`, `JobHistoryEntry`,
 `QueueApiAdapter`, `QueueConfigApiAdapter`, …) are exported from the same subpath.

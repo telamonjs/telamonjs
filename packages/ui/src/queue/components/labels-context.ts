@@ -19,13 +19,21 @@ export interface QueueLabels {
   jobLabel?: (jobName: string) => I18nText | undefined
   /** Job name → the contract's `displayName`, as served by the stats endpoint. */
   displayNames?: Readonly<Record<string, string>>
+  /** Job name → the contract's `description`, as served by the stats endpoint. */
+  descriptions?: Readonly<Record<string, string>>
 }
 
 export const QueueLabelsContext = createContext<QueueLabels>({})
 
 export interface QueueLabelResolvers {
-  /** `jobLabel` override → contract display name → `formatQueueName`. */
+  /**
+   * The one job-name precedence of the dashboard: the app's `jobLabel` →
+   * the contract's `displayName` (which the API derives as contract `label`
+   * → `description` → raw name) → `formatQueueName`.
+   */
   jobLabel: (jobName: string, displayName?: string) => string
+  /** The contract's `description`, or `undefined` when it has none. */
+  jobDescription: (jobName: string) => string | undefined
   /** The `moduleLabels` entry, or `undefined` (render the raw key). */
   moduleLabel: (module: string) => string | undefined
   /** `moduleLabels` key order first, then alphabetical by label. */
@@ -38,7 +46,7 @@ export interface QueueLabelResolvers {
  * `formatQueueName`.
  */
 export function useQueueLabels(): QueueLabelResolvers {
-  const { moduleLabels, jobLabel, displayNames } = useContext(QueueLabelsContext)
+  const { moduleLabels, jobLabel, displayNames, descriptions } = useContext(QueueLabelsContext)
   const text = useText()
 
   return useMemo(() => {
@@ -54,6 +62,7 @@ export function useQueueLabels(): QueueLabelResolvers {
           (contract && contract !== jobName ? contract : formatQueueName(jobName))
         )
       },
+      jobDescription: jobName => descriptions?.[jobName] || undefined,
       moduleLabel,
       orderModules: modules =>
         [...modules].sort(
@@ -63,5 +72,5 @@ export function useQueueLabels(): QueueLabelResolvers {
             sortKey(a).localeCompare(sortKey(b))
         ),
     }
-  }, [moduleLabels, jobLabel, displayNames, text])
+  }, [moduleLabels, jobLabel, displayNames, descriptions, text])
 }

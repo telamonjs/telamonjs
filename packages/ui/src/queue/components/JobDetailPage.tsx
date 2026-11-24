@@ -12,7 +12,7 @@
  * - Auto-fetch: when jobName is passed, fetches config+history via hooks
  */
 
-import React, { useState, useMemo } from 'react'
+import React, { useId, useState, useMemo } from 'react'
 import {
   ArrowLeft,
   Calendar,
@@ -57,8 +57,11 @@ import { formatDistanceToNow } from 'date-fns'
 import { useTelamonjsT } from '../../i18n/use-t'
 import { useFormat } from '../../i18n/use-format'
 import { useDateFnsLocale } from '../../i18n/use-date-fns-locale'
+import type { I18nText } from '../../i18n/msg'
 import type { JobConfig, JobHistoryEntry } from '../types'
 import { INACTIVE_BADGE } from './job-shared'
+import { useQueueLabels } from './labels-context'
+import { QueueLabelsProvider } from './labels-provider'
 
 export interface JobDetailPageProps {
   /** Job name — auto-fetches config+history via hooks */
@@ -77,6 +80,13 @@ export interface JobDetailPageProps {
   onBack?: () => void
   /** Callback after successful update (e.g. router.refresh()) */
   onRefresh?: () => void
+  /** Module key → badge label — pass the same value as to `QueueTabbedDashboard`. */
+  moduleLabels?: Record<string, I18nText>
+  /**
+   * Job label override, as on `QueueTabbedDashboard`: `undefined` falls back
+   * to the contract's `displayName`, then to the formatted job name.
+   */
+  jobLabel?: (jobName: string) => I18nText | undefined
 }
 
 /**
@@ -124,7 +134,7 @@ function JobDetailPageInner({
   backHref,
   onBack,
   onRefresh,
-}: Omit<JobDetailPageProps, 'apiUrl'>) {
+}: Omit<JobDetailPageProps, 'apiUrl' | 'moduleLabels' | 'jobLabel'>) {
   const t = useTelamonjsT()
   // Auto-fetch when jobName is provided and config is not
   const { data: fetchedConfig, isLoading: configLoading } = useJobDetails(
@@ -204,6 +214,10 @@ function JobDetailPageUI({
   const t = useTelamonjsT()
   const format = useFormat()
   const dateFnsLocale = useDateFnsLocale()
+  const { jobLabel, jobDescription, moduleLabel } = useQueueLabels()
+  const title = jobLabel(config.jobName)
+  const contractDescription = jobDescription(config.jobName)
+  const statusId = useId()
   const toggleJobMutation = useToggleJobEnabled()
   const updateJobMutation = useUpdateJobConfig()
 
@@ -316,11 +330,16 @@ function JobDetailPageUI({
             <ArrowLeft className='h-4 w-4' />
           </Button>
           <div>
-            <h1 className='text-3xl font-bold tracking-tight'>
-              {config.jobName}
-            </h1>
+            <h1 className='text-3xl font-bold tracking-tight'>{title}</h1>
+            {/* No repeat when the title already is the description */}
+            {contractDescription && contractDescription !== title && (
+              <p className='text-muted-foreground mt-1 text-sm'>{contractDescription}</p>
+            )}
             <div className='mt-2 flex items-center gap-2'>
-              <Badge variant='outline'>{config.module}</Badge>
+              <code className='bg-muted rounded px-1.5 py-0.5 font-mono text-xs'>
+                {config.jobName}
+              </code>
+              <Badge variant='outline'>{moduleLabel(config.module) ?? config.module}</Badge>
               <Badge
                 variant={enabled ? 'default' : 'outline'}
                 className={enabled ? undefined : INACTIVE_BADGE}
@@ -346,8 +365,9 @@ function JobDetailPageUI({
             checked={enabled}
             onCheckedChange={handleToggle}
             disabled={isToggling}
+            aria-labelledby={statusId}
           />
-          <span className='text-sm font-medium'>
+          <span id={statusId} className='text-sm font-medium'>
             {enabled ? t('queue.jobDetailPage.active') : t('queue.jobDetailPage.inactive')}
           </span>
         </div>
@@ -618,16 +638,16 @@ function JobDetailPageUI({
  * ```
  */
 export default function JobDetailPage(props: JobDetailPageProps) {
-  const { apiUrl, ...rest } = props
+  const { apiUrl, moduleLabels, jobLabel, ...rest } = props
   const existingAdapter = useQueueApiOptional()
 
-  if (existingAdapter) {
-    return <JobDetailPageInner {...rest} />
-  }
-
-  return (
-    <WithAutoProvider apiUrl={apiUrl}>
+  const page = (
+    <QueueLabelsProvider moduleLabels={moduleLabels} jobLabel={jobLabel}>
       <JobDetailPageInner {...rest} />
-    </WithAutoProvider>
+    </QueueLabelsProvider>
   )
+
+  if (existingAdapter) return page
+
+  return <WithAutoProvider apiUrl={apiUrl}>{page}</WithAutoProvider>
 }
