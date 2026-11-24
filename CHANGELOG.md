@@ -1,5 +1,10 @@
 # Changelog
 
+## ui 1.4.2 (2026-11-24)
+
+`@telamonjs/ui`: exports drop a known extension (`.csv`, `.xls`, `.xlsx`, `.pdf`) from
+`exportFilename`, so `'report.csv'` exported as Excel saves `report_<date>.xlsx`.
+
 ## ui 1.4.1 (2026-11-24)
 
 `@telamonjs/ui`: a `ListPage` with `urlSync` no longer calls `router.replace` in a loop when
