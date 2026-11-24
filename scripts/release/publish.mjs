@@ -20,6 +20,26 @@ const isPublished = (name, version) => {
   }
 }
 
+// The registry lists a new version minutes before its tarball propagates, and
+// installs fail with ERR_PNPM_FETCH_404 meanwhile. A green Release means
+// "installable": wait for every tarball to answer 200.
+const tarballUrl = (name, version) =>
+  `https://registry.npmjs.org/${name}/-/${name.split('/').pop()}-${version}.tgz`
+
+const waitInstallable = async (urls, { timeoutMs = 15 * 60_000, intervalMs = 20_000 } = {}) => {
+  const pending = new Set(urls)
+  const deadline = Date.now() + timeoutMs
+  while (pending.size > 0 && Date.now() < deadline) {
+    for (const url of [...pending]) {
+      const res = await fetch(url, { method: 'HEAD' }).catch(() => null)
+      if (res?.ok) pending.delete(url)
+    }
+    if (pending.size > 0) await new Promise(resolve => setTimeout(resolve, intervalMs))
+  }
+  return [...pending]
+}
+
+const publishedUrls = []
 let published = 0
 for (const dir of readdirSync(join(ROOT, 'packages'))) {
   const pkgDir = join(ROOT, 'packages', dir)
@@ -40,6 +60,14 @@ for (const dir of readdirSync(join(ROOT, 'packages'))) {
     run('git', ['push', 'origin', tag], { stdio: 'inherit' })
   }
   console.log(`✓ published ${tag}`)
+  publishedUrls.push(tarballUrl(name, version))
   published++
 }
 console.log(published ? `✓ ${published} package(s) published` : '✓ nothing to publish: every version is already on npm')
+
+if (publishedUrls.length > 0) {
+  const missing = await waitInstallable(publishedUrls)
+  if (missing.length === 0) console.log('✓ every published tarball is downloadable: safe to announce')
+  // Published is published: warn instead of failing the run
+  else for (const url of missing) console.log(`::warning::tarball not downloadable yet: ${url}`)
+}
