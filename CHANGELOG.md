@@ -1,5 +1,10 @@
 # Changelog
 
+## ui 1.2.1 (2026-11-24)
+
+`@telamonjs/ui`: queue Real-time timeline rows no longer overlap when a job label is long; the
+label truncates and the rows are measured instead of pinned to a fixed height.
+
 ## ui 1.2.0 (2026-11-24)
 
 Driven by consumer feedback on 1.1; each package's `CHANGELOG.md` has the details. Everything new
