@@ -13,7 +13,7 @@ vi.unmock('@radix-ui/react-slot')
 vi.unmock('@radix-ui/react-label')
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
-import { render, screen, waitFor } from '@testing-library/react'
+import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { toast } from 'sonner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
@@ -25,7 +25,7 @@ import { msg } from '../../i18n/msg'
 import { withAppMessages } from '../../test/intl'
 import { QueueApiProvider } from '../api/provider'
 import type { QueueApiAdapter } from '../api/types'
-import type { DashboardStats, JobConfig, QueueStats } from '../types'
+import type { DashboardStats, JobConfig, JobHistoryEntry, QueueStats } from '../types'
 import JobDetailPage from './JobDetailPage'
 
 expect.extend(axeMatchers)
@@ -163,6 +163,192 @@ describe('JobDetailPage', () => {
       renderPage({}, [{ displayName: DESCRIPTION }])
       await waitFor(() => expect(title()).toHaveTextContent(DESCRIPTION))
       expect(screen.getAllByText(DESCRIPTION)).toHaveLength(1)
+    })
+  })
+
+  describe('Interactions', () => {
+    function configApi(overrides: Record<string, unknown> = {}) {
+      return {
+        getJobConfigs: vi.fn(),
+        getJobConfig: vi.fn(),
+        updateJobConfig: vi.fn().mockResolvedValue(config),
+        toggleJobConfig: vi.fn(),
+        getJobConfigHistory: vi.fn(),
+        ...overrides,
+      }
+    }
+
+    it('saves the form, turning empty fields into null and numbers into numbers', async () => {
+      const user = userEvent.setup()
+      const api = configApi()
+      const onRefresh = vi.fn()
+      render(page({ onRefresh }, [{}], api))
+
+      await user.type(screen.getByLabelText(/Expressão cron/), '*/5 * * * *')
+      await user.type(screen.getByLabelText('Concorrência'), '3')
+      await user.clear(screen.getByLabelText('Descrição'))
+      await user.click(screen.getByTestId('job-detail-save'))
+
+      await waitFor(() =>
+        expect(api.updateJobConfig).toHaveBeenCalledWith(JOB, {
+          cronPattern: '*/5 * * * *',
+          priority: 5,
+          concurrency: 3,
+          timeout: null,
+          description: null,
+        })
+      )
+      expect(toast.success).toHaveBeenCalledWith('Configurações atualizadas', {
+        description: 'As alterações foram salvas com sucesso.',
+      })
+      expect(onRefresh).toHaveBeenCalled()
+    })
+
+    it('reports a failed save and re-enables the button', async () => {
+      const user = userEvent.setup()
+      const api = configApi({ updateJobConfig: vi.fn().mockRejectedValue(new Error('invalid cron')) })
+      const onRefresh = vi.fn()
+      render(page({ onRefresh }, [{}], api))
+
+      await user.click(screen.getByTestId('job-detail-save'))
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith('Erro ao atualizar', { description: 'invalid cron' })
+      )
+      expect(onRefresh).not.toHaveBeenCalled()
+      expect(screen.getByTestId('job-detail-save')).toBeEnabled()
+    })
+
+    it('keeps the status when the toggle fails', async () => {
+      const user = userEvent.setup()
+      const api = configApi({ toggleJobConfig: vi.fn().mockRejectedValue({}) })
+      render(page({}, [{}], api))
+
+      await user.click(screen.getByRole('switch'))
+
+      await waitFor(() =>
+        expect(toast.error).toHaveBeenCalledWith('Erro ao alterar status', {
+          description: 'Erro desconhecido',
+        })
+      )
+      expect(screen.getByRole('switch')).toBeChecked()
+      expect(screen.getByRole('switch')).toBeEnabled()
+    })
+
+    it('the back button calls onBack', async () => {
+      const user = userEvent.setup()
+      const onBack = vi.fn()
+      renderPage({ onBack })
+
+      await user.click(screen.getByRole('button', { name: 'Voltar' }))
+      expect(onBack).toHaveBeenCalled()
+    })
+  })
+
+  describe('Auto-fetch', () => {
+    it('loads config and history by jobName when they are not passed', async () => {
+      const api = {
+        getJobConfigs: vi.fn(),
+        getJobConfig: vi.fn().mockResolvedValue(config),
+        updateJobConfig: vi.fn(),
+        toggleJobConfig: vi.fn(),
+        getJobConfigHistory: vi.fn().mockResolvedValue([]),
+      }
+      render(page({ jobName: JOB, config: undefined, history: undefined }, [{}], api))
+
+      await waitFor(() => expect(title()).toHaveTextContent('Ingest'))
+      expect(api.getJobConfig).toHaveBeenCalledWith(JOB)
+      expect(api.getJobConfigHistory).toHaveBeenCalledWith(JOB)
+    })
+
+    it('shows not found when the job does not exist', async () => {
+      const api = {
+        getJobConfigs: vi.fn(),
+        getJobConfig: vi.fn().mockRejectedValue(new Error('404')),
+        updateJobConfig: vi.fn(),
+        toggleJobConfig: vi.fn(),
+        getJobConfigHistory: vi.fn().mockResolvedValue([]),
+      }
+      render(page({ jobName: 'ghost', config: undefined, history: undefined }, [], api))
+
+      expect(await screen.findByText('Job não encontrado')).toBeInTheDocument()
+      expect(screen.getByText('O job "ghost" não foi encontrado.')).toBeInTheDocument()
+    })
+
+    it('says no job was specified without config or jobName', () => {
+      render(page({ config: undefined, history: undefined }, []))
+      expect(screen.getByText('Nenhum job especificado.')).toBeInTheDocument()
+    })
+  })
+
+  describe('History and metadata', () => {
+    const entry = (e: Partial<JobHistoryEntry>): JobHistoryEntry => ({
+      id: e.action ?? 'x',
+      action: 'updated',
+      changedBy: null,
+      changedByUser: null,
+      before: null,
+      after: null,
+      reason: null,
+      createdAt: '2026-01-10T12:00:00Z',
+      ...e,
+    })
+
+    it('shows the empty history message', () => {
+      renderPage()
+      expect(screen.getByText('Nenhuma alteração registrada ainda')).toBeInTheDocument()
+    })
+
+    it('renders each audit entry with action, author, diff and reason', () => {
+      renderPage({
+        history: [
+          entry({
+            action: 'disabled',
+            changedByUser: { name: 'Ana', email: 'ana@example.com' },
+            before: { enabled: true },
+            after: { enabled: false },
+            reason: 'maintenance',
+          }),
+          entry({ action: 'created', changedByUser: { name: null, email: 'ops@example.com' } }),
+          entry({ action: 'custom-action' }),
+        ],
+      })
+
+      const rows = screen.getAllByRole('row').slice(1)
+      expect(rows).toHaveLength(3)
+
+      const [disabled, created, custom] = rows.map(r => within(r))
+      expect(disabled.getByText('Desativado')).toBeInTheDocument()
+      expect(disabled.getByText('Ana')).toBeInTheDocument()
+      expect(disabled.getByText('ana@example.com')).toBeInTheDocument()
+      expect(disabled.getByText(/"enabled": true/)).toBeInTheDocument()
+      expect(disabled.getByText(/"enabled": false/)).toBeInTheDocument()
+      expect(disabled.getByText('maintenance')).toBeInTheDocument()
+
+      expect(created.getByText('Criado')).toBeInTheDocument()
+      expect(created.getByText('ops@example.com')).toBeInTheDocument()
+
+      expect(custom.getByText('custom-action')).toBeInTheDocument()
+      expect(custom.getByText('Sistema')).toBeInTheDocument()
+      // before, after and reason all fall back to the dash
+      expect(custom.getAllByText('—')).toHaveLength(3)
+    })
+
+    it('shows who updated the config last, falling back to the email', () => {
+      renderPage({
+        config: {
+          ...config,
+          updatedAt: new Date().toISOString(),
+          updatedByUser: { name: null, email: 'ops@example.com' },
+        },
+      })
+      expect(screen.getByText(/por ops@example\.com/)).toBeInTheDocument()
+      expect(screen.getByText('UTC')).toBeInTheDocument()
+    })
+
+    it('shows the orphan badge for a config without a contract', () => {
+      renderPage({ config: { ...config, orphan: true } })
+      expect(screen.getByText('órfão')).toBeInTheDocument()
     })
   })
 
