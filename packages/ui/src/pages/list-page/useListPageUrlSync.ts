@@ -21,6 +21,37 @@ interface UseListPageUrlSyncParams {
   liveFilters?: Record<string, string | undefined>
 }
 
+const positiveInt = (value: string | null): number | undefined => {
+  const n = Number(value)
+  return Number.isInteger(n) && n > 0 ? n : undefined
+}
+
+/**
+ * The table state a `urlSync` link carries — the params the sync effect
+ * below writes. Invalid or missing values are left out (the config defaults
+ * apply). `sortBy` is stored as-is: the table resolves both a column id and
+ * a data path, and the server validates it like any sort it receives.
+ */
+export function tableStateFromUrl(getParam: (key: string) => string | null): {
+  page?: number
+  pageSize?: number
+  sorting?: SortField[]
+  globalFilter?: string
+} {
+  const state: ReturnType<typeof tableStateFromUrl> = {}
+  const page = positiveInt(getParam('page'))
+  const pageSize = positiveInt(getParam('pageSize'))
+  const sortBy = getParam('sortBy')
+  const search = getParam('search')
+  if (page) state.page = page
+  if (pageSize) state.pageSize = pageSize
+  if (sortBy) {
+    state.sorting = [{ field: sortBy, order: getParam('sortOrder') === 'desc' ? 'desc' : 'asc' }]
+  }
+  if (search) state.globalFilter = search
+  return state
+}
+
 /**
  * useListPageUrlSync - URL synchronization for ListPage (internal)
  *

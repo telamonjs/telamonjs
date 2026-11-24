@@ -62,7 +62,7 @@ setParams({ view: null, edit: item.id }, { replace: true })
 
 - State that must survive reload / link sharing (active tab, open dialog, filters)
 - Prefer [useTabUrlSync](/docs/hooks/use-tab-url-sync) for tab state — it wraps this hook with validation and history semantics
-- For a `ListPage`, prefer its `urlSync` prop: it syncs pagination with the query params
+- For a `ListPage`, prefer its `urlSync` prop: it keeps page, page size, sort and search in the query params, both ways
 
 ---
 

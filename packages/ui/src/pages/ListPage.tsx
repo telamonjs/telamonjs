@@ -16,7 +16,7 @@ import { useCrudMutations } from '../hooks/useCrudMutations'
 import { ColumnFilterConfig } from '../types/filters'
 import type { ListPageProps, ListQueryState } from './list-page/types'
 import { useUrlSync } from '../hooks/useUrlSync'
-import { useListPageUrlSync } from './list-page/useListPageUrlSync'
+import { useListPageUrlSync, tableStateFromUrl } from './list-page/useListPageUrlSync'
 import { useListPageToolbar, toolbarQueryFilters } from './list-page/useListPageToolbar'
 import { useListPageData } from './list-page/useListPageData'
 import { useListPageDialogs } from './list-page/useListPageDialogs'
@@ -134,6 +134,13 @@ export function ListPage<TData>({
     setPage: setStorePage,
   } = useDataTableActions(tableId)
 
+  // With urlSync, a link's page/pageSize/sort/search win over the config
+  // defaults. Read once at mount, like the urlFilters.
+  const urlSeed = useUrlSync()
+  const [urlTableState] = useState(() =>
+    urlSync ? tableStateFromUrl(urlSeed.getParam) : {}
+  )
+
   // Initialize table with defaultPageSize and defaultSortBy from config
   useEffect(() => {
     initTable({
@@ -148,12 +155,14 @@ export function ListPage<TData>({
             ],
           }
         : {}),
+      ...urlTableState,
     })
   }, [
     initTable,
     list.defaultPageSize,
     list.defaultSortBy,
     list.defaultSortOrder,
+    urlTableState,
   ])
 
   // Get state from Zustand store
@@ -185,7 +194,6 @@ export function ListPage<TData>({
 
   // Seed for the toolbar selects, read from the URL once at mount (the hook
   // keeps its own state afterwards)
-  const urlSeed = useUrlSync()
   const initialToolbarFilters = useMemo(() => {
     if (!urlSync) return undefined
     const seed: Record<string, string> = {}
