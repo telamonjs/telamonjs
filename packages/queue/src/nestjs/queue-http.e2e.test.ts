@@ -186,7 +186,10 @@ describe('QueueHttpModule e2e (readPermission / writePermission)', () => {
     }).compile()
 
     app = moduleRef.createNestApplication()
-    await app.init()
+    // Listen once on a fixed ephemeral port. Handing supertest an unbound
+    // server makes it bind a fresh port per request; under parallel load that
+    // port can be answered by another suite's server (a stray 404).
+    await app.listen(0, '127.0.0.1')
   })
 
   afterAll(async () => {
