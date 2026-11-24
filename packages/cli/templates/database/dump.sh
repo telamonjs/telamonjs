@@ -60,7 +60,9 @@ echo ""
 # Create dump with pg_dump
 export PGPASSWORD="$DB_PASS"
 
-pg_dump \
+# pipefail (in a subshell, so it stays local): a failing pg_dump must fail
+# the pipeline, not only gzip
+if ! (set -o pipefail; pg_dump \
   -h "$DB_HOST" \
   -p "$DB_PORT" \
   -U "$DB_USER" \
@@ -69,7 +71,13 @@ pg_dump \
   --no-acl \
   --clean \
   --if-exists \
-  | gzip > "$DUMP_FILE"
+  | gzip > "$DUMP_FILE"); then
+  unset PGPASSWORD
+  # A partial file would show up later as a restorable dump
+  rm -f "$DUMP_FILE"
+  echo -e "${RED}❌ Error: pg_dump failed, no dump was created${NC}"
+  exit 1
+fi
 
 unset PGPASSWORD
 

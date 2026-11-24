@@ -117,9 +117,9 @@ export PGPASSWORD="$DB_PASS"
 # Step 1: Check connection
 echo -e "${YELLOW}🔄 Step 1/3: Checking connection...${NC}"
 
-psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1" > /dev/null 2>&1
-
-if [ $? -ne 0 ]; then
+# `if !` rather than a later `$?` check: under `set -e` a failing command
+# exits right away and the check below would never run.
+if ! psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" -c "SELECT 1" > /dev/null 2>&1; then
   echo -e "${RED}❌ Failed to connect to the database${NC}"
   unset PGPASSWORD
   exit 1
@@ -133,9 +133,8 @@ echo -e "${YELLOW}🔄 Step 2/3: Restoring dump...${NC}"
 echo "  File: $SELECTED_NAME"
 echo ""
 
-gunzip -c "$SELECTED_DUMP" | psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1
-
-if [ $? -ne 0 ]; then
+# pipefail (local to the subshell): a corrupt dump must fail the pipeline too
+if ! (set -o pipefail; gunzip -c "$SELECTED_DUMP" | psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" -d "$DB_NAME" > /dev/null 2>&1); then
   echo -e "${RED}❌ Failed to restore dump${NC}"
   unset PGPASSWORD
   exit 1
@@ -150,9 +149,7 @@ echo ""
 
 unset PGPASSWORD
 
-pnpm prisma migrate deploy > /dev/null 2>&1
-
-if [ $? -ne 0 ]; then
+if ! pnpm prisma migrate deploy > /dev/null 2>&1; then
   echo -e "${YELLOW}⚠️  Warning: Failed to apply migrations${NC}"
   echo "  Run manually: pnpm prisma migrate deploy"
 else
