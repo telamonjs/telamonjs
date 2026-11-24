@@ -35,6 +35,20 @@ describe('form-store', () => {
       })
     })
 
+    // Regression: loading the record marked the form dirty, so an edit form
+    // was "dirty" before any keystroke and isDirty/anyDirty meant nothing.
+    it('setFormData is a load: the form is pristine until a field is edited', () => {
+      store().setFormData('f', { name: 'Ana' })
+      expect(store().isFormDirty('f')).toBe(false)
+
+      store().updateField('f', 'name', 'Bia')
+      expect(store().isFormDirty('f')).toBe(true)
+
+      // Loading again (a reset) makes it pristine again
+      store().setFormData('f', { name: 'Carla' })
+      expect(store().isFormDirty('f')).toBe(false)
+    })
+
     it('updateField merges one field and marks it touched and the form dirty', () => {
       store().setFormData('f', { name: 'Ana', age: 30 })
       store().updateField('f', 'name', 'Bia')
@@ -146,6 +160,7 @@ describe('form-store', () => {
         { initialProps: { data: { name: 'Ana' } as Record<string, unknown> } }
       )
       expect(result.current.data).toEqual({ name: 'Ana' })
+      expect(result.current.isDirty).toBe(false)
 
       act(() => result.current.updateField('name', 'Bia'))
       // A new initialData identity must not wipe the in-progress edit

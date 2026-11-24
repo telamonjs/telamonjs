@@ -38,6 +38,11 @@ interface FormState {
   formMeta: Record<string, FormMeta>
 
   // Actions
+  /**
+   * Loads (or resets to) a full data set: the new baseline, so the form is
+   * pristine afterwards (`isDirty: false`, no errors, nothing touched) — like
+   * react-hook-form's `reset()`. User edits go through `updateField`.
+   */
   setFormData: (formId: string, data: FormData) => void
   updateField: (formId: string, field: string, value: unknown) => void
   setSubmitting: (formId: string, isSubmitting: boolean) => void
@@ -75,7 +80,8 @@ export const useFormStore = create<FormState>()(
           ...state.formMeta,
           [formId]: {
             ...state.formMeta[formId],
-            isDirty: true,
+            // A load is the baseline, not an edit: only updateField dirties
+            isDirty: false,
             isSubmitting: false,
             errors: {},
             touched: {},
