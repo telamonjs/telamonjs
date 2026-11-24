@@ -501,10 +501,3 @@ export const useDataTableActions = (tableId: string) => {
     }
   }, [tableId])
 }
-
-// Debug hook for development
-export const useDataTableDebug = (tableId: string) =>
-  useDataTableStore(state => ({
-    tableState: state.tables[tableId],
-    allTables: Object.keys(state.tables),
-  }))

@@ -68,5 +68,4 @@ export {
   useTableIsFullscreen,
   useTableShowFilters,
   useDataTableActions,
-  useDataTableDebug,
 } from './datatable-store'
