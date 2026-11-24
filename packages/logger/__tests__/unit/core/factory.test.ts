@@ -108,11 +108,27 @@ describe('createLogger levels and variants', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
     const logger = createLogger({ level: LogLevel.WARN, format: 'json' })
     logger.info('dropped')
-    logger.audit('user.login')
     logger.warn('kept')
 
     expect(log).not.toHaveBeenCalled()
     expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('still writes audit entries under level warn, as an info line tagged audit', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    createLogger({ level: 'WARN', format: 'json' }).audit('user.login', { userId: 'u1' })
+
+    expect(JSON.parse(log.mock.calls[0][0] as string)).toMatchObject({
+      level: 'info',
+      message: '[AUDIT] user.login',
+      context: { userId: 'u1', auditAction: 'user.login', level: 'audit' },
+    })
+  })
+
+  it('a disabled logger drops audit entries too', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    createLogger({ enabled: false }).audit('user.login')
+    expect(log).not.toHaveBeenCalled()
   })
 
   it('colorizes outside production only', () => {

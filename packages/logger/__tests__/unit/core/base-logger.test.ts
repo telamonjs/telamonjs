@@ -155,6 +155,28 @@ describe('BaseLogger', () => {
       })
     })
 
+    // Audit entries are compliance records: the level filter is for
+    // diagnostics and must not silently drop the audit trail.
+    it('audit() is written whatever the level, with the logger context', () => {
+      const log = recorder(LogLevel.FATAL, { service: 'api' })
+      log.child({ requestId: 'r1' }).audit('permission.revoked', { resourceId: '7' })
+      log.info('dropped')
+
+      expect(log.entries).toEqual([
+        {
+          level: LogLevel.INFO,
+          message: '[AUDIT] permission.revoked',
+          context: {
+            service: 'api',
+            requestId: 'r1',
+            resourceId: '7',
+            auditAction: 'permission.revoked',
+            level: 'audit',
+          },
+        },
+      ])
+    })
+
     it('perf() logs the label with the duration in the message and context', () => {
       const log = recorder(LogLevel.INFO)
       log.perf('db.query', 37, { table: 'users' })

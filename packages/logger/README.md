@@ -66,6 +66,12 @@ logger.audit('user.deleted', {
 `AuditAction` ships canonical actions (`user.created`, `user.login`,
 `permission.granted`, `data.exported`, …) and stays open to any string.
 
+Audit entries are compliance records, so **`audit()` ignores the level
+filter**: it writes even when `level` (or `LOG_LEVEL`) is `warn` or `error`,
+at INFO severity (`console.log`; `"level":"info"` with
+`"context":{"level":"audit","auditAction":…}` in JSON). Only a disabled logger
+(`enabled: false`, `createTestLogger()`) drops them.
+
 ## Context and performance
 
 ```ts

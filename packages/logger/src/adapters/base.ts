@@ -68,12 +68,22 @@ export abstract class BaseLogger implements ILogger {
     this.log(0x3 as LogLevel, `✓ ${message}`, { ...context, level: 'success' })
   }
 
+  /**
+   * Audit entries are compliance records, not diagnostics: they bypass the
+   * level filter (a production `LOG_LEVEL=warn` must not drop the audit
+   * trail) and are written at INFO severity. Only a disabled logger
+   * (`NoOpLogger`) stays silent.
+   */
   audit(action: AuditAction, context?: Omit<AuditContext, 'action'>): void {
-    this.log(0x3 as LogLevel, `[AUDIT] ${action}`, {
-      ...context,
-      auditAction: action,
-      level: 'audit',
-    })
+    this.logMessage(
+      0x3 as LogLevel,
+      `[AUDIT] ${action}`,
+      mergeContext(this.context, {
+        ...context,
+        auditAction: action,
+        level: 'audit',
+      })
+    )
   }
 
   perf(label: string, durationMs: number, context?: LogContext): void {

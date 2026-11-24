@@ -20838,6 +20838,10 @@ logger.audit('user.created', {
 })
 ```
 
+Audit entries are compliance records: `audit()` ignores the level filter and writes even under
+`level: 'warn'` or `'error'`, at INFO severity. Only a disabled logger (`enabled: false`,
+`createTestLogger()`) drops them.
+
 ## Best practices
 
 ```typescript

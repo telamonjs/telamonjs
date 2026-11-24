@@ -154,7 +154,8 @@ export interface ILogger {
   success(message: string, context?: LogContext): void
 
   /**
-   * Audit log (compliance, security events)
+   * Audit log (compliance, security events). Always written, whatever the
+   * configured level: audit entries are records, not diagnostics.
    * @telamonjs Extension for audit trails
    */
   audit(action: AuditAction, context?: Omit<AuditContext, 'action'>): void
