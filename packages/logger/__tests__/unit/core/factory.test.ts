@@ -3,7 +3,13 @@
  */
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { createLogger } from '../../../src/core/factory'
+import {
+  createBrowserLogger,
+  createLogger,
+  createTestLogger,
+  createWorkerLogger,
+} from '../../../src/core/factory'
+import { NoOpLogger } from '../../../src/adapters/noop'
 import { createServerLogger } from '../../../src/integrations/next'
 import { ConsoleLogger } from '../../../src/adapters/console'
 import { PrettyLogger } from '../../../src/adapters/pretty'
@@ -79,6 +85,64 @@ describe('createLogger', () => {
   it('returns a no-op logger when disabled', () => {
     createLogger({ enabled: false, format: 'json' }).error('x')
     expect(error).not.toHaveBeenCalled()
+  })
+})
+
+describe('createLogger levels and variants', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs()
+    vi.restoreAllMocks()
+  })
+
+  it('takes the level from the environment by default', () => {
+    vi.stubEnv('LOG_LEVEL', 'warn')
+    expect(createLogger().getLevel()).toBe(LogLevel.WARN)
+  })
+
+  it('accepts a level name', () => {
+    expect(createLogger({ level: 'DEBUG' }).getLevel()).toBe(LogLevel.DEBUG)
+  })
+
+  it('filters by the configured level', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const logger = createLogger({ level: LogLevel.WARN, format: 'json' })
+    logger.info('dropped')
+    logger.audit('user.login')
+    logger.warn('kept')
+
+    expect(log).not.toHaveBeenCalled()
+    expect(warn).toHaveBeenCalledTimes(1)
+  })
+
+  it('colorizes outside production only', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    vi.stubEnv('NODE_ENV', 'production')
+    createLogger({ level: LogLevel.INFO }).info('plain')
+    vi.stubEnv('NODE_ENV', 'development')
+    createLogger({ level: LogLevel.INFO }).info('colored')
+
+    expect(log.mock.calls[0][0]).not.toContain('\x1b[')
+    expect(log.mock.calls[1][0]).toContain('\x1b[')
+  })
+
+  it('createWorkerLogger never colorizes; createBrowserLogger does unless told otherwise', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    createWorkerLogger({ level: LogLevel.INFO }).info('worker')
+    createBrowserLogger({ level: LogLevel.INFO }).info('browser')
+    createBrowserLogger({ level: LogLevel.INFO, colorize: false }).info('browser-plain')
+
+    expect(log.mock.calls[0][0]).not.toContain('\x1b[')
+    expect(log.mock.calls[1][0]).toContain('\x1b[')
+    expect(log.mock.calls[2][0]).not.toContain('\x1b[')
+  })
+
+  it('createTestLogger is silent whatever the config', () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {})
+    const logger = createTestLogger({ level: LogLevel.TRACE })
+    expect(logger).toBeInstanceOf(NoOpLogger)
+    logger.info('x')
+    expect(log).not.toHaveBeenCalled()
   })
 })
 
