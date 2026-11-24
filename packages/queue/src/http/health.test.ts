@@ -92,7 +92,7 @@ describe('handleGetHealth', () => {
     const deps = makeDeps({
       queues: makeQueueSource({ q1: queue }),
       contracts: makeContracts([
-        { name: 'q1', module: 'gateway', description: 'Selecionar', dispatchable: true, manualRetry: false },
+        { name: 'q1', module: 'gateway', label: 'Select', description: 'Selects the next batch', dispatchable: true, manualRetry: false },
       ]),
     })
 
@@ -101,6 +101,7 @@ describe('handleGetHealth', () => {
     expect(queues).toEqual([
       expect.objectContaining({
         name: 'q1',
+        displayName: 'Select',
         module: 'gateway',
         manualRetry: false,
         schedule: '*/5 * * * * *',

@@ -3,7 +3,20 @@
  * `./http` surface (not re-exported from index.ts).
  */
 import type { Job as BullJob, Queue as BullQueue } from 'bullmq'
+import type { JobContract } from '../contracts/types.js'
 import { QueueHttpError, type JobInfo, type JobState, type QueueHttpDeps } from './types.js'
+
+/**
+ * The `displayName` served to the dashboard: contract `label` → contract
+ * `description` → the raw job name. The ui's `jobLabel` prop sits on top of
+ * this (it wins over whatever is served here).
+ */
+export function contractDisplayName(
+  name: string,
+  contract?: Pick<JobContract, 'label' | 'description'>
+): string {
+  return contract?.label || contract?.description || name
+}
 
 export function getQueueOrThrow(deps: QueueHttpDeps, queueName: string): BullQueue {
   const queue = deps.queues.getQueue(queueName)

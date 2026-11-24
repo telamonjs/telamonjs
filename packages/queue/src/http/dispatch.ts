@@ -1,3 +1,4 @@
+import { contractDisplayName } from './helpers.js'
 import {
   QueueHttpError,
   type DispatchRequestBody,
@@ -12,7 +13,7 @@ export async function handleGetDispatchableJobs(
 ): Promise<DispatchableJob[]> {
   return deps.contracts.getDispatchable().map(contract => ({
     name: contract.name,
-    displayName: contract.description || contract.name,
+    displayName: contractDisplayName(contract.name, contract),
     module: contract.module,
     description: contract.description,
     dispatchable: contract.dispatchable,

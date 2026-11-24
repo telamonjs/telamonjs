@@ -17,6 +17,13 @@ export interface JobContract<TData = unknown, TResult = unknown> {
   name: string
   /** Module/namespace the job belongs to (used for grouping + module-level toggles). */
   module: string
+  /**
+   * Short human-readable name shown by the dashboard (rows, titles,
+   * breadcrumbs). Optional: without it the API's `displayName` falls back to
+   * `description`, then to `name`.
+   */
+  label?: string
+  /** What the job does — a sentence; the dashboard shows it as secondary text. */
   description: string
   /** Whether this job can be triggered on-demand (e.g. from an admin UI). */
   dispatchable: boolean

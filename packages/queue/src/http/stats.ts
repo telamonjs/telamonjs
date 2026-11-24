@@ -1,3 +1,4 @@
+import { contractDisplayName } from './helpers.js'
 import type { QueueHttpDeps, QueueStatsEntry, QueueStatsResponse } from './types.js'
 
 /**
@@ -31,7 +32,7 @@ export async function handleGetStats(deps: QueueHttpDeps): Promise<QueueStatsRes
 
     return {
       name,
-      displayName: contract?.description || name,
+      displayName: contractDisplayName(name, contract),
       module: contract?.module ?? name.split('_')[0] ?? name,
       description: contract?.description ?? '',
       dispatchable: contract?.dispatchable ?? false,

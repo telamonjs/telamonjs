@@ -43,6 +43,29 @@ describe('handleGetStats', () => {
     expect(result.totalDelayed).toBe(5)
   })
 
+  it('displayName prefers the contract label; description stays in its own field', async () => {
+    const queues = makeQueueSource(
+      {},
+      { 'send-email': { waiting: 0, active: 0, completed: 0, failed: 0, delayed: 0, paused: 0 } }
+    )
+    const contracts = makeContracts([
+      {
+        name: 'send-email',
+        module: 'notifications',
+        label: 'Email',
+        description: 'Sends the welcome email to a new user',
+        dispatchable: true,
+      },
+    ])
+
+    const [entry] = (await handleGetStats(makeDeps({ queues, contracts }))).queues
+
+    expect(entry).toMatchObject({
+      displayName: 'Email',
+      description: 'Sends the welcome email to a new user',
+    })
+  })
+
   it('includes a queue with no matching contract using fallback metadata instead of dropping it', async () => {
     const queues = makeQueueSource(
       {},
@@ -57,6 +80,7 @@ describe('handleGetStats', () => {
     expect(result.queues).toHaveLength(1)
     expect(result.queues[0]).toMatchObject({
       name: 'orphan_job',
+      displayName: 'orphan_job',
       module: 'orphan',
       dispatchable: false,
       paused: true,

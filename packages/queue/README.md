@@ -118,11 +118,16 @@ const contracts = new JobContractRegistry()
 contracts.register({
   name: 'email_send-welcome',
   module: 'notifications',
-  description: 'Send a welcome email',
+  label: 'Welcome email', // optional short name for dashboard rows and titles
+  description: 'Sends the welcome email to a newly registered user',
   dispatchable: true,
   schema: z.object({ userId: z.string() }), // validates a manual dispatch server-side (422)
 })
 ```
+
+The API serves each job's `displayName` as the contract's `label`, else its
+`description`, else the job name. The dashboard shows `description` as secondary
+text, and its `jobLabel` prop overrides `displayName` on the app side.
 
 ```ts
 import { createSSEBroadcaster } from '@telamonjs/queue'

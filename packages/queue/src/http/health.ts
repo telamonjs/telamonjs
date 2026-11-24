@@ -1,5 +1,5 @@
 import type { Queue as BullQueue } from 'bullmq'
-import { getAllQueueNames, getQueueOrThrow } from './helpers.js'
+import { contractDisplayName, getAllQueueNames, getQueueOrThrow } from './helpers.js'
 import type {
   FailureGroup,
   FailureGroupsResponse,
@@ -81,7 +81,7 @@ async function queueHealth(deps: QueueHttpDeps, name: string, now: number): Prom
 
   const entry = {
     name,
-    displayName: contract?.description || name,
+    displayName: contractDisplayName(name, contract),
     module: contract?.module ?? name.split('_')[0] ?? name,
     dispatchable: contract?.dispatchable ?? false,
     manualRetry: contract?.manualRetry ?? true,

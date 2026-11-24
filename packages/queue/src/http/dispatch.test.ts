@@ -23,6 +23,16 @@ describe('handleGetDispatchableJobs', () => {
       },
     ])
   })
+
+  it('displayName prefers the contract label over the description', async () => {
+    const contracts = makeContracts([
+      { name: 'send-email', module: 'notifications', label: 'Email', description: 'Sends the welcome email', dispatchable: true },
+    ])
+
+    const [job] = await handleGetDispatchableJobs(makeDeps({ contracts }))
+
+    expect(job).toMatchObject({ displayName: 'Email', description: 'Sends the welcome email' })
+  })
 })
 
 describe('handleDispatch', () => {

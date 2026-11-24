@@ -68,6 +68,7 @@ export type JobState = 'waiting' | 'active' | 'delayed' | 'completed' | 'failed'
 
 export interface QueueStatsEntry {
   name: string
+  /** Contract `label` → contract `description` → `name`. */
   displayName: string
   module: string
   description: string
@@ -158,6 +159,7 @@ export interface BulkOperationResponse {
 
 export interface DispatchableJob {
   name: string
+  /** Contract `label` → contract `description` → `name`. */
   displayName: string
   module: string
   description: string
@@ -246,6 +248,7 @@ export type QueueHealthStatus = 'ok' | 'late' | 'failing' | 'paused'
 
 export interface QueueHealthEntry {
   name: string
+  /** Contract `label` → contract `description` → `name`. */
   displayName: string
   module: string
   dispatchable: boolean
