@@ -1,7 +1,7 @@
 # Working in this repository (agent guide)
 
 TelamonJS is a pnpm monorepo: an admin framework for Next.js + React,
-plus the auth/permissions/logger/queue packages around it, and a CLI
+plus the data/auth/permissions/logger/queue packages around it, and a CLI
 that scaffolds apps using them.
 
 This file is for AI agents (and new contributors) working **on the framework
@@ -13,6 +13,7 @@ itself**. If you are working **in an app that consumes TelamonJS**, read the
 | Package | What it is |
 | --- | --- |
 | `packages/ui` | The framework: `CrudConfig` + `ListPage`, field system, dialogs, app shell, dashboards, charts, i18n |
+| `packages/data` | Server half of a list: `ListPage` wire contract, sort/paging sanitizers, Prisma adapter (`/prisma`); zero deps, no React |
 | `packages/auth` | NextAuth v5 ↔ NestJS JWE session-token contract, Nest guard, impersonation |
 | `packages/permissions` | RBAC materialized into the JWT — checks are array lookups, no queries |
 | `packages/logger` | One `ILogger` across browser/server/worker; `audit()`/`perf()` |

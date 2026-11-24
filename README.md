@@ -58,6 +58,7 @@ Each package works standalone.
 | Package | What it does |
 | --- | --- |
 | [`@telamonjs/ui`](./packages/ui/README.md) | The admin framework: `CrudConfig` + `ListPage`, 36-type field system, dialogs, app shell with Cmd+K, dashboards, charts, i18n |
+| [`@telamonjs/data`](./packages/data/README.md) | The server half of a list: the `ListPage` wire contract, sort and paging sanitizers, and a Prisma adapter (`orderBy`, scope-safe `where`, paginated services), with zero dependencies |
 | [`@telamonjs/auth`](./packages/auth/README.md) | NextAuth v5 ↔ NestJS bridge: the JWE session-token contract, a Nest guard and revocable impersonation |
 | [`@telamonjs/permissions`](./packages/permissions/README.md) | RBAC materialized into the JWT: every check is an array lookup, no database query per request |
 | [`@telamonjs/logger`](./packages/logger/README.md) | One `ILogger` across browser, server and worker, with `audit()`, `perf()` and child loggers |

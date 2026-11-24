@@ -1,0 +1,98 @@
+---
+title: Data
+description: The server half of a list — the ListPage wire contract, sort and paging sanitizers, and a Prisma adapter with scope-safe where and paginated services
+---
+
+import { Callout } from 'fumadocs-ui/components/callout'
+
+`@telamonjs/data` (current version: <PkgVersion pkg='data' />) is what an endpoint runs on what a
+[`ListPage`](/docs/patterns/listpage-pattern) sends: page, page size, search, sort and filters.
+It has no dependencies and imports neither React, Next nor Prisma, so a NestJS or plain Node API
+installs it alone.
+
+```bash
+pnpm add @telamonjs/data
+```
+
+| Entry | What it has | Needs an ORM? |
+| --- | --- | --- |
+| `@telamonjs/data` | The wire contract (`PaginationParams`, `PaginatedResponse`, `SortField`, `createPaginatedResponse`), `sanitizePaginationParams`, `resolveSort`, `resolveSortPath` | No |
+| `@telamonjs/data/prisma` | `buildPrismaOrderBy`, `buildPrismaOrderByMulti`, `buildSearchConditions`, `buildFilterConditions`, `buildWhereClause`, `createPaginationContext` | Builds Prisma's object shape; never imports `@prisma/client` |
+
+## Sort
+
+A list sends the sort field as the column's data path (`customer.name`, with
+`list.sortParam: 'path'`) or as the TanStack column id (`customer_name`, the default). Both resolve
+to the same path, and `_count.<relation>` orders by a relation count:
+
+```ts
+import { resolveSortPath } from '@telamonjs/data'
+import { buildPrismaOrderBy } from '@telamonjs/data/prisma'
+
+resolveSortPath('customer_name')                          // 'customer.name'
+buildPrismaOrderBy('customer_name', 'asc')                // { customer: { name: 'asc' } }
+buildPrismaOrderBy('_count.items', 'desc')                // { items: { _count: 'desc' } }
+buildPrismaOrderBy('created_at', 'asc', ['created_at'])   // { created_at: 'asc' }
+```
+
+<Callout type='warn'>
+  Pass the endpoint's `sortableFields`. A listed snake_case field (`created_at`) then stays a
+  scalar instead of being read as `created.at`, and `resolveSort` rejects any field that is not
+  listed, falling back to the default sort.
+</Callout>
+
+```ts
+import { resolveSort } from '@telamonjs/data'
+
+const sort = resolveSort(query.sortBy ?? 'name', query.sortOrder, {
+  defaultOrderBy: 'name',
+  defaultOrderDirection: 'asc',
+  sortableFields: ['name', 'customer.name', 'created_at'],
+})
+```
+
+With another ORM or plain SQL, `resolveSort` and `resolveSortPath` are all you need to build your
+own `ORDER BY`.
+
+## Where
+
+`buildWhereClause` combines search and filters with the endpoint's `baseWhere` and the user's
+visibility rule using `AND`. None of them can overwrite another, even when they share a key or
+use `OR`:
+
+```ts
+import { buildSearchConditions, buildWhereClause } from '@telamonjs/data/prisma'
+
+const where = buildWhereClause(
+  buildSearchConditions(query.search, ['name', 'customer.name']),
+  [],
+  { deletedAt: null },
+  { OR: [{ ownerId: user.id }, { public: true }] }
+)
+```
+
+## Paginated services
+
+`createPaginationContext` builds a `list` (and `getFilterOptions`) per model from a declarative
+config: search fields, typed filters, `sortableFields`, visibility, relation counts and hooks.
+
+```ts
+import { createPaginationContext } from '@telamonjs/data/prisma'
+
+export const { createPaginatedService } = createPaginationContext({
+  prisma,
+  auth, // () => Promise<{ user } | null>
+  filterLabels: () => ({ yes: 'Sim', no: 'Não', active: 'Ativo', inactive: 'Inativo' }),
+})
+
+export const customers = createPaginatedService({
+  model: 'customer',
+  searchFields: ['name', 'email'],
+  filters: { active: 'boolean', state: 'string' },
+  sortableFields: ['name', 'created_at', '_count.orders'],
+})
+```
+
+`filterLabels` receives the `locale` passed to `getFilterOptions` and returns the labels of
+boolean filter options; without it they are in English. Configuration warnings go to
+`onWarning` (default `console.warn`).

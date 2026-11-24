@@ -1,5 +1,12 @@
 # Changelog
 
+## data 1.0.0
+
+New package `@telamonjs/data`: the server half of a list, with no dependencies. It has the
+`ListPage` wire contract, the sort and paging sanitizers (`resolveSort` reads both sort wire
+formats), and a Prisma adapter at `@telamonjs/data/prisma` (`orderBy`, scope-safe `where`,
+`createPaginationContext`). NestJS and plain Node APIs can use it without installing React.
+
 ## ui 1.4.4 (2026-11-24)
 
 `@telamonjs/ui`: a `ListPage` with `urlSync` opens a link in the state it carries. `page`,
