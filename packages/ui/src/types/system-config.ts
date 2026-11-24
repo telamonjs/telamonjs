@@ -29,12 +29,15 @@ export interface SystemTheme {
   customCSS?: string
 }
 
+/**
+ * Roles are deliberately absent: the app defines them, and they reach the UI
+ * through the session (`session.user.role`, materialized by
+ * `@telamonjs/permissions`), not through this config.
+ */
 export interface SystemAuth {
   enabled: boolean
   redirectPath: string
   sessionProvider: 'nextauth' | 'custom'
-  // TODO: roles should be defined in the consuming application
-  // roles?: string[]
 }
 
 export interface SystemLinks {

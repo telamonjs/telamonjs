@@ -437,6 +437,37 @@ describe('DataTableActions', () => {
       expect(screen.getByTestId('row-action-menu')).toBeInTheDocument()
     })
 
+    it('display.mode=auto keeps actions inline on desktop', () => {
+      renderActions({
+        standard: { view: true, edit: true },
+        display: { mode: 'auto' },
+      })
+      expect(screen.queryByTestId('row-action-menu')).not.toBeInTheDocument()
+    })
+
+    it('display.mode=auto moves every action into the menu on mobile', () => {
+      const desktop = vi.mocked(window.matchMedia).getMockImplementation()
+      vi.mocked(window.matchMedia).mockImplementation(
+        query =>
+          ({
+            matches: true,
+            media: query,
+            addEventListener: vi.fn(),
+            removeEventListener: vi.fn(),
+          }) as unknown as MediaQueryList
+      )
+      try {
+        renderActions({
+          standard: { view: true, edit: true },
+          display: { mode: 'auto', maxInline: 5 },
+        })
+        expect(screen.getByTestId('row-action-menu')).toBeInTheDocument()
+        expect(screen.getByTestId(TEST_IDS.ROW_ACTION.view(1))).toBeInTheDocument()
+      } finally {
+        if (desktop) vi.mocked(window.matchMedia).mockImplementation(desktop)
+      }
+    })
+
     it('position=dropdown custom actions render inside the overflow menu', () => {
       renderActions({
         custom: [

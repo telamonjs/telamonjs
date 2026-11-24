@@ -202,7 +202,10 @@ export interface ActionConfig<TData = any> {
  * Display configuration for actions
  */
 export interface ActionsDisplayConfig {
-  /** Display mode for actions */
+  /**
+   * Display mode for actions. `'auto'`: everything in the "⋯" menu on mobile
+   * (< 768px, `useIsMobile`), `'inline'` (with `maxInline`) elsewhere.
+   */
   mode?: 'inline' | 'dropdown' | 'auto'
   /** Maximum number of inline actions before grouping */
   maxInline?: number

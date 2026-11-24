@@ -37,6 +37,7 @@ import { actionEnabled, actionGranted, actionVisible } from './action-access'
 import { getIconFromName } from '../../utils/icon'
 import { TEST_IDS, getActionAccessibilityAttrs } from '../../utils/test-ids'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
+import { useIsMobile } from '../../hooks/use-mobile'
 import { isMessageRef } from '../../i18n/msg'
 
 // IResponse type - should be provided by the consuming application
@@ -578,8 +579,11 @@ export function DataTableActions<TData>({
     [row.original, router, handleActionComplete, text, t]
   )
 
-  // Determine display mode
-  const displayMode = config.display?.mode || 'inline'
+  // Determine display mode: 'auto' is the menu on mobile, inline elsewhere
+  const isMobile = useIsMobile()
+  const requestedMode = config.display?.mode || 'inline'
+  const displayMode =
+    requestedMode === 'auto' ? (isMobile ? 'dropdown' : 'inline') : requestedMode
   const maxInline = config.display?.maxInline || 999
   const spacing = config.display?.spacing || 'normal'
 
@@ -590,11 +594,6 @@ export function DataTableActions<TData>({
         inlineActions: [],
         overflowActions: [...filteredInlineActions, ...filteredDropdownActions],
       }
-    }
-
-    if (displayMode === 'auto') {
-      // TODO: Implement responsive detection
-      // For now, use inline mode with maxInline
     }
 
     // Inline mode with max limit
