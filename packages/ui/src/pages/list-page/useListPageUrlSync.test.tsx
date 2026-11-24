@@ -426,6 +426,30 @@ describe('useListPageUrlSync', () => {
     })
   })
 
+  describe('Infinite scroll', () => {
+    it('keeps page and pageSize out of the URL, and drops them from a link', () => {
+      currentSearchParams = new URLSearchParams('page=2&pageSize=20&status=ATIVO')
+      renderHook(() =>
+        useListPageUrlSync({
+          urlSync: true,
+          urlFilters: { status: 'string' },
+          page: 1,
+          pageSize: 50,
+          search: 'ana',
+          sorting: [{ field: 'name', order: 'asc' }],
+          pagination: false,
+        })
+      )
+
+      const url = new URLSearchParams(String(mockReplace.mock.calls.at(-1)?.[0]).split('?')[1])
+      expect(url.has('page')).toBe(false)
+      expect(url.has('pageSize')).toBe(false)
+      expect(url.get('sortBy')).toBe('name')
+      expect(url.get('search')).toBe('ana')
+      expect(url.get('status')).toBe('ATIVO')
+    })
+  })
+
   describe('No navigation loop (1.4.1)', () => {
     it('settles after one replace when liveFilters is a new object every render', () => {
       mockReplace.mockImplementation(setUrl)

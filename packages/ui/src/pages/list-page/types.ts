@@ -27,6 +27,7 @@ export interface ListPageProps<TData> {
   /**
    * Enable URL synchronization: page, page size, sort and search are kept in
    * the query params, and a link carrying them opens the list in that state.
+   * With infinite scroll (the default), page and page size are left out.
    */
   urlSync?: boolean
 

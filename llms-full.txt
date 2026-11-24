@@ -2354,7 +2354,7 @@ export default function UsersPage() {
 | --- | --- | --- |
 | `config` | `CrudConfig<T, TFormData>` | **Required.** Everything about the module |
 | `tableId` | `string` | Key of the table state in the Zustand store. Default: `config.module.route` |
-| `urlSync` | `boolean` | Keeps page, page size, sort and search in the query params; a link carrying them opens the list there |
+| `urlSync` | `boolean` | Keeps page, page size, sort and search in the query params; a link carrying them opens the list there. With infinite scroll (the default) only sort and search: every load starts at page 1 |
 | `urlFilters` | `Record<string, 'string' \| 'number'>` | Extra filters read from the URL (with `urlSync`) and passed to `queryFn` |
 | `filterOptions` / `loadFilterOptions` | `ColumnFilterConfig` / `() => Promise<ColumnFilterConfig>` | Column filter options, static or loaded on mount |
 | `enableBulkActions` / `bulkActions` | `boolean` / `BulkAction<T>[]` | Checkbox column and toolbar for selected rows |

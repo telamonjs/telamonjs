@@ -138,7 +138,9 @@ export function ListPage<TData>({
   // defaults. Read once at mount, like the urlFilters.
   const urlSeed = useUrlSync()
   const [urlTableState] = useState(() =>
-    urlSync ? tableStateFromUrl(urlSeed.getParam) : {}
+    urlSync
+      ? tableStateFromUrl(urlSeed.getParam, list.infiniteScroll === false)
+      : {}
   )
 
   // Initialize table with defaultPageSize and defaultSortBy from config
@@ -239,6 +241,7 @@ export function ListPage<TData>({
     search,
     sorting,
     liveFilters,
+    pagination: list.infiniteScroll === false,
   })
 
   // A toolbar-owned key must not be re-applied from the mount-time URL value
