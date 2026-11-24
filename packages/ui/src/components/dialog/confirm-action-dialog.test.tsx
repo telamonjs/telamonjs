@@ -149,6 +149,21 @@ describe('ConfirmActionDialog', () => {
   })
 
   describe('Interactions', () => {
+    it('focuses the first input on open, so it can be typed right away', async () => {
+      setup({
+        inputs: [
+          { name: 'reason', label: 'Reason', type: 'textarea' },
+          { name: 'note', label: 'Note', type: 'text' },
+        ],
+      })
+      await waitFor(() => expect(screen.getByLabelText('Reason')).toHaveFocus())
+    })
+
+    it('keeps focus on Cancel when there are no inputs', async () => {
+      setup({ variant: 'destructive' })
+      await waitFor(() => expect(screen.getByTestId('modal-cancel')).toHaveFocus())
+    })
+
     it('confirmDisabled disables only the confirm button', () => {
       setup({ confirmDisabled: true })
       expect(screen.getByTestId('modal-confirm')).toBeDisabled()

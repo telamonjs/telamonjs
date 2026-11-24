@@ -251,7 +251,19 @@ export function ConfirmActionDialog({
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
       {children && <AlertDialogTrigger asChild>{children}</AlertDialogTrigger>}
-      <AlertDialogContent>
+      <AlertDialogContent
+        // With inputs the first field gets focus, so the reason can be typed
+        // right away; without them focus stays on Cancel (Radix default), the
+        // safe default for a destructive confirmation.
+        onOpenAutoFocus={event => {
+          const first = inputs?.[0]
+          if (!first) return
+          const field = document.getElementById(`${idPrefix}-${first.name}`)
+          if (!field) return
+          event.preventDefault()
+          field.focus()
+        }}
+      >
         <AlertDialogHeader>
           <AlertDialogTitle>
             {node(title) || t('dialog.confirmActionTitle')}
