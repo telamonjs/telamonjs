@@ -179,8 +179,9 @@ each:
 
 <PeerDeps pkg="ui" />
 
-`xlsx`, `papaparse` and the `jspdf` pair power the export menu every `ListPage`
-toolbar shows. `DashboardGrid` also needs `import 'react-grid-layout/css/styles.css'`, and
+The `jspdf` pair is optional: it only powers the PDF option of the export menu
+every `ListPage` toolbar shows (Excel and CSV need nothing), and without it that
+option shows an error naming the packages. `DashboardGrid` also needs `import 'react-grid-layout/css/styles.css'`, and
 `@prisma/client` is only needed for the server
 helpers that use it. Tailwind CSS 3 is a dev dependency of your app:
 
@@ -1974,15 +1975,57 @@ import { asQueryFn } from '@telamonjs/ui'
 query: { queryKey: ['orders'], queryFn: asQueryFn<Order>(ordersApi.list) },
 ```
 
-On the server, `createPaginatedResponse(data, total, page, pageSize)` builds the response, and
-`buildPrismaOrderBy(sortBy, sortOrder)` / `buildPrismaOrderByMulti(sortFields)` turn sort params
-into a Prisma `orderBy` (dotted fields such as `customer.name` become nested objects; underscores
-are kept, so `created_at` stays a column). `ListPage` sends a nested column's dotted `accessorKey`,
-not TanStack's underscored column id.
+### What `sortBy` carries
+
+`list.sortParam` picks what a column's sort looks like on the wire. It applies everywhere the list
+sends its sort: `queryFn`, `exportAll`, `list.onExport`, `toolbarContent` and the URL (`urlSync`).
+
+| Column | `sortParam: 'id'` (default) | `sortParam: 'path'` |
+| --- | --- | --- |
+| `accessorKey: 'name'` | `name` | `name` |
+| `accessorKey: 'created_at'` | `created_at` | `created_at` |
+| `accessorKey: 'customer.name'` | `customer_name` | `customer.name` |
+| `accessorKey: '_count.items'` | `_count_items` | `_count.items` |
+| `id: 'owner', accessorKey: 'owner.name'` | `owner` | `owner.name` |
+| `id: 'total', accessorFn` (no `accessorKey`) | `total` | `total` |
+
+In `'id'` mode the field is TanStack's column id: a dotted `accessorKey` arrives with every `.`
+turned into `_`, so a backend cannot tell `customer_name` (nested) from `created_at` (snake_case).
+`'path'` sends the data path itself. Saved views and `defaultSortBy` may hold either form in both
+modes (`defaultSortBy: 'customer.name'` highlights the right header).
+
+```ts
+list: { columns, sortParam: 'path' }, // opt in per list; the default in the next major
+```
+
+<Callout type='info' title="Before turning on 'path'">
+  Check that the endpoint accepts the dotted form. A backend that whitelists `customer_name` will
+  silently fall back to its default order for `customer.name`: add the dotted key next to the old
+  one (`customer.name` and `customer_name`) and keep both while old clients are around. Order by a
+  relation count with `{ items: { _count: 'asc' } }` for `_count.items`.
+</Callout>
+
+### Server helpers
+
+`createPaginatedResponse(data, total, page, pageSize)` builds the response.
+`buildPrismaOrderBy(sortBy, sortOrder, sortableFields?)` and
+`buildPrismaOrderByMulti(sortFields, sortableFields?)` turn either wire form into a Prisma
+`orderBy`:
+
+- A value with a dot is a data path, used as-is: `customer.name` → `{ customer: { name } }`,
+  `order_item.created_at` → `{ order_item: { created_at } }`.
+- `_count.items` → `{ items: { _count: 'asc' } }` (also `customer._count.orders`), in either form.
+- A value listed in `sortableFields` is used as-is, so `created_at` stays a column.
+- Any other underscored value is decoded as a legacy column id (`customer_name` →
+  `customer.name`); with `sortableFields`, only when the decoded path is listed. Without
+  `sortableFields`, `created_at` becomes `created.at`: pass the list when you have snake_case
+  fields.
 
 `createPaginationContext(...).createPaginatedService(config)` accepts any `sortBy` the client sends
-unless you set `sortableFields: ['name', 'customer.name']`; then any other `sortBy` is ignored in
-favour of `defaultOrderBy`. An invalid `sortOrder` always falls back to `defaultOrderDirection`.
+unless you set `sortableFields: ['name', 'customer.name', 'created_at']` (data paths). A legacy id
+passes when its dotted form is listed (`customer_name` for `customer.name`), so one whitelist serves
+both modes; anything else falls back to `defaultOrderBy`. An invalid `sortOrder` always falls back
+to `defaultOrderDirection`.
 
 ---
 
@@ -2198,7 +2241,9 @@ export const usersApi = {
 ```
 
 Error messages, `asQueryFn` and the server-side helpers are in
-[Data Layer (React Query)](/docs/patterns/react-query).
+[Data Layer (React Query)](/docs/patterns/react-query). By default `sortBy` is the column id
+(`customer_name` for `accessorKey: 'customer.name'`); `list.sortParam: 'path'` sends the data path
+instead — see [what `sortBy` carries](/docs/patterns/react-query#what-sortby-carries).
 
 ---
 
@@ -8307,7 +8352,7 @@ Inside a tabbed dashboard (`ShellPage` + `AdminHeader` + `AdminTabs`), render th
 
 - ✅ Pagination (client or server-side, driven by `config.query`)
 - ✅ Search (debounced)
-- ✅ Sorting (click column headers)
+- ✅ Sorting (click column headers; `list.sortParam` picks [what `sortBy` carries](/docs/patterns/react-query#what-sortby-carries))
 - ✅ Filtering (column filters and `list.toolbar.filters`)
 - ✅ Row actions (contextual menu) and header actions (toolbar buttons)
 - ✅ Create/edit/view/delete dialogs from `config.dialogs` + `config.mutations`
@@ -18243,7 +18288,8 @@ Export UI for tabular data. Two complementary surfaces exist in the library:
 - **`ExportMenu`** + **`exportToCSV` / `exportToExcel` / `exportToPDF` /
   `exportTableData`** — batteries-included export for TanStack
   `ColumnDef`-based tables (used by DataTable), generating the files
-  client-side via `xlsx`, `papaparse`, and `jspdf`.
+  client-side. Excel and CSV need no extra package; PDF loads the optional
+  `jspdf` + `jspdf-autotable` peers on first use.
 
 <Callout type='info' title='What is exported'>
   The exports are `ExportButtons`, `ExportPDFButton`, `ExportExcelButton`, `ExportMenu`, and the
@@ -18372,10 +18418,10 @@ import type { ColumnDef } from '@tanstack/react-table'
 ### Utility functions
 
 ```typescript
-exportToExcel(data, columns, filename, options)  // .xlsx via xlsx
-exportToCSV(data, columns, filename, options)    // .csv via papaparse (BOM included)
-exportToPDF(data, columns, filename, options)    // .pdf via jspdf-autotable
-exportTableData(data, columns, format, filename, options) // dispatch by format
+await exportToExcel(data, columns, filename, options)  // .xlsx, written in-house (bold header row)
+exportToCSV(data, columns, filename, options)          // .csv, UTF-8 with BOM
+await exportToPDF(data, columns, filename, options)    // .pdf via the optional jspdf + jspdf-autotable peers
+await exportTableData(data, columns, format, filename, options) // dispatch by format
 
 interface ExportOptions {
   t: ReturnType<typeof useTelamonjsT> // required: library translator
@@ -18399,6 +18445,11 @@ interface PDFExportOptions extends ExportOptions {
 All take TanStack `ColumnDef<T>[]` and download client-side with a
 date-stamped filename (`users_2026-08-18.csv`). `options` is required because
 headers and values are localized: pass the library translator and the active locale.
+`exportToExcel`, `exportToPDF` and `exportTableData` return a promise that
+resolves once the download starts; await it to catch failures. Without the
+`jspdf` peers, `exportToPDF` rejects with an error naming both packages
+(`ExportMenu` shows it as a toast). Excel sheet names follow Excel's rules: at
+most 31 characters, and `\ / ? * [ ] :` become spaces.
 
 Wiring them into `ExportButtons` handlers:
 
@@ -20798,15 +20849,48 @@ Error and fatal lines go to `console.error`, warnings to `console.warn`, the res
 | --------------- | ----------------------------------------------------- | -------------------------------------------- |
 | `ConsoleLogger` | Development and browser                               | colorize, timestamps, context display        |
 | `PrettyLogger`  | CLIs                                                  | `banner()`, `step()`, `newLine()`            |
-| `BrowserLogger` | Client components                                     | `flush()`, `getBuffer()`, `clearBuffer()`    |
+| `BrowserLogger` | Client components                                     | `transport`, `flush()`, `getBuffer()`, `clearBuffer()` |
 | `NoOpLogger`    | Tests, benchmarks                                     | silent                                       |
 
 <Callout type='info' title='One entry point, console output'>
   Everything is exported from one browser-safe entry point, `@telamonjs/logger`. The adapters
-  write to the console; the package ships no transports. To send logs to an aggregator or an
-  error tracker, implement `ILogger` (or extend `BaseLogger`) in your app — see
+  write to the console; the only transport is the opt-in browser one below. To send logs to an
+  aggregator or an error tracker, implement `ILogger` (or extend `BaseLogger`) in your app — see
   [Custom sinks](/docs/queue/logging#custom-sinks-sentry-datadog-).
 </Callout>
+
+### Shipping browser logs to your backend
+
+`createBrowserLogger({ transport })` returns a `BrowserLogger` that still writes to the console
+and also ships entries in batches:
+
+```typescript
+'use client'
+import { createBrowserLogger, LogLevel } from '@telamonjs/logger'
+
+export const logger = createBrowserLogger({
+  transport: {
+    endpoint: '/api/logs', // POST { logs: BrowserLogEntry[] } as JSON
+    level: LogLevel.WARN, // default: WARN, ERROR and FATAL
+  },
+})
+```
+
+| Option            | Default         | Meaning                                                                 |
+| ----------------- | --------------- | ----------------------------------------------------------------------- |
+| `endpoint`        | —               | URL that receives the batches (same-origin is simplest)                 |
+| `send`            | —               | Your own function per batch, instead of `fetch`/`sendBeacon`            |
+| `level`           | `LogLevel.WARN` | Least severe level shipped; the console still follows the logger level |
+| `batchSize`       | `20`            | Ship as soon as this many entries are queued                            |
+| `flushIntervalMs` | `5000`          | Ship what is queued on this interval                                    |
+| `includePii`      | `false`         | Keep context keys that usually hold personal data                       |
+
+Each `BrowserLogEntry` holds `level`, `levelName`, `message`, `timestamp` (ISO 8601) and
+`context`. By default, context keys that usually hold personal data (`userEmail`, `ip`,
+`userAgent`, tokens, passwords, cookies, phone, CPF…) are dropped at any depth; messages are sent
+as written, so keep personal data out of them. When the tab is hidden or closed, the queue goes
+out through `navigator.sendBeacon`. Failed deliveries are dropped, never retried or thrown. Child
+loggers share the parent's queue. On the server (no `window`) the transport is inactive.
 
 ## Context management
 

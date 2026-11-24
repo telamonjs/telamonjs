@@ -985,6 +985,9 @@ Types:
 
 - `AuditAction` (type)
 - `AuditContext` (type)
+- `BrowserLogEntry` (type)
+- `BrowserLogTransport` (type)
+- `BrowserLoggerConfig` (type)
 - `ILogger` (type)
 - `LogContext` (type)
 - `LogTimer` (type)
