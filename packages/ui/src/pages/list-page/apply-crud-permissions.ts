@@ -1,4 +1,7 @@
-import { crudGranted } from '../../components/data/action-access'
+import {
+  crudChecker,
+  crudGranted,
+} from '../../components/data/action-access'
 import type { DataTableActionsConfig } from '../../types/actions'
 import type {
   CrudConfigWithAnyForm,
@@ -6,7 +9,32 @@ import type {
   DialogsConfig,
 } from '../../types/crud'
 
-type Operation = keyof Omit<CrudPermissions, 'can'>
+type Operation = Exclude<keyof CrudPermissions, 'can' | 'failClosed'>
+
+const OPERATIONS = ['create', 'edit', 'delete', 'view'] as const
+
+// Configs already warned about (dev only): once per config object, not per render.
+const warned = new WeakSet<object>()
+
+/**
+ * Dev-only: `permissions` declares operations but nothing can check them, so
+ * the gate is open — usually an app that forgot `can`/`userPermissions`.
+ */
+function warnUnchecked<TData>(
+  config: CrudConfigWithAnyForm<TData>,
+  permissions: CrudPermissions,
+  checked: boolean
+): void {
+  if (process.env.NODE_ENV === 'production') return
+  if (checked || permissions.failClosed || warned.has(config)) return
+  if (!OPERATIONS.some(op => permissions[op])) return
+  warned.add(config)
+  console.warn(
+    `[telamonjs] CrudConfig "${config.module.name}" declares permissions but has no way to check them ` +
+      '(neither permissions.can, actionsConfig.can nor actionsConfig.userPermissions): every operation is allowed. ' +
+      'Pass a checker, or set permissions.failClosed to deny until one exists.'
+  )
+}
 
 /**
  * Applies `config.permissions` (and the absence of `config.form`) once, where
@@ -17,7 +45,10 @@ type Operation = keyof Omit<CrudPermissions, 'can'>
  *   edit/view injection, no footer Edit, no `?create=1` / `?edit=` deep link;
  * - the row view/edit/delete (configured, or injected by a dialog) inherit
  *   `permissions.<op>` unless they declare their own `permission`;
- * - `permissions.can` becomes `actionsConfig.can` unless that one is set.
+ * - `permissions.can` becomes `actionsConfig.can` unless that one is set;
+ * - with no checker at all, `permissions.failClosed` makes that `can` deny
+ *   everything; without `failClosed` the gate stays open and a development
+ *   warning names the config (once).
  *
  * With a form and without `config.permissions` both inputs come back untouched.
  *
@@ -38,7 +69,11 @@ export function applyCrudPermissions<TData>(
       : { ...allDialogs, create: undefined, edit: undefined }
   if (!permissions) return { dialogs: withForm, actionsConfig }
 
-  const allowed = (op: Operation) => crudGranted(config, op)
+  // Checked against the actionsConfig this list actually uses
+  const access = { permissions, actionsConfig }
+  const can = crudChecker(access)
+  warnUnchecked(config, permissions, Boolean(can || actionsConfig?.userPermissions))
+  const allowed = (op: Operation) => crudGranted(access, op)
   const dialogs = withForm && {
     ...withForm,
     create: allowed('create') ? withForm.create : undefined,
@@ -62,7 +97,7 @@ export function applyCrudPermissions<TData>(
     actionsConfig: {
       ...actionsConfig,
       standard,
-      can: actionsConfig?.can ?? permissions.can,
+      can,
     },
   }
 }

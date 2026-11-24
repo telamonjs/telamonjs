@@ -51,6 +51,18 @@ describe('action-access', () => {
     ).toBe(false)
   })
 
+  it('crudGranted: permissions.failClosed denies a declared operation only when there is no checker', () => {
+    const failClosed = { create: 'x.create', failClosed: true }
+    expect(crudGranted({ permissions: failClosed }, 'create')).toBe(false)
+    // an operation without a permission stays allowed
+    expect(crudGranted({ permissions: failClosed }, 'edit')).toBe(true)
+    // with a checker, failClosed changes nothing
+    expect(
+      crudGranted({ permissions: failClosed, actionsConfig: { userPermissions: ['x.create'] } }, 'create')
+    ).toBe(true)
+    expect(crudGranted({ permissions: { ...failClosed, can: () => true } }, 'create')).toBe(true)
+  })
+
   it('actionVisible / actionEnabled: undefined = true; boolean; function of the row', () => {
     const row = { ativo: false }
     expect(actionVisible({}, row)).toBe(true)

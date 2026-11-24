@@ -25,20 +25,36 @@ export function actionGranted(
   return required.some(perm => granted.has(perm))
 }
 
+const denyAll = (): boolean => false
+
+/**
+ * The permission checker a CrudConfig resolves to: `actionsConfig.can`, else
+ * `permissions.can`. With neither and no `actionsConfig.userPermissions`, it is
+ * `undefined` (everything allowed) — or a checker that denies everything when
+ * `permissions.failClosed` is set.
+ */
+export function crudChecker(
+  config: Pick<CrudConfig, 'permissions' | 'actionsConfig'>
+): ((permission: string) => boolean) | undefined {
+  const actions = config.actionsConfig || undefined
+  const can = actions?.can ?? config.permissions?.can
+  if (can || actions?.userPermissions) return can
+  return config.permissions?.failClosed ? denyAll : undefined
+}
+
 /**
  * A CrudConfig operation (`permissions.create`, …) against the same checker the
  * row actions use: `permissions.can` or `actionsConfig.can`, else
- * `actionsConfig.userPermissions`.
+ * `actionsConfig.userPermissions` (see `crudChecker` for `failClosed`).
  */
 export function crudGranted(
   config: Pick<CrudConfig, 'permissions' | 'actionsConfig'>,
-  operation: keyof Omit<CrudPermissions, 'can'>
+  operation: Exclude<keyof CrudPermissions, 'can' | 'failClosed'>
 ): boolean {
-  const actions = config.actionsConfig || undefined
   return actionGranted(
     config.permissions?.[operation],
-    actions?.userPermissions,
-    actions?.can ?? config.permissions?.can
+    (config.actionsConfig || undefined)?.userPermissions,
+    crudChecker(config)
   )
 }
 

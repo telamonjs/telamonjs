@@ -561,11 +561,19 @@ export interface PagesConfig<T> {
  *
  * Checked with `can` when set (bypass roles, wildcards: pass
  * `perm => checker.can(user, perm)` from `@telamonjs/permissions`), else against
- * `actionsConfig.userPermissions`; with neither, everything is allowed.
+ * `actionsConfig.userPermissions`; with neither, everything is allowed (and a
+ * development warning says so) — unless `failClosed` is set.
  */
 export interface CrudPermissions {
   /** Permission checker; wins over `actionsConfig.userPermissions` */
   can?: (permission: string) => boolean
+  /**
+   * Deny instead of allow when there is no way to check: with neither `can` nor
+   * `actionsConfig.userPermissions` (a missing hook, a session still loading),
+   * every declared operation and every action `permission` is denied. Same name
+   * and meaning as `failClosed` in `@telamonjs/permissions`. Default `false`.
+   */
+  failClosed?: boolean
   /** The "New" button and the create dialog */
   create?: ActionConfig['permission']
   /** The row edit, the view dialog's Edit, the edit dialog and portal section saving */

@@ -75,10 +75,25 @@ export function usuariosConfigFor(user: AuthUser): CrudConfig<Usuario, UsuarioFo
 
 The checker is `can` when set, so bypass roles and wildcards work as your
 checker defines them. Without `can`, the names are looked up in
-`actionsConfig.userPermissions`; with neither, everything is allowed. The row
-view/edit/delete inherit the operation's permission unless their own
-`ActionConfig` declares a `permission`, and `permissions.can` also decides the
-`permission` of custom actions (it becomes `actionsConfig.can`).
+`actionsConfig.userPermissions`. The row view/edit/delete inherit the
+operation's permission unless their own `ActionConfig` declares a `permission`,
+and `permissions.can` also decides the `permission` of custom actions (it
+becomes `actionsConfig.can`).
+
+With neither `can` nor `userPermissions`, everything is allowed: the gate is
+fail-open, so a config that forgot the checker shows every write button. In
+development the list warns once per config when that happens. Set
+`failClosed: true` (same meaning as in `@telamonjs/permissions`) to deny every
+declared operation and every action `permission` until a checker exists — for
+example while the session that feeds `can` is still loading:
+
+```tsx
+permissions: {
+  failClosed: true,
+  can: session ? perm => checker.can(session.user, perm) : undefined,
+  create: 'usuarios.create',
+},
+```
 
 ---
 

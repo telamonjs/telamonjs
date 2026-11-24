@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { applyCrudPermissions } from './apply-crud-permissions'
 import type { CrudConfig } from '../../types/crud'
 import type { DataTableActionsConfig } from '../../types/actions'
@@ -118,6 +118,79 @@ describe('applyCrudPermissions', () => {
       )
       expect(out.dialogs?.edit).toBeUndefined()
       expect(out.actionsConfig?.standard?.edit).toBeUndefined()
+    })
+
+    it('checks against the actionsConfig it is given (not only config.actionsConfig)', () => {
+      const out = applyCrudPermissions(
+        config({ permissions: { create: 'rows.create', view: 'rows.view' } }),
+        { userPermissions: ['rows.view'] }
+      )
+      expect(out.dialogs?.create).toBeUndefined()
+      expect(out.dialogs?.view).toBe(dialogs.view)
+    })
+  })
+
+  describe('Misconfiguration (permissions declared, no way to check them)', () => {
+    let warn: ReturnType<typeof vi.spyOn>
+    beforeEach(() => {
+      warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    })
+    afterEach(() => {
+      warn.mockRestore()
+      vi.unstubAllEnvs()
+    })
+
+    it('stays fail-open by default (no behaviour change) and warns once per config in development', () => {
+      const cfg = config({ permissions: { create: 'rows.create', delete: 'rows.delete' } })
+      const out = applyCrudPermissions(cfg, { standard: { delete: true } })
+      applyCrudPermissions(cfg, { standard: { delete: true } })
+
+      expect(out.dialogs?.create).toBe(dialogs.create)
+      expect(out.actionsConfig?.can).toBeUndefined()
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0]?.[0])).toMatch(/rows.*permissions\.can.*userPermissions.*failClosed/s)
+
+      // another config warns on its own
+      applyCrudPermissions(config({ permissions: { view: 'rows.view' } }), undefined)
+      expect(warn).toHaveBeenCalledTimes(2)
+    })
+
+    it('does not warn in production', () => {
+      vi.stubEnv('NODE_ENV', 'production')
+      applyCrudPermissions(config({ permissions: { create: 'rows.create' } }), undefined)
+      expect(warn).not.toHaveBeenCalled()
+    })
+
+    it('does not warn when a checker exists, nothing is declared, or failClosed was chosen', () => {
+      applyCrudPermissions(config({ permissions: { create: 'rows.create', can: () => true } }), undefined)
+      applyCrudPermissions(config({ permissions: { create: 'rows.create' } }), { userPermissions: [] })
+      applyCrudPermissions(config({ permissions: { create: 'rows.create' } }), { can: () => true })
+      applyCrudPermissions(config({ permissions: {} }), undefined)
+      applyCrudPermissions(config({ permissions: { create: 'rows.create', failClosed: true } }), undefined)
+      expect(warn).not.toHaveBeenCalled()
+    })
+
+    it('failClosed: denies every declared operation and every row/custom action permission', () => {
+      const out = applyCrudPermissions(
+        config({ permissions: { failClosed: true, create: 'rows.create', delete: 'rows.delete' } }),
+        { standard: { delete: true } }
+      )
+      expect(out.dialogs?.create).toBeUndefined()
+      // undeclared operations stay allowed
+      expect(out.dialogs?.edit).toBe(dialogs.edit)
+      expect(out.dialogs?.view).toBe(dialogs.view)
+      expect(out.actionsConfig?.standard?.delete).toEqual({ permission: 'rows.delete' })
+      // the row surfaces check `permission` through this denying checker
+      expect(out.actionsConfig?.can?.('rows.delete')).toBe(false)
+    })
+
+    it('failClosed with a checker behaves as without it', () => {
+      const out = applyCrudPermissions(
+        config({ permissions: { failClosed: true, create: 'rows.create' } }),
+        { userPermissions: ['rows.create'] }
+      )
+      expect(out.dialogs?.create).toBe(dialogs.create)
+      expect(out.actionsConfig?.can).toBeUndefined()
     })
   })
 })
