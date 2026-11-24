@@ -16,7 +16,7 @@ import type { ILogger } from '@telamonjs/logger'
  * ```ts
  * const flow = new FlowProducer({ queueManager })
  *
- * await flow.add({
+ * const node = await flow.add({
  *   name: 'import-flow',
  *   job: ValidateCSVJob,
  *   data: { fileUrl: '...' },
@@ -57,6 +57,9 @@ export class FlowProducer {
    * Add a flow (job with children dependencies)
    *
    * @param flow - Flow definition with root job and children
+   * @returns The created tree (BullMQ `JobNode`): `node.job.id` is the root
+   *   job id to pass to `getFlow(id, node.job.queueName)`; `node.children`
+   *   holds the child nodes, each with its own `job.id`
    *
    * Flow execution order (BullMQ): children run first, in parallel; a parent
    * runs only after all of its children completed, so the root runs last.
@@ -70,7 +73,7 @@ export class FlowProducer {
    *   Notify    Report
    * ```
    */
-  async add<TData = unknown>(flow: FlowDefinition<TData>): Promise<void> {
+  async add<TData = unknown>(flow: FlowDefinition<TData>): Promise<JobNode> {
     // Build BullMQ flow structure
     const bullFlow: FlowJob = {
       name: flow.name,
@@ -80,9 +83,10 @@ export class FlowProducer {
       children: this.buildChildren(flow.children),
     }
 
-    await this.producer.add(bullFlow)
+    const node = await this.producer.add(bullFlow)
 
-    this.logger.info('Flow added', { flowName: flow.name })
+    this.logger.info('Flow added', { flowName: flow.name, jobId: node.job.id })
+    return node
   }
 
   /**

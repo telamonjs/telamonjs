@@ -233,7 +233,7 @@ import { FlowProducer } from '@telamonjs/queue'
 
 const flow = new FlowProducer({ queueManager })
 
-await flow.add({
+const node = await flow.add({
   name: 'import-flow',
   job: 'generate-report', // the parent runs last; jobs by registered name
   data: { importId },
@@ -246,6 +246,12 @@ await flow.add({
 
 BullMQ runs a flow from the leaves up: the children run (in parallel) and the
 parent waits in *waiting-children* until all of them complete.
+
+`add()` returns the created tree (BullMQ `JobNode`): `node.job.id` is the root job's
+id, so `await flow.getFlow(node.job.id!, node.job.queueName)` reads the flow back
+with each job's current state. Every node gets the same options as
+`queueManager.add()` would give it: the manager's `defaultJobOptions`, then the job
+class's `options`, then the node's own `options`.
 
 
 ### QueueManager API at a glance

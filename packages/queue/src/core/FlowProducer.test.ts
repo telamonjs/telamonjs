@@ -104,13 +104,30 @@ describe.skipIf(!redisAvailable)('FlowProducer', () => {
       expect(tree.job.name).toBe('orphan-root')
     })
 
-    it('logs each added flow', async () => {
-      await flow.add({ name: 'logged-flow', job: SimpleJob, data: { message: 'x' } })
+    it('returns the created tree, so the flow can be tracked without a custom jobId', async () => {
+      const node = await flow.add({
+        name: 'tracked',
+        job: ParentJob,
+        data: { id: 'root' },
+        children: [{ job: ChildAJob, data: { id: 'a' } }],
+      })
+
+      expect(node.job.id).toEqual(expect.any(String))
+      expect(node.job.queueName).toBe('flow-parent')
+      expect(node.children).toHaveLength(1)
+      expect(node.children![0].job.id).toEqual(expect.any(String))
+
+      const tree = await flow.getFlow(node.job.id!, node.job.queueName)
+      expect(tree.children![0].job.id).toBe(node.children![0].job.id)
+    })
+
+    it('logs each added flow with its root job id', async () => {
+      const node = await flow.add({ name: 'logged-flow', job: SimpleJob, data: { message: 'x' } })
 
       expect(logger.logs).toContainEqual({
         level: 'info',
         message: 'Flow added',
-        meta: { flowName: 'logged-flow' },
+        meta: { flowName: 'logged-flow', jobId: node.job.id },
       })
     })
   })
