@@ -218,7 +218,7 @@ export const queue = {
       tipo: 'Query type',
       smsId: 'Scheduled SMS ID',
       dataHora:
-        'Specific date/time to process (ISO format). If not informed, processes the previous hour.',
+        'Specific date/time to process (ISO format). If omitted, processes the previous hour.',
     },
   },
   jobConfigDialog: {

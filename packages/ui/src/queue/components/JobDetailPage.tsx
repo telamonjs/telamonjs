@@ -245,7 +245,7 @@ function JobDetailPageUI({
       setEnabled(result.enabled)
       toast.success(result.enabled ? t('queue.jobDetailPage.activated') : t('queue.jobDetailPage.deactivated'), {
         description: t('queue.jobDetailPage.statusChangedSuccess', {
-          name: config.jobName,
+          name: title,
           status: result.enabled ? t('queue.jobDetailPage.statusActivated') : t('queue.jobDetailPage.statusDeactivated'),
         }),
       })

@@ -553,6 +553,7 @@ export default function TempoRealTab({
 }: TempoRealTabProps) {
   'use no memo' // useVirtualizer (TanStack) is incompatible with the compiler
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const maxItems = 50
   const [selectedJobId, setSelectedJobId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -583,7 +584,7 @@ export default function TempoRealTab({
       try {
         const result = await queueActionMutation.mutateAsync(action)
         if (result.success) {
-          toast.success(actionDoneMessage(t, action, result))
+          toast.success(actionDoneMessage(t, action, result, jobLabel(action.queueName)))
         } else {
           toast.error(result.message || t('queue.dashboard.actionFailed'))
         }
@@ -594,7 +595,7 @@ export default function TempoRealTab({
         })
       }
     },
-    [queueActionMutation, t]
+    [queueActionMutation, t, jobLabel]
   )
 
   const allJobs = useMemo(() => {

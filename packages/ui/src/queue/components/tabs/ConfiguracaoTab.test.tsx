@@ -43,6 +43,7 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn() },
 }))
 
+import { toast } from 'sonner'
 import { QueueApiProvider } from '../../api/provider'
 import type { QueueConfigApiAdapter } from '../../api/types'
 import type { JobConfig } from '../../types'
@@ -337,6 +338,16 @@ describe('ConfiguracaoTab labels (issue #7)', () => {
     await user.click(await screen.findByText('gateway'))
     expect(screen.getByText('Process incoming data')).toBeInTheDocument()
     expect(screen.getByText('gateway_process_data')).toBeInTheDocument()
+  })
+
+  it('the enable/disable toast names the job by its label, not the raw id', async () => {
+    const user = userEvent.setup()
+    renderWithLabels({ jobLabel: name => (name === 'gateway_process_data' ? 'Processar dados' : undefined) })
+    await user.click(await screen.findByText('gateway'))
+    await user.click(screen.getByTestId('switch'))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Job desativado', { description: 'Processar dados' })
+    )
   })
 
   it('accepts an icon component as a module icon', async () => {

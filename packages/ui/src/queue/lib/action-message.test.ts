@@ -14,9 +14,10 @@ describe('actionDoneMessage', () => {
         success: true,
         removed: 1,
         message: 'Queue sync_sync-tipos: 1 waiting jobs removed',
-      }
+      },
+      'Sync Tipos'
     )
-    expect(msg).toBe('1 job em espera removido de sync_sync-tipos')
+    expect(msg).toBe('1 job em espera removido de Sync Tipos')
   })
 
   it('drain with nothing waiting', () => {
@@ -24,7 +25,8 @@ describe('actionDoneMessage', () => {
       actionDoneMessage(
         t as unknown as T,
         { type: 'drain', queueName: 'q' },
-        { success: true, removed: 0 }
+        { success: true, removed: 0 },
+        'q'
       )
     ).toBe('Nenhum job em espera em q')
   })
@@ -34,7 +36,8 @@ describe('actionDoneMessage', () => {
       actionDoneMessage(
         t as unknown as T,
         { type: 'retry-all', queueName: 'q' },
-        { success: true }
+        { success: true },
+        'q'
       )
     ).toBe('Falhas de q reenviadas para processamento')
   })

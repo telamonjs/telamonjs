@@ -334,39 +334,63 @@ export default React.memo(function QueuesTable({
               {/* Queue Items */}
               {isExpanded && (
                 <div className="border-t bg-muted/10 overflow-x-auto">
-                  {/* Fixed layout + fixed column widths: every group's columns line up */}
-                  <table className={cn('w-full table-fixed text-sm', health ? 'min-w-[44rem]' : 'min-w-[36rem]')}>
+                  {/* Fixed layout + fixed column widths: every group's columns line up.
+                      The Queue column takes the rest of the panel (~160px in the 665px
+                      Real-time panel at 1920px); the min-width keeps 8rem for it and
+                      only scrolls in panels narrower than that. */}
+                  <table
+                    data-testid={`queue-table-${module}`}
+                    className={cn('w-full table-fixed text-sm', health ? 'min-w-[39.5rem]' : 'min-w-[30rem]')}
+                  >
                     <thead>
                       <tr className="border-b text-muted-foreground text-xs">
-                        <th className="text-left px-4 py-1.5 font-medium">
+                        <th className="text-left px-3 py-1.5 font-medium">
                           {t('queue.queuesTable.columnQueue')}
                         </th>
                         {health && (
                           <>
-                            <th className="text-left px-2 py-1.5 font-medium whitespace-nowrap w-24">
+                            <th
+                              className="text-left px-2 py-1.5 font-medium truncate w-28"
+                              title={t('queue.queuesTable.columnLastSuccess')}
+                            >
                               {t('queue.queuesTable.columnLastSuccess')}
                             </th>
-                            <th className="text-center px-2 py-1.5 font-medium w-12">
+                            <th className="text-center px-1 py-1.5 font-medium w-10">
                               {t('queue.queuesTable.columnLastHour')}
                             </th>
                           </>
                         )}
-                        <th className="text-center px-2 py-1.5 font-medium w-14">
+                        <th
+                          className="text-center px-0 py-1.5 font-medium truncate w-12"
+                          title={t('queue.queuesTable.columnWaiting')}
+                        >
                           {t('queue.queuesTable.columnWaiting')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-14">
+                        <th
+                          className="text-center px-0 py-1.5 font-medium truncate w-12"
+                          title={t('queue.queuesTable.columnActive')}
+                        >
                           {t('queue.queuesTable.columnActive')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-14">
+                        <th
+                          className="text-center px-0 py-1.5 font-medium truncate w-12"
+                          title={t('queue.queuesTable.columnCompleted')}
+                        >
                           {t('queue.queuesTable.columnCompleted')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-14">
+                        <th
+                          className="text-center px-0 py-1.5 font-medium truncate w-12"
+                          title={t('queue.queuesTable.columnFailed')}
+                        >
                           {t('queue.queuesTable.columnFailed')}
                         </th>
-                        <th className="text-center px-2 py-1.5 font-medium w-14">
+                        <th
+                          className="text-center px-0 py-1.5 font-medium truncate w-12"
+                          title={t('queue.queuesTable.columnDelayed')}
+                        >
                           {t('queue.queuesTable.columnDelayed')}
                         </th>
-                        <th className="text-right px-3 py-1.5 font-medium w-40">
+                        <th className="text-right px-2 py-1.5 font-medium w-28">
                           {t('queue.queuesTable.columnActions')}
                         </th>
                       </tr>
@@ -383,34 +407,44 @@ export default React.memo(function QueuesTable({
                             queue.paused && 'opacity-50'
                           )}
                         >
-                          <td className="px-4 py-1.5">
+                          <td className="px-3 py-1.5">
                             <button
                               onClick={() => setSelectedQueue(queue)}
                               data-testid={`queue-detail-${queue.name}`}
-                              className="text-left group max-w-full"
+                              className="block text-left group max-w-full"
                             >
-                              <div className="flex items-center gap-1.5 min-w-0">
-                                {h && (
+                              {/* Wraps: badges drop below the name instead of squeezing it to nothing */}
+                              <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 min-w-0">
+                                <span className="flex items-center gap-1.5 min-w-0 max-w-full">
+                                  {h && (
+                                    <span
+                                      data-testid={`queue-status-${queue.name}`}
+                                      className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)}
+                                    />
+                                  )}
                                   <span
-                                    data-testid={`queue-status-${queue.name}`}
-                                    className={cn('h-1.5 w-1.5 rounded-full shrink-0', meta.dot)}
-                                  />
-                                )}
-                                <span className="font-medium text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors">
-                                  {jobLabel(queue.name, queue.displayName)}
+                                    data-testid={`queue-name-${queue.name}`}
+                                    title={jobLabel(queue.name, queue.displayName)}
+                                    className="font-medium text-xs truncate group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors"
+                                  >
+                                    {jobLabel(queue.name, queue.displayName)}
+                                  </span>
                                 </span>
                                 {queue.dispatchable && (
-                                  <span title={t('queue.queuesTable.executableManually')}>
+                                  <span className="shrink-0" title={t('queue.queuesTable.executableManually')}>
                                     <Zap className="h-3 w-3 text-blue-500" />
                                   </span>
                                 )}
                                 {queue.paused && (
-                                  <span className="px-1 py-0.5 rounded text-[10px] bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
+                                  <span className="shrink-0 whitespace-nowrap px-1 py-0.5 rounded text-[10px] bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300">
                                     {t('queue.queuesTable.paused')}
                                   </span>
                                 )}
                                 {(h?.status === 'late' || h?.status === 'failing') && (
-                                  <span className={cn('px-1 py-0.5 rounded text-[10px]', meta.badge)}>
+                                  <span
+                                    data-testid={`queue-health-badge-${queue.name}`}
+                                    className={cn('shrink-0 whitespace-nowrap px-1 py-0.5 rounded text-[10px]', meta.badge)}
+                                  >
                                     {t(`queue.queuesTable.${meta.labelKey}`)}
                                   </span>
                                 )}
@@ -421,7 +455,7 @@ export default React.memo(function QueuesTable({
                             <>
                               <td
                                 className={cn(
-                                  'px-2 py-1.5 text-xs whitespace-nowrap',
+                                  'px-2 py-1.5 text-xs truncate',
                                   h?.status === 'late'
                                     ? 'text-red-600 dark:text-red-400 font-medium'
                                     : 'text-muted-foreground'
@@ -440,14 +474,14 @@ export default React.memo(function QueuesTable({
                                 {relative(t, h?.lastCompletedAt, now)}
                               </td>
                               <td
-                                className="text-center px-2 py-1.5 text-xs text-green-700 dark:text-green-400"
+                                className="text-center px-1 py-1.5 text-xs text-green-700 dark:text-green-400"
                                 title={t('queue.queuesTable.completedLastHour')}
                               >
                                 {h ? format.number(h.completedLastHour) : '—'}
                               </td>
                             </>
                           )}
-                          <td className="text-center px-2 py-1.5">
+                          <td className="text-center px-0.5 py-1.5">
                             <button
                               onClick={() =>
                                 queue.waiting > 0 &&
@@ -469,7 +503,7 @@ export default React.memo(function QueuesTable({
                               {format.number(queue.waiting)}
                             </button>
                           </td>
-                          <td className="text-center px-2 py-1.5">
+                          <td className="text-center px-0.5 py-1.5">
                             <button
                               onClick={() =>
                                 queue.active > 0 &&
@@ -491,7 +525,7 @@ export default React.memo(function QueuesTable({
                               {format.number(queue.active)}
                             </button>
                           </td>
-                          <td className="text-center px-2 py-1.5">
+                          <td className="text-center px-0.5 py-1.5">
                             <button
                               onClick={() =>
                                 queue.completed > 0 &&
@@ -513,7 +547,7 @@ export default React.memo(function QueuesTable({
                               {format.number(queue.completed)}
                             </button>
                           </td>
-                          <td className="text-center px-2 py-1.5">
+                          <td className="text-center px-0.5 py-1.5">
                             <button
                               onClick={() => {
                                 if (queue.failed === 0) return
@@ -553,7 +587,7 @@ export default React.memo(function QueuesTable({
                               )}
                             </button>
                           </td>
-                          <td className="text-center px-2 py-1.5">
+                          <td className="text-center px-0.5 py-1.5">
                             <button
                               onClick={() =>
                                 queue.delayed > 0 &&
@@ -576,9 +610,10 @@ export default React.memo(function QueuesTable({
                               {format.number(queue.delayed)}
                             </button>
                           </td>
-                          <td className="text-right px-3 py-1.5">
+                          <td className="text-right px-2 py-1.5">
                             {!readOnly && (
-                            <div className="flex items-center justify-end gap-0.5">
+                            // Up to 6 buttons: wrap to a second line rather than overflow the column
+                            <div data-testid={`queue-actions-${queue.name}`} className="flex flex-wrap items-center justify-end gap-0.5">
                               {queue.dispatchable && (
                                 <button
                                   onClick={() => setSelectedQueue(queue)}

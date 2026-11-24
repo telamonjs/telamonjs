@@ -14,6 +14,8 @@ vi.unmock('@radix-ui/react-label')
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
 import { render, screen, waitFor } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
+import { toast } from 'sonner'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { axe } from 'vitest-axe'
 import * as axeMatchers from 'vitest-axe/matchers'
@@ -70,9 +72,13 @@ function stats(queues: Array<Partial<QueueStats>>): DashboardStats {
   }
 }
 
-function page(props: Partial<ComponentProps<typeof JobDetailPage>>, queues: Array<Partial<QueueStats>>) {
-  // ponytail: the labels provider only reads getStats; nothing else is called here
-  const adapter = { getStats: vi.fn().mockResolvedValue(stats(queues)) } as unknown as QueueApiAdapter
+function page(
+  props: Partial<ComponentProps<typeof JobDetailPage>>,
+  queues: Array<Partial<QueueStats>>,
+  adapterExtra: Record<string, unknown> = {}
+) {
+  // ponytail: the labels provider only reads getStats; tests add what else they call
+  const adapter = { getStats: vi.fn().mockResolvedValue(stats(queues)), ...adapterExtra } as unknown as QueueApiAdapter
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return (
     <QueryClientProvider client={queryClient}>
@@ -121,6 +127,20 @@ describe('JobDetailPage', () => {
 
       renderPage({ jobLabel: () => undefined })
       await waitFor(() => expect(title()).toHaveTextContent('Ingest'))
+    })
+
+    it('the enable/disable toast names the job by its label, not the raw id', async () => {
+      const user = userEvent.setup()
+      const toggleJobConfig = vi.fn().mockResolvedValue({ ...config, enabled: false })
+      // The config API is detected by its four methods
+      const configApi = { getJobConfigs: vi.fn(), getJobConfig: vi.fn(), updateJobConfig: vi.fn(), toggleJobConfig }
+      render(page({ jobLabel: () => 'Gateway ingest' }, [{}], configApi))
+      await user.click(screen.getByRole('switch'))
+      await waitFor(() =>
+        expect(toast.success).toHaveBeenCalledWith('Job desativado', {
+          description: 'Gateway ingest foi desativado com sucesso.',
+        })
+      )
     })
 
     it('moduleLabels titles the module badge, msg() included', () => {

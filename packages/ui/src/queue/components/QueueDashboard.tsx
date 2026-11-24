@@ -19,6 +19,7 @@ import DashboardHeader from './DashboardHeader'
 import RedisMetrics from './RedisMetrics'
 import { useTelamonjsT } from '../../i18n/use-t'
 import { actionDoneMessage } from '../lib/action-message'
+import { useQueueLabels } from './labels-context'
 
 interface QueueDashboardProps {
   /** Polling interval in milliseconds (default: 10000) */
@@ -35,6 +36,7 @@ export default function QueueDashboard({
   settingsHref,
 }: QueueDashboardProps) {
   const t = useTelamonjsT()
+  const { jobLabel } = useQueueLabels()
   const [historyModalOpen, setHistoryModalOpen] = useState(false)
 
   // React Query hooks - substitui manual polling
@@ -46,7 +48,7 @@ export default function QueueDashboard({
       const result = await queueActionMutation.mutateAsync(action)
 
       if (result.success) {
-        toast.success(actionDoneMessage(t, action, result))
+        toast.success(actionDoneMessage(t, action, result, jobLabel(action.queueName)))
       } else {
         toast.error(result.message || t('queue.dashboard.actionFailed'))
       }

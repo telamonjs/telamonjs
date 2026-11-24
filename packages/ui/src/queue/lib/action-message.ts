@@ -12,15 +12,17 @@ const DONE_KEY = {
 /**
  * Success toast for a queue action, in the active locale. The backend's
  * `message` is plain English (`"Queue x: 1 waiting jobs removed"`), so it is
- * not shown; `removed` (drain/clean) feeds the plural.
+ * not shown; `removed` (drain/clean) feeds the plural. `queueLabel` is the
+ * name already resolved by `useQueueLabels().jobLabel` — never the raw key.
  */
 export function actionDoneMessage(
   t: ReturnType<typeof useTelamonjsT>,
   action: QueueActionParams,
-  result: ActionResponse
+  result: ActionResponse,
+  queueLabel: string
 ): string {
   return t(`queue.dashboard.actionDone.${DONE_KEY[action.type]}`, {
-    queue: action.queueName,
+    queue: queueLabel,
     count: result.removed ?? 0,
   })
 }

@@ -39,6 +39,8 @@ vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn(), info: vi.fn() },
 }))
 
+import { toast } from 'sonner'
+
 // DispatchJobModal and JobsListModal both use QueueApiProvider, so wrap in it.
 // They also use hooks that call the adapter, so provide a mock adapter.
 import { QueueApiProvider } from '../api/provider'
@@ -572,6 +574,66 @@ describe('QueuesTable', () => {
       expect(screen.getByTitle('Limpar jobs com falha')).toBeInTheDocument()
     })
 
+    // Consumer report: 704px tables (min-w-[44rem]) in the 665px Real-time panel at a
+    // 1920px viewport scrolled sideways, cut "Ações" and hid the name next to "Atrasado".
+    // jsdom has no layout, so these pin the structural classes that make it fit.
+    describe('Layout (fits the Real-time panel)', () => {
+      it('the table fills its panel and only needs 39.5rem, with fixed narrow columns', async () => {
+        const user = userEvent.setup()
+        renderQueuesTable([gatewayQueue1], undefined, undefined, { health })
+        await user.click(screen.getByText('gateway'))
+        const table = screen.getByTestId('queue-table-gateway')
+        expect(table).toHaveClass('w-full', 'table-fixed', 'min-w-[39.5rem]')
+        expect(table).not.toHaveClass('min-w-[44rem]')
+        const widths = Array.from(table.querySelectorAll('th')).map(th =>
+          th.className.split(' ').find(c => /^w-\d+$/.test(c))
+        )
+        // Queue column has no width: it takes what is left (28+10+5×12+28 = 504px fixed)
+        expect(widths).toEqual([undefined, 'w-28', 'w-10', 'w-12', 'w-12', 'w-12', 'w-12', 'w-12', 'w-28'])
+        expect(screen.getByText('Ações')).toBeInTheDocument()
+      })
+
+      it('the plain table (no health) needs only 30rem', async () => {
+        const user = userEvent.setup()
+        renderQueuesTable([gatewayQueue1])
+        await user.click(screen.getByText('gateway'))
+        expect(screen.getByTestId('queue-table-gateway')).toHaveClass('min-w-[30rem]')
+      })
+
+      it('the name truncates with a tooltip and the status badge wraps instead of hiding it', async () => {
+        const user = userEvent.setup()
+        renderQueuesTable([gatewayQueue1], undefined, undefined, { health })
+        await user.click(screen.getByText('gateway'))
+        const name = screen.getByTestId('queue-name-gateway_process-data')
+        expect(name).toHaveClass('truncate')
+        expect(name).toHaveAttribute('title', 'Process Data')
+        // dot + name shrink together; the row wraps so the badge drops below
+        expect(name.parentElement).toHaveClass('min-w-0', 'max-w-full')
+        expect(name.parentElement?.parentElement).toHaveClass('flex-wrap')
+        const badge = screen.getByTestId('queue-health-badge-gateway_process-data')
+        expect(badge).toHaveTextContent('Atrasado')
+        expect(badge).toHaveClass('shrink-0', 'whitespace-nowrap')
+      })
+
+      it('headers of the narrow columns truncate with the full label as tooltip', async () => {
+        const user = userEvent.setup()
+        renderQueuesTable([gatewayQueue1], undefined, undefined, { health })
+        await user.click(screen.getByText('gateway'))
+        for (const label of ['Último sucesso', 'Aguard.', 'Concl.']) {
+          const th = screen.getByText(label)
+          expect(th).toHaveClass('truncate')
+          expect(th).toHaveAttribute('title', label)
+        }
+      })
+
+      it('action buttons wrap inside their column instead of overflowing it', async () => {
+        const user = userEvent.setup()
+        renderQueuesTable([gatewayQueue1], undefined, undefined, { health })
+        await user.click(screen.getByText('gateway'))
+        expect(screen.getByTestId('queue-actions-gateway_process-data')).toHaveClass('flex-wrap', 'justify-end')
+      })
+    })
+
     it('clicking the failed count opens the failure groups when the adapter supports them', async () => {
       const user = userEvent.setup()
       const getFailureGroups = vi.fn().mockResolvedValue({
@@ -682,6 +744,18 @@ describe('QueuesTable labels (issue #7)', () => {
     await user.click(screen.getByText('gateway'))
     expect(screen.getByText('Processar dados')).toBeInTheDocument()
     expect(screen.queryByText('Process Data')).not.toBeInTheDocument()
+  })
+
+  it('the Run Job dialog and its success toast use the jobLabel, not the raw id', async () => {
+    const user = userEvent.setup()
+    renderWithLabels({ jobLabel: () => 'Enviar e-mails' }, undefined, [gatewayQueue2])
+    await user.click(screen.getByText('gateway'))
+    await user.click(screen.getByTestId('queue-detail-gateway_send-emails'))
+    expect(screen.getAllByText('Enviar e-mails')).toHaveLength(2) // row + dialog header
+    await user.click(screen.getByRole('button', { name: 'Executar Agora' }))
+    await waitFor(() =>
+      expect(toast.success).toHaveBeenCalledWith('Job Enviar e-mails adicionado à fila', { description: 'ID: x' })
+    )
   })
 
   it('accepts an icon component and a node as module icons', () => {

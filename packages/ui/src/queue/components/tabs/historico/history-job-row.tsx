@@ -58,7 +58,7 @@ export const HistoryJobRow = React.memo(function HistoryJobRow({
       )}
     >
       <span className={cn('shrink-0', config?.color)}>{config?.icon}</span>
-      <span className='min-w-0 flex-1 truncate text-sm font-medium'>
+      <span className='min-w-0 flex-1 truncate text-sm font-medium' title={formatQueueName(job.queueName)}>
         {formatQueueName(job.queueName)}
       </span>
       <span className='text-muted-foreground shrink-0 font-mono text-[11px]'>

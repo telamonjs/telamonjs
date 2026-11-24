@@ -144,7 +144,7 @@ export default function ConfiguracaoTab({
         enabled: !currentJob.enabled,
       })
       toast.success(currentJob.enabled ? t('queue.config.jobDeactivated') : t('queue.config.jobActivated'), {
-        description: jobName,
+        description: jobLabel(jobName),
       })
     } catch (error: unknown) {
       toast.error(t('queue.config.statusChangeError'), {
@@ -191,7 +191,7 @@ export default function ConfiguracaoTab({
   ): Promise<boolean> => {
     try {
       await updateJobMutation.mutateAsync({ jobName, updates })
-      toast.success(t('queue.config.settingsUpdated'), { description: jobName })
+      toast.success(t('queue.config.settingsUpdated'), { description: jobLabel(jobName) })
       return true
     } catch (error: unknown) {
       toast.error(t('queue.config.updateError'), {
@@ -360,13 +360,13 @@ export default function ConfiguracaoTab({
                             />
                             <div className='min-w-0 flex-1'>
                               <div className='flex items-center gap-2'>
-                                <span className='truncate text-sm font-medium'>
+                                <span className='truncate text-sm font-medium' title={title}>
                                   {title}
                                 </span>
                                 {job.orphan && (
                                   <Badge
                                     variant='outline'
-                                    className='border-yellow-300 px-1 py-0 text-[10px] text-yellow-600'
+                                    className='shrink-0 border-yellow-300 px-1 py-0 text-[10px] text-yellow-600'
                                     title={t('queue.config.orphanHint')}
                                   >
                                     {t('queue.config.orphan')}

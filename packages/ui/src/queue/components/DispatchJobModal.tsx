@@ -11,6 +11,7 @@ import { logger } from '../../utils/logger'
 import { toast } from 'sonner'
 import { useQueueApi } from '../api/provider'
 import { useTelamonjsT } from '../../i18n/use-t'
+import { useQueueLabels } from './labels-context'
 
 interface JobContractInfo {
   name: string
@@ -105,6 +106,7 @@ export default function DispatchJobModal({
   const defaultKnownSchemaFields = getDefaultKnownSchemaFields(t)
   const resolvedSchemaFields = knownSchemaFields ?? defaultKnownSchemaFields
   const api = useQueueApi()
+  const { jobLabel } = useQueueLabels()
   const [dispatching, setDispatching] = useState(false)
   const [formData, setFormData] = useState<Record<string, string>>({})
   const [jsonMode, setJsonMode] = useState(false)
@@ -126,6 +128,7 @@ export default function DispatchJobModal({
   }
 
   if (!job) return null
+  const title = jobLabel(job.name, job.displayName)
 
   const validateJson = (text: string): boolean => {
     try {
@@ -171,7 +174,7 @@ export default function DispatchJobModal({
         data
       })
 
-      toast.success(t('queue.dispatch.dispatched', { name: job.displayName }), {
+      toast.success(t('queue.dispatch.dispatched', { name: title }), {
         description: t('queue.dispatch.dispatchedId', { id: result.jobId })
       })
 
@@ -250,7 +253,7 @@ export default function DispatchJobModal({
               >
                 {job.module.toUpperCase()}
               </span>
-              <span className="font-medium">{job.displayName}</span>
+              <span className="font-medium">{title}</span>
             </div>
 
             <div className="bg-muted/50 rounded-lg p-4 space-y-2">
