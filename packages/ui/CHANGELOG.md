@@ -1,5 +1,99 @@
 # Changelog
 
+## 1.4.0
+
+### Minor Changes
+
+- f87e9ae: Sort by data paths: opt-in `list.sortParam` and server helpers that read both wire forms.
+
+  **Client.** `list.sortParam: 'path'` makes `ListPage` send a column's `accessorKey` with its dots
+  (`customer.name`, `_count.items`) as `sortBy`, instead of TanStack's column id (`customer_name`,
+  `_count_items`). Columns without an `accessorKey` keep sending their `id`. It applies to `queryFn`,
+  `exportAll`, `list.onExport`, `toolbarContent` and the `urlSync` URL. The default stays `'id'`, so
+  nothing changes on the wire until a list opts in; `'path'` becomes the default in the next major.
+  Stored sorts accept both forms in both modes: `defaultSortBy: 'customer.name'` and saved views now
+  highlight the right header (before, a dotted stored field showed no arrow and a header click added
+  a second sort entry).
+
+  **Backend contract.** `'id'`: `sortBy` is the column id, a dotted `accessorKey` with `.` → `_`.
+  `'path'`: `sortBy` is the data path; order `_count.<relation>` with `{ <relation>: { _count: dir } }`.
+  Before opting in, make sure the endpoint accepts the dotted form: a whitelist keyed by
+  `customer_name` falls back to its default order for `customer.name` — add the dotted key alongside.
+
+  **Server helpers.** `buildPrismaOrderBy` / `buildPrismaOrderByMulti` take an optional
+  `sortableFields` and read both forms: a value with a dot is used as-is (underscores kept, e.g.
+  `order_item.created_at`); `_count.x` / `_count_x` produce Prisma's relation-count order; a listed
+  value is used as-is (`created_at` stays a column); other underscored values are decoded as legacy
+  ids (`customer_name` → `customer.name`) — with `sortableFields`, only when the decoded path is listed.
+  `createPaginatedService` passes its `sortableFields` through, and `sortableFields` now accepts a
+  legacy id whose dotted form is listed (a dotted entry was rejected before, contrary to its docs).
+
+  Behaviour changes for helper callers: `_count`/leading-underscore fields now build valid Prisma
+  (they produced an empty key before); a value mixing dots and underscores is no longer re-split on
+  its underscores; a `sortableFields` entry in `_` form (`customer_name`) is now taken as a scalar —
+  list the dotted path (`customer.name`) instead.
+
+- f32a4c4: Row actions `display.mode: 'auto'` now does what it promised: every action goes into the "⋯" menu on mobile (below 768px, the `useIsMobile` breakpoint) and stays inline (with `maxInline`) elsewhere. It used to behave exactly like `'inline'`.
+- 4ea79f7: Export peers are lazy and optional.
+
+  - `papaparse` is no longer a peer: `exportToCSV` writes RFC 4180 CSV itself (UTF-8 BOM, CRLF, same quoting). Columns that share a header no longer collapse into one.
+  - `jspdf` and `jspdf-autotable` are now **optional** peers (`peerDependenciesMeta`), loaded with `import()` only when a PDF is exported. Without them the app still builds, and the PDF export fails with a localized toast naming the packages to install (new message `data.exportMissingPeer`) instead of a module-not-found error. `exportToPDF` returns a `Promise<void>` (it returned `void`) and rejects with an error naming both packages.
+  - `scripts/check-lazy-deps.mjs` now fails the build if any file in `dist/` statically imports an optional peer.
+
+  **Apps:** nothing to change; PDF export keeps working where `jspdf` + `jspdf-autotable` are installed. Apps that never export PDF can drop them, and every app can drop `papaparse` and `@types/papaparse` unless it uses them directly. New apps from `create-telamonjs-app` keep the `jspdf` pair and no longer list `papaparse`.
+
+- 21eef48: Excel export no longer depends on SheetJS: the `xlsx` peer is gone. npm only carries `xlsx` 0.18.5, flagged by CVE-2023-30533 (prototype pollution) and CVE-2024-22363 (ReDoS), and the fixed builds are published outside the registry. `exportToExcel` now writes the workbook itself (OOXML parts, zipped with the platform `CompressionStream`), with no dependency at all.
+
+  - Same output: columns, headers, cell values, filename, sheet name and 10–50 character column widths. The header row is now really bold on a light gray fill (SheetJS community silently ignored that styling).
+  - Sheet names follow Excel's rules instead of throwing: at most 31 characters, `\ / ? * [ ] :` become spaces.
+  - `exportToExcel` and `exportTableData` return a `Promise<void>` that resolves once the download starts (they returned `void`); await it to catch failures.
+
+  **Apps:** nothing to change. `xlsx` can be removed from the app's dependencies (`pnpm remove xlsx`) unless the app uses it directly. New apps from `create-telamonjs-app` no longer list it.
+
+### Patch Changes
+
+- b6dcc0b: `ChartTooltipContent` and `ChartLegendContent` type their `payload` (and the tooltip's `active`
+  and `label`) with recharts' own `TooltipContentProps` and `LegendPayload` instead of a hand-written
+  copy, so the payload recharts hands to `content` type-checks as-is and future recharts minors no
+  longer break the build. `formatter` now receives recharts' documented fifth argument, the whole
+  tooltip payload, instead of the hovered data row (still available as `item.payload`).
+- 5abed37: Raise the minimum versions of runtime dependencies to the current minors (no peer range changes).
+
+  - `@telamonjs/ui`: `recharts` `~3.3.0` → `~3.11.0`; the `@radix-ui/react-*` primitives,
+    `@tiptap/*` `^3.35.0`, `react-aria` `^3.53.1`, `react-stately` `^3.51.0`, `zustand` `^5.1.0`,
+    `date-fns` `^4.4.0`, `dompurify` `^3.4.18`, `react-grid-layout` `^2.3.0`, `react-is` `^19.3.1`,
+    `@tanstack/react-virtual` `^3.14.26`, `@uiw/react-textarea-code-editor` `^3.1.3` and
+    `@vis.gl/react-google-maps` `^1.10.2`.
+  - `@telamonjs/cli`: `fs-extra` `^11.4.1`. Apps created by `create-telamonjs-app` pin the same
+    updated versions (`@radix-ui/*`, `@auth/prisma-adapter`, `date-fns`, `zustand`, `postcss`,
+    `autoprefixer`, `prettier`, `prettier-plugin-tailwindcss`, `tsx` and friends).
+
+- 9600019: `DispatchJobModal` sends an `array` schema field as an array: the input (whose placeholder asks
+  for `["id1", "id2"]`) is parsed as JSON instead of being dispatched as the raw string, and a value
+  that is not a JSON array is refused with the "invalid JSON" toast. Each field label is now
+  associated with its input.
+- 913a234: `useFormStore().setFormData()` (which `useForm(formId, initialData)` and `ZustandForm` call to load
+  the record) no longer marks the form dirty. Loading data is the baseline, like react-hook-form's
+  `reset()`: `isDirty` / `useForms().anyDirty` now turn `true` only after a field is edited
+  (`updateField`), so they can drive an unsaved-changes guard. Before, every form was dirty as soon as
+  it opened.
+- 7a768f5: `ZustandForm` / `useForm().validate()` accept `0` in a required field (it was reported as
+  missing) and reject an empty array (an empty required multiselect passed). `useForms().validateAll()`
+  now validates every form instead of stopping at the first invalid one, so later wizard steps get
+  their errors too.
+- 4cbf64c: Queue dashboard real-time timeline (`QueueDashboard`): job rows are now buttons (Tab, Enter/Space
+  open the details, visible focus ring) inside a list, and the row actions work: retry calls the
+  adapter's `retryJob` (failed jobs only; hidden for `manualRetry: false` queues), remove calls
+  `removeJob` after an inline confirmation (not offered for active jobs), both with the same toasts
+  as the jobs list, and both hidden under `readOnly`. The actions also appear on keyboard focus, not
+  only on hover. The hardcoded `#REPEAT` tag is gone; a "Recurring" badge marks only job scheduler /
+  repeatable iterations. The timeline details (and its expanded view) and `DispatchJobModal` close
+  on Escape and are announced as modal dialogs.
+- Updated dependencies [2d019f6]
+- Updated dependencies [ac040f3]
+- Updated dependencies [06e660f]
+  - @telamonjs/logger@1.1.0
+
 ## 1.3.1
 
 ### Patch Changes

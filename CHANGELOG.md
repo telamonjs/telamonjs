@@ -1,5 +1,46 @@
 # Changelog
 
+## ui 1.4.0 (2026-11-24)
+
+Dependency refresh, lighter export peers, an opt-in sort wire format and the fixes the new tests
+found; each package's `CHANGELOG.md` has the details.
+
+- `@telamonjs/ui` 1.4.0:
+  - **Exports:**
+    - Excel is written in-house: the `xlsx` peer and its CVEs are gone, and the header row is
+      really bold.
+    - CSV no longer needs `papaparse`.
+    - `jspdf`/`jspdf-autotable` are optional peers loaded only for PDF; a missing peer shows a
+      localized message instead of breaking the build (webpack and Turbopack).
+    - `exportToExcel`/`exportToPDF`/`exportTableData` now return a promise.
+  - **Sorting:**
+    - `list.sortParam: 'path'` (opt-in) sends the column's data path (`customer.name`) instead of
+      the TanStack id (`customer_name`); it becomes the default in the next major.
+    - The server helpers read both forms, sort by relation counts (`_count.x`), and take
+      snake_case fields listed in `sortableFields`.
+  - **Row actions:** `display.mode: 'auto'` moves every action into the menu on small screens.
+  - **Fixes:**
+    - a required `0` blocked form submits;
+    - `validateAll` stopped at the first form;
+    - a freshly loaded form counted as dirty;
+    - dispatch-job array fields were sent as strings.
+  - **Queue dashboard:**
+    - keyboard-accessible event timeline with working retry/remove;
+    - a "Recurring" badge only on scheduler iterations;
+    - Escape closes the queue modals.
+  - **Charts:** the tooltip and legend use recharts' own types; `formatter`'s fifth argument is the
+    tooltip payload, as recharts documents.
+  - **Dependencies:** runtime dependency ranges refreshed, recharts 3.11 among them.
+- `@telamonjs/queue` 1.3.0: `FlowProducer.add()` returns the created flow, and flows apply the job
+  class and manager default options.
+- `@telamonjs/logger` 1.1.0:
+  - opt-in browser transport (batched, `sendBeacon` on hide, no PII by default);
+  - `audit()` entries are no longer dropped by the level filter;
+  - BigInt and circular context values no longer throw.
+- `@telamonjs/cli` 1.1.3:
+  - templates drop `xlsx`/`papaparse` and start on ui ^1.4.0;
+  - `db dump`/`db restore` report pg failures instead of hiding them.
+
 ## ui 1.3.1 (2026-11-24)
 
 `@telamonjs/ui`: `ConfirmActionDialog` (and `confirmDialog.inputs`) focuses the first input on

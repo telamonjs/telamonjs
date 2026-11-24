@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.3.0
+
+### Minor Changes
+
+- d2a390a: `FlowProducer.add()` returns the created flow (BullMQ `JobNode`) instead of `void`: `node.job.id` is
+  the root job id to pass to `getFlow(id, node.job.queueName)`, and `node.children` holds the child
+  nodes with their ids, so a flow can be tracked without setting `options.jobId` yourself. Existing
+  callers that ignore the result are unaffected.
+
+### Patch Changes
+
+- 7d538d0: `FlowProducer` applies the same job-option precedence as `QueueManager.add()`: manager
+  `defaultJobOptions` < the job class's own `options` < the flow node's `options`. Flow jobs used to
+  get only the node's `options`, so a job class with `attempts: 5` (or the `Job` default of 3 with
+  exponential backoff) ran once, without retries, when it was part of a flow. A job given by name
+  uses the registered class's options.
+- Updated dependencies [2d019f6]
+- Updated dependencies [ac040f3]
+- Updated dependencies [06e660f]
+  - @telamonjs/logger@1.1.0
+
 ## 1.2.0
 
 ### Minor Changes
