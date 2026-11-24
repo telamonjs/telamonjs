@@ -1,5 +1,11 @@
 # Changelog
 
+## ui 1.4.1 (2026-11-24)
+
+`@telamonjs/ui`: a `ListPage` with `urlSync` no longer calls `router.replace` in a loop when
+`urlFilters` is passed inline or omitted. `useUrlSync` also skips any navigation that would not
+change the query.
+
 ## queue 1.3.1 (2026-11-24)
 
 `@telamonjs/queue`: `GetActorFn` accepts a callback typed with the app's own Express 4 or 5

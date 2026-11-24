@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.4.1
+
+### Patch Changes
+
+- `ListPage` with `urlSync` no longer loops on `router.replace` when `urlFilters` is passed inline
+  (or omitted): the URL sync effect keys the toolbar filters by content, and `useUrlSync` skips a
+  navigation that would not change the query.
+
 ## 1.4.0
 
 ### Minor Changes
