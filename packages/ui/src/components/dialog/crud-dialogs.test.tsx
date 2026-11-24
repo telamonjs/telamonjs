@@ -347,6 +347,16 @@ describe('EditDialog (characterization)', () => {
     )
   })
 
+  it('error state offers "Try again", which refetches the record', async () => {
+    const user = userEvent.setup()
+    fetchAction.mockRejectedValueOnce(new Error('Falha ao buscar'))
+    render(<EditDialog<Entity> {...baseProps} />)
+
+    await user.click(await screen.findByTestId('query-error-retry'))
+    expect(await screen.findByTestId('field-name')).toBeInTheDocument()
+    expect(fetchAction).toHaveBeenCalledTimes(2)
+  })
+
   it('short multi-section edit is one page by default; useTabs forces tabs', async () => {
     const { unmount } = render(<EditDialog<Entity> {...baseProps} />)
     expect(await screen.findByTestId('field-name')).toBeInTheDocument()
@@ -761,6 +771,17 @@ describe('ViewDialog (characterization)', () => {
     render(<ViewDialog<Entity> {...baseProps} />)
 
     expect(await screen.findByText('Não encontrado')).toBeInTheDocument()
+  })
+
+  it('error state offers "Try again" on mobile too, which refetches the record', async () => {
+    mockIsMobile = true
+    const user = userEvent.setup()
+    fetchAction.mockRejectedValueOnce(new Error('Não encontrado'))
+    render(<ViewDialog<Entity> {...baseProps} />)
+
+    await user.click(await screen.findByTestId('query-error-retry'))
+    expect(await screen.findByTestId('view-content')).toHaveTextContent('Alice')
+    expect(fetchAction).toHaveBeenCalledTimes(2)
   })
 
   it('renderHeader takes precedence over headerConfig and receives data', async () => {

@@ -8,4 +8,4 @@ export { DialogHeaderContent, createHeaderRenderer, createCreateHeaderRenderer }
 export { StatsGrid } from './StatsGrid'
 export { DialogFrame } from './DialogFrame'
 export { SplitDialogFrame } from './SplitDialogFrame'
-export { DialogErrorState, DialogLoadingState } from './DialogErrorState'
+export { DialogLoadingState } from './DialogLoadingState'

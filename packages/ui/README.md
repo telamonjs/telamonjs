@@ -89,7 +89,7 @@ async `loadField`), `'multiselect'`, `'richtext'` and 31 more; there is no
 | Forms | `AdminForm`, `CreateForm`, `EditForm`, `Stepper`, `FileUpload`, `useUnsavedChangesGuard` |
 | Field system | 36 field types; `registerFieldRenderer` adds your own |
 | Shell | `AdminShell` (sidebar, breadcrumb, header, Cmd+K palette fed from your menu), `ShellPage`, `AdminTabs`, `ImpersonationBanner` |
-| Data | `DataTable`, `VirtualDataTable`, `InfiniteList`, bulk actions, Excel/CSV/PDF export |
+| Data | `DataTable`, `VirtualDataTable`, `InfiniteList`, bulk actions, Excel/CSV/PDF export, `QueryErrorState` (error + pending "Try again" for your own `useQuery`) |
 | Dashboards and charts | `DashboardGrid`, `DashboardShell`, `StatCard`, `ChartWidget`, `LineChart`, `BarChart`, `PieChart`, `AreaChart`, `KPICard` |
 | Queue UI | `@telamonjs/ui/queue`: `QueueTabbedDashboard`, `QueueApiProvider`, `createNestJSAdapter`, a frontend for `@telamonjs/queue` |
 | Server | `@telamonjs/ui/server`: `createPaginationContext`, `buildPrismaOrderBy`, `createPaginatedResponse`, `revalidatePathAction` |

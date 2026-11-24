@@ -19,6 +19,7 @@
     "report-table",
     "mobile-card",
     "confirm-action-dialog",
+    "query-error-state",
     "---Standalone Pages---",
     "create-page",
     "edit-page",

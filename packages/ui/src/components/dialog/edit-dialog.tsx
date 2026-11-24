@@ -21,7 +21,8 @@ import {
   resolveDialogSize,
   withWideFormGrid,
 } from '../../utils/spacing'
-import { DialogErrorState, DialogLoadingState } from './DialogErrorState'
+import { DialogLoadingState } from './DialogLoadingState'
+import { QueryErrorState } from '../utilities/QueryErrorState'
 import type { DialogHeaderConfig } from '../../types/dialog-header'
 import { createHeaderRenderer } from './DialogHeaderContent'
 import { formHeaderConfig } from './form-header-config'
@@ -248,7 +249,7 @@ export function EditDialog<T extends Record<string, unknown>>({
   // refetchSilent: a nested CrudField calls this after creating/editing/deleting
   // a row — without reloading the record, the header counters go stale.
   // Silent because the form cannot be unmounted mid-edit.
-  const { data, isLoading, error, refetchSilent } = useDialogData(
+  const { data, isLoading, error, refetch, refetchSilent } = useDialogData(
     id,
     fetchAction,
     open
@@ -340,7 +341,7 @@ export function EditDialog<T extends Record<string, unknown>>({
     }
 
     if (error) {
-      return <DialogErrorState error={error} />
+      return <QueryErrorState error={error} onRetry={refetch} className='my-8' />
     }
 
     if (!data || !id) {
@@ -380,7 +381,9 @@ export function EditDialog<T extends Record<string, unknown>>({
 
   // Desktop shows a clean centered status card while loading / on error
   const desktopStatus =
-    isLoading || error || !data ? { sizeClass, isLoading, error } : undefined
+    isLoading || error || !data
+      ? { sizeClass, isLoading, error, onRetry: refetch }
+      : undefined
 
   return (
     <>

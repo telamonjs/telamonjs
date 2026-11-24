@@ -58,6 +58,8 @@ export { SubList } from '../components/crud/sub-list'
 export type { SubListField, SubListProps } from '../components/crud/sub-list'
 export { EmptyState } from '../components/crud/empty-state'
 export type { EmptyStateProps } from '../components/crud/empty-state'
+export { QueryErrorState } from '../components/utilities/QueryErrorState'
+export type { QueryErrorStateProps } from '../components/utilities/QueryErrorState'
 
 // DataBoundary (ErrorBoundary + Suspense + Empty State)
 export { DataBoundary } from '../components/data/DataBoundary'

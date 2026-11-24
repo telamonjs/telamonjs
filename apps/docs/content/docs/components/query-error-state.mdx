@@ -1,0 +1,84 @@
+---
+title: QueryErrorState
+description: Error state of a query with a localized title, the error's message and a "Try again" button that stays pending while it retries
+---
+
+The error UI for screens that run their own `useQuery`. Without it, a failed request leaves the
+screen blank or loading forever. The CRUD view and edit dialogs use the same component when their
+record fails to load.
+
+```tsx
+'use client'
+import { useQuery } from '@tanstack/react-query'
+import { QueryErrorState } from '@telamonjs/ui'
+
+export function GradingSheet({ id }: { id: string }) {
+  const { data, error, isError, refetch } = useQuery({
+    queryKey: ['grading-sheet', id],
+    queryFn: () => sheetsApi.get(id),
+  })
+
+  if (isError) return <QueryErrorState error={error} onRetry={refetch} />
+  // ...
+}
+```
+
+---
+
+## Behavior
+
+- **Title**: `title`, or the localized "Failed to load data".
+- **Message**: `description` when given, otherwise the message of `error`: an `Error`, a string,
+  or any object with a string `message` (most API client errors). Without a usable message only
+  the title shows.
+- **Retry**: the button appears only with `onRetry`. It is called with no arguments, so
+  `onRetry={refetch}` is safe. While the promise it returns is pending, the button is disabled and
+  shows a spinner (`aria-busy`). Extra clicks are ignored. A rejected promise ends the pending
+  state and is logged; the error state stays on screen.
+- **`retrying`** drives the pending state from your side, for example `retrying={query.isFetching}`
+  when something else triggers the refetch.
+- The button is `type="button"`, so the state can sit inside a form. The root is an
+  `role="alert"` region, announced when it appears.
+
+## Several queries
+
+Retry them together by returning one promise:
+
+```tsx
+<QueryErrorState
+  title='Could not load this correction'
+  error={sheet.error ?? files.error}
+  onRetry={() => Promise.all([sheet.refetch(), files.refetch()])}
+/>
+```
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `error` | `unknown`: `Error`, string or `{ message: string }` | — |
+| `title` | `I18nText` | localized "Failed to load data" |
+| `description` | `I18nText`, replaces the message of `error` | message of `error` |
+| `onRetry` | `() => unknown`, pending while its promise runs | no button |
+| `retrying` | `boolean`, caller-driven pending | `false` |
+| `retryLabel` | `I18nText` | localized "Try again" |
+| `className` | `string` | — |
+
+## Migrating a local `QueryErrorAlert`
+
+Apps that kept a local `QueryErrorAlert({ message, onRetry })` can switch by renaming one prop:
+
+| Local | `QueryErrorState` |
+| --- | --- |
+| `message="Could not load the board."` | `title="Could not load the board."` (or `description`, under the default title) |
+| `onRetry={() => refetch()}` | `onRetry={refetch}`: the button now waits for the refetch |
+| `message={errorMessage(error, fallback)}` | `error={error}` + `title={fallback}` |
+| hard-coded "Try again" | localized default (or `retryLabel`) |
+
+The local copies added a bottom margin (`mb-4`); pass `className='mb-4'` where the layout relied
+on it.
+
+## Related
+
+- [DetailAlert](/docs/components/detail-alert): informational alerts without an action
+- [ListPage](/docs/components/list-page): its lists already render their own error state with retry

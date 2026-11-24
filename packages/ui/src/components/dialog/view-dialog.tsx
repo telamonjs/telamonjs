@@ -25,7 +25,8 @@ import {
   getDialogClassName,
   getSheetClassName,
 } from '../../utils/spacing'
-import { DialogErrorState, DialogLoadingState } from './DialogErrorState'
+import { DialogLoadingState } from './DialogLoadingState'
+import { QueryErrorState } from '../utilities/QueryErrorState'
 import { logger } from '../../utils/logger'
 import type { DialogHeaderConfig } from '../../types/dialog-header'
 import { createHeaderRenderer } from './DialogHeaderContent'
@@ -197,7 +198,7 @@ export function ViewDialog<T extends Record<string, unknown>>({
     (headerConfig ? createHeaderRenderer(headerConfig, 'view') : undefined)
 
   // Use the extracted hook for data fetching
-  const { data, isLoading, error, refetchSilent } = useDialogData(
+  const { data, isLoading, error, refetch, refetchSilent } = useDialogData(
     id,
     fetchAction,
     open
@@ -262,7 +263,7 @@ export function ViewDialog<T extends Record<string, unknown>>({
     }
 
     if (error) {
-      return <DialogErrorState error={error} />
+      return <QueryErrorState error={error} onRetry={refetch} className='my-8' />
     }
 
     if (!data || !id) {
@@ -372,7 +373,9 @@ export function ViewDialog<T extends Record<string, unknown>>({
 
   // Desktop shows a clean centered status card while loading / on error
   const desktopStatus =
-    isLoading || error || !data ? { sizeClass, isLoading, error } : undefined
+    isLoading || error || !data
+      ? { sizeClass, isLoading, error, onRetry: refetch }
+      : undefined
 
   const hasCustomHeader = Boolean(renderHeader && data)
 

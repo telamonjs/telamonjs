@@ -1,7 +1,6 @@
 'use client'
 
 import * as React from 'react'
-import { AlertCircle } from 'lucide-react'
 
 import { useIsMobile } from '../../hooks/use-mobile'
 import {
@@ -19,8 +18,8 @@ import {
   SheetTitle,
 } from '../../ui/sheet'
 import { cn } from '../../utils'
-import { Alert, AlertDescription } from '../../ui/alert'
-import { DialogLoadingState } from './DialogErrorState'
+import { DialogLoadingState } from './DialogLoadingState'
+import { QueryErrorState } from '../utilities/QueryErrorState'
 
 /**
  * Desktop loading/error status configuration.
@@ -34,6 +33,8 @@ export interface CrudDialogDesktopStatus {
   isLoading: boolean
   /** Error message, if any */
   error: string | null
+  /** "Try again" on the error state */
+  onRetry?: () => void
 }
 
 /**
@@ -188,10 +189,10 @@ export function CrudDialogShell({
           {desktopStatus.isLoading && <DialogLoadingState />}
           {desktopStatus.error && (
             <div className='py-8 w-full px-6'>
-              <Alert variant='destructive'>
-                <AlertCircle className='h-4 w-4' />
-                <AlertDescription>{desktopStatus.error}</AlertDescription>
-              </Alert>
+              <QueryErrorState
+                error={desktopStatus.error}
+                onRetry={desktopStatus.onRetry}
+              />
             </div>
           )}
         </DialogContent>

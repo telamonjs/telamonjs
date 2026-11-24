@@ -188,6 +188,7 @@ exports[`index.ts (public barrel) > Export surface > pins the full sorted list o
   "Progress",
   "ProgressTracker",
   "QueryClientProvider",
+  "QueryErrorState",
   "QueryProvider",
   "QuickActionCard",
   "QuickActionGrid",

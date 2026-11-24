@@ -21,7 +21,6 @@ import {
 import type { DialogHeaderConfig } from '../../types/dialog-header'
 import { createCreateHeaderRenderer } from './DialogHeaderContent'
 import { formHeaderConfig } from './form-header-config'
-import { DialogErrorState } from './DialogErrorState'
 import { CrudDialogShell } from './CrudDialogShell'
 
 export interface CreateDialogProps<T extends Record<string, unknown>> {
@@ -168,7 +167,6 @@ export function CreateDialog<T extends Record<string, unknown>>({
       ? createCreateHeaderRenderer(formHeaderConfig(headerConfig))
       : undefined)
 
-  const [error, setError] = React.useState<string | null>(null)
   // Same discard confirmation as EditDialog: ESC/X/click-outside/Cancel on a
   // dirty form asks before throwing away what was typed.
   const guard = useUnsavedChangesGuard()
@@ -214,18 +212,6 @@ export function CreateDialog<T extends Record<string, unknown>>({
       onOpenChange(false)
     }
   }, [onSuccess, onOpenChange, guard])
-
-  // Reset error when dialog closes
-  React.useEffect(() => {
-    if (!open) {
-      // Delay reset to avoid visual glitch during close animation
-      const timer = setTimeout(() => {
-        setError(null)
-      }, 200)
-      return () => clearTimeout(timer)
-    }
-    return undefined
-  }, [open])
 
   // Handle cancel action - close dialog instead of navigating back
   const handleCancel = React.useCallback(() => {
@@ -277,24 +263,20 @@ export function CreateDialog<T extends Record<string, unknown>>({
         )}
         wrapDesktopCustomHeader
       >
-        {error ? (
-          <DialogErrorState error={error} />
-        ) : (
-          <CreateForm
-            sections={formSections}
-            action={createAction}
-            onSubmitValues={onSubmitValues}
-            validation={validation}
-            submitText={resolvedSubmitText}
-            onSuccess={handleSuccess}
-            defaultValues={defaultValues as Partial<T>}
-            cancelAction={handleCancel}
-            useTabs={effectiveUseTabs}
-            flush={hasCustomHeader}
-            onFieldChange={onFieldChange}
-            onDirtyChange={guard.setDirty}
-          />
-        )}
+        <CreateForm
+          sections={formSections}
+          action={createAction}
+          onSubmitValues={onSubmitValues}
+          validation={validation}
+          submitText={resolvedSubmitText}
+          onSuccess={handleSuccess}
+          defaultValues={defaultValues as Partial<T>}
+          cancelAction={handleCancel}
+          useTabs={effectiveUseTabs}
+          flush={hasCustomHeader}
+          onFieldChange={onFieldChange}
+          onDirtyChange={guard.setDirty}
+        />
       </CrudDialogShell>
       {guard.dialog}
     </>
