@@ -4,7 +4,7 @@
  * DispatchJobModal - Modal for manually dispatching a job
  */
 
-import { Fragment, useState } from 'react'
+import { Fragment, useId, useState } from 'react'
 import { X, Play, RefreshCw, Info, Zap, Code, AlertCircle } from 'lucide-react'
 import { cn } from '../../utils/cn'
 import { logger } from '../../utils/logger'
@@ -96,6 +96,15 @@ function getDefaultKnownSchemaFields(t: ReturnType<typeof useTelamonjsT>): Recor
   }
 }
 
+function parseJsonArray(text: string): unknown[] | null {
+  try {
+    const value: unknown = JSON.parse(text)
+    return Array.isArray(value) ? value : null
+  } catch {
+    return null
+  }
+}
+
 export default function DispatchJobModal({
   job,
   onClose,
@@ -112,6 +121,7 @@ export default function DispatchJobModal({
   const [jsonMode, setJsonMode] = useState(false)
   const [jsonData, setJsonData] = useState('{}')
   const [jsonError, setJsonError] = useState<string | null>(null)
+  const fieldIdPrefix = useId()
 
   const schemaFields = job ? resolvedSchemaFields[job.name] : undefined
   const hasRequiredFields = schemaFields && schemaFields.some((f) => f.required)
@@ -165,10 +175,25 @@ export default function DispatchJobModal({
       return
     }
 
+    // Array fields are typed as JSON (see their placeholder): send the array
+    let data: Record<string, unknown>
+    if (jsonMode) {
+      data = JSON.parse(jsonData)
+    } else {
+      data = { ...formData }
+      for (const f of schemaFields ?? []) {
+        if (f.type !== 'array' || !formData[f.name]) continue
+        const parsed = parseJsonArray(formData[f.name])
+        if (!parsed) {
+          toast.error(t('queue.dispatch.invalidJson'))
+          return
+        }
+        data[f.name] = parsed
+      }
+    }
+
     setDispatching(true)
     try {
-      const data = jsonMode ? JSON.parse(jsonData) : formData
-
       const result = await api.dispatchJob({
         queueName: job.name,
         data
@@ -316,7 +341,10 @@ export default function DispatchJobModal({
                   <div className="space-y-3">
                     {schemaFields?.map((field) => (
                       <div key={field.name} className="space-y-1">
-                        <label className="text-sm font-medium flex items-center gap-1">
+                        <label
+                          htmlFor={`${fieldIdPrefix}-${field.name}`}
+                          className="text-sm font-medium flex items-center gap-1"
+                        >
                           {field.name}
                           {field.required && (
                             <span className="text-red-500">*</span>
@@ -328,6 +356,7 @@ export default function DispatchJobModal({
                           </p>
                         )}
                         <input
+                          id={`${fieldIdPrefix}-${field.name}`}
                           type="text"
                           value={formData[field.name] || ''}
                           onChange={(e) =>
