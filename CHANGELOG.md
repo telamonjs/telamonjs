@@ -1,5 +1,10 @@
 # Changelog
 
+## ui 1.4.3 (2026-11-24)
+
+`@telamonjs/ui`: a `ListPage` with `urlSync` opened from a link that already carries `pageSize`
+and the sort keeps them in the URL. 1.4.1 rewrote them to the defaults.
+
 ## ui 1.4.2 (2026-11-24)
 
 `@telamonjs/ui`: exports drop a known extension (`.csv`, `.xls`, `.xlsx`, `.pdf`) from

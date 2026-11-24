@@ -1,6 +1,6 @@
 {
   "name": "@telamonjs/ui",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "type": "module",
   "description": "Admin framework for Next.js + React: declarative CRUD (CrudConfig + TanStack Query), 36-type field system, rich dialogs, app shell, dashboards and charts",
   "main": "dist/index.js",
