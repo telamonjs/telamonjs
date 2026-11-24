@@ -159,7 +159,7 @@ describe('AdminForm', () => {
 
       const container = sectionsContainer('Personal')
       expect(container).toBe(sectionsContainer('Details'))
-      // a `display: contents` wrapper swallowed the form's space-y-6 (Meritux)
+      // a `display: contents` wrapper swallowed the form's space-y-6
       expect(container).toHaveClass('space-y-6')
       expect(container).not.toHaveClass('contents')
     })
