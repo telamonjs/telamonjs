@@ -63,7 +63,7 @@
     "test:ci": "vitest run --coverage --reporter=verbose",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write src",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit && tsc -p tsconfig.typetest.json"
   },
   "keywords": [
     "queue",

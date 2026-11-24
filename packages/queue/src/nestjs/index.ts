@@ -8,4 +8,4 @@
 export { QueueHttpModule } from './queue-http.module.js'
 export type { QueueHttpModuleOptions } from './queue-http.module.js'
 export { QueueControllerBase } from './queue-controller-base.js'
-export type { GetActorFn } from './types.js'
+export type { ActorRequest, GetActorFn } from './types.js'
