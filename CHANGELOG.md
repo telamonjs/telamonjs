@@ -1,5 +1,11 @@
 # Changelog
 
+## ui 1.4.4 (2026-11-24)
+
+`@telamonjs/ui`: a `ListPage` with `urlSync` opens a link in the state it carries. `page`,
+`pageSize`, the sort and `search` in the URL now win over the config defaults; before, they were
+only written, so a reloaded or shared link fell back to the defaults.
+
 ## ui 1.4.3 (2026-11-24)
 
 `@telamonjs/ui`: a `ListPage` with `urlSync` opened from a link that already carries `pageSize`

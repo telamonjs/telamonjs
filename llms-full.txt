@@ -2353,7 +2353,7 @@ export default function UsersPage() {
 | --- | --- | --- |
 | `config` | `CrudConfig<T, TFormData>` | **Required.** Everything about the module |
 | `tableId` | `string` | Key of the table state in the Zustand store. Default: `config.module.route` |
-| `urlSync` | `boolean` | Sync pagination with query params |
+| `urlSync` | `boolean` | Keeps page, page size, sort and search in the query params; a link carrying them opens the list there |
 | `urlFilters` | `Record<string, 'string' \| 'number'>` | Extra filters read from the URL (with `urlSync`) and passed to `queryFn` |
 | `filterOptions` / `loadFilterOptions` | `ColumnFilterConfig` / `() => Promise<ColumnFilterConfig>` | Column filter options, static or loaded on mount |
 | `enableBulkActions` / `bulkActions` | `boolean` / `BulkAction<T>[]` | Checkbox column and toolbar for selected rows |
@@ -19717,7 +19717,7 @@ setParams({ view: null, edit: item.id }, { replace: true })
 
 - State that must survive reload / link sharing (active tab, open dialog, filters)
 - Prefer [useTabUrlSync](/docs/hooks/use-tab-url-sync) for tab state — it wraps this hook with validation and history semantics
-- For a `ListPage`, prefer its `urlSync` prop: it syncs pagination with the query params
+- For a `ListPage`, prefer its `urlSync` prop: it keeps page, page size, sort and search in the query params, both ways
 
 ---
 
