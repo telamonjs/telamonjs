@@ -32,7 +32,7 @@ import {
   DropdownMenuSubContent,
 } from '../ui/dropdown-menu'
 import { ColumnDef } from '@tanstack/react-table'
-// Type-only: exportUtils pulls xlsx/jspdf/papaparse, loaded on demand in handleExport
+// Type-only: exportUtils pulls jspdf/papaparse, loaded on demand in handleExport
 import type { PDFExportOptions } from './exportUtils'
 import { toast } from 'sonner'
 
@@ -249,7 +249,7 @@ export function ExportMenu<T>({
       const common = { includeHiddenColumns: false, appendDate, t, locale }
       switch (format) {
         case 'excel':
-          exportToExcel(dataToExport, columns, filename, {
+          await exportToExcel(dataToExport, columns, filename, {
             ...common,
             sheetName,
           })

@@ -43,7 +43,6 @@ const FORBIDDEN = [
   /^@tiptap\//,
   /^recharts(\/|$)/,
   // Export stack: loaded on demand by ExportMenu via import('./exportUtils')
-  /^xlsx(\/|$)/,
   /^jspdf(-autotable)?(\/|$)/,
   /^papaparse(\/|$)/,
 ]

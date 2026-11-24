@@ -47,7 +47,6 @@
     "tailwind-merge": "2.5.5",
     "tailwindcss": "3.4.1",
     "tailwindcss-animate": "1.0.7",
-    "xlsx": "^0.18.0",
     "zod": "^3.25.76",
     "zustand": "5.1.0"
   },

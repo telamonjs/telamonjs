@@ -15,7 +15,7 @@ existing Next.js app:
 
 <!-- generated:peers -->
 ```bash
-pnpm add @telamonjs/ui framer-motion jspdf jspdf-autotable next next-auth papaparse react react-dom react-hook-form sonner xlsx zod next-intl @tanstack/react-query
+pnpm add @telamonjs/ui framer-motion jspdf jspdf-autotable next next-auth papaparse react react-dom react-hook-form sonner zod next-intl @tanstack/react-query
 ```
 
 | Peer dependency | Range |
@@ -30,7 +30,6 @@ pnpm add @telamonjs/ui framer-motion jspdf jspdf-autotable next next-auth papapa
 | `react-dom` | `^18.0.0 \|\| ^19.0.0` |
 | `react-hook-form` | `^7.0.0` |
 | `sonner` | `^1.7.1 \|\| ^2.0.7` |
-| `xlsx` | `^0.18.0` |
 | `zod` | `^3.0.0` |
 | `next-intl` | `^4.14.0` |
 | `@tanstack/react-query` | `^5.90.2` |

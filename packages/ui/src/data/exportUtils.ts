@@ -5,7 +5,6 @@
  * with proper formatting and encoding.
  */
 
-import * as XLSX from 'xlsx'
 import Papa from 'papaparse'
 const unparseCsv = Papa.unparse
 import { jsPDF } from 'jspdf'
@@ -14,6 +13,7 @@ import { ColumnDef } from '@tanstack/react-table'
 import { logger } from '../utils/logger'
 import type { useTelamonjsT } from '../i18n/use-t'
 import { getColumnLabel } from './column-label'
+import { writeXlsx } from './xlsx-writer'
 
 export interface ExportOptions {
   includeHiddenColumns?: boolean
@@ -53,6 +53,19 @@ function buildFilename(name: string, ext: string, appendDate = true): string {
   const d = new Date()
   const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
   return `${dated ? `${name}_${date}` : name}.${ext}`
+}
+
+/** Saves `blob` as `filename` through a temporary link. */
+function downloadBlob(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', filename)
+  link.style.visibility = 'hidden'
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  setTimeout(() => URL.revokeObjectURL(url))
 }
 
 /**
@@ -152,61 +165,51 @@ function getExportableColumns<T>(
  * Export data to Excel format (.xlsx)
  *
  * Features:
- * - Preserves column types (numbers, dates)
- * - Bold header row
- * - Auto-sized columns
- * - UTF-8 encoding
+ * - Keeps numbers as numeric cells
+ * - Bold, shaded header row
+ * - Auto-sized columns (10–50 characters)
+ * - No dependency: the workbook is written in-house (see `xlsx-writer`)
+ *
+ * Resolves once the download has been triggered.
  *
  * @example
- * exportToExcel(data, columns, 'clientes', { t, locale, sheetName: 'Clientes 2025' })
+ * await exportToExcel(data, columns, 'clientes', { t, locale, sheetName: 'Clientes 2025' })
  */
-export function exportToExcel<T>(
+export async function exportToExcel<T>(
   data: T[],
   columns: ColumnDef<T>[],
   filename: string = 'export',
   options: ExportOptions
-): void {
+): Promise<void> {
   const { includeHiddenColumns = false, sheetName, appendDate, t, locale } = options
 
-  // Filter exportable columns
   const exportColumns = getExportableColumns(columns, includeHiddenColumns)
-
-  // Prepare data for export
   const headers = exportColumns.map(col => getColumnHeader(col))
   const rows = data.map(row =>
     exportColumns.map(col => formatValueForExport(getCellValue(row, col), t, locale))
   )
 
-  // Create worksheet
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
-
   // Auto-size columns
-  const colWidths = exportColumns.map((_col, idx) => {
-    const headerLength = headers[idx].length
+  const widths = headers.map((header, idx) => {
     const maxDataLength = Math.max(
       ...rows.map(row => String(row[idx] || '').length),
       10 // Minimum width
     )
-    return { wch: Math.min(Math.max(headerLength, maxDataLength), 50) } // Max 50 chars
+    return Math.min(Math.max(header.length, maxDataLength), 50) // Max 50 chars
   })
-  ws['!cols'] = colWidths
 
-  // Bold header row
-  const range = XLSX.utils.decode_range(ws['!ref'] || 'A1')
-  for (let col = range.s.c; col <= range.e.c; col++) {
-    const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col })
-    if (!ws[cellAddress]) continue
-    ws[cellAddress].s = {
-      font: { bold: true },
-      fill: { fgColor: { rgb: 'F3F4F6' } },
-    }
-  }
-
-  // Create workbook and download
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, sheetName ?? t('data.sheetName'))
-
-  XLSX.writeFile(wb, buildFilename(filename, 'xlsx', appendDate))
+  const bytes = await writeXlsx({
+    name: sheetName ?? t('data.sheetName'),
+    headers,
+    rows,
+    widths,
+  })
+  downloadBlob(
+    new Blob([bytes], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }),
+    buildFilename(filename, 'xlsx', appendDate)
+  )
 }
 
 /**
@@ -431,23 +434,20 @@ export function exportToPDF<T>(
  * Detect and export based on current table state
  * Helper function that respects filters and sorting
  */
-export function exportTableData<T>(
+export async function exportTableData<T>(
   data: T[],
   columns: ColumnDef<T>[],
   format: 'excel' | 'csv' | 'pdf',
   filename: string = 'export',
   options: ExportOptions | PDFExportOptions
-): void {
+): Promise<void> {
   switch (format) {
     case 'excel':
-      exportToExcel(data, columns, filename, options)
-      break
+      return exportToExcel(data, columns, filename, options)
     case 'csv':
-      exportToCSV(data, columns, filename, options)
-      break
+      return exportToCSV(data, columns, filename, options)
     case 'pdf':
-      exportToPDF(data, columns, filename, options as PDFExportOptions)
-      break
+      return exportToPDF(data, columns, filename, options as PDFExportOptions)
     default:
       logger.error(`Unknown export format: ${format}`)
   }
