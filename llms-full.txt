@@ -1027,10 +1027,25 @@ export function usuariosConfigFor(user: AuthUser): CrudConfig<Usuario, UsuarioFo
 
 The checker is `can` when set, so bypass roles and wildcards work as your
 checker defines them. Without `can`, the names are looked up in
-`actionsConfig.userPermissions`; with neither, everything is allowed. The row
-view/edit/delete inherit the operation's permission unless their own
-`ActionConfig` declares a `permission`, and `permissions.can` also decides the
-`permission` of custom actions (it becomes `actionsConfig.can`).
+`actionsConfig.userPermissions`. The row view/edit/delete inherit the
+operation's permission unless their own `ActionConfig` declares a `permission`,
+and `permissions.can` also decides the `permission` of custom actions (it
+becomes `actionsConfig.can`).
+
+With neither `can` nor `userPermissions`, everything is allowed: the gate is
+fail-open, so a config that forgot the checker shows every write button. In
+development the list warns once per config when that happens. Set
+`failClosed: true` (same meaning as in `@telamonjs/permissions`) to deny every
+declared operation and every action `permission` until a checker exists — for
+example while the session that feeds `can` is still loading:
+
+```tsx
+permissions: {
+  failClosed: true,
+  can: session ? perm => checker.can(session.user, perm) : undefined,
+  create: 'usuarios.create',
+},
+```
 
 ---
 
@@ -1820,7 +1835,8 @@ component from the page.
 
 **Custom toolbar buttons (import, sync)?** Use the `ListPage` props
 `headerActions`, `toolbarPrepend` and `toolbarContent`. Export comes from
-`list.enableExport`.
+`list.enableExport` (loaded rows), `list.exportAll` (every page) or `list.onExport`
+(your backend); see [exporting every row](/docs/patterns/listpage-pattern#exporting-every-row-or-exporting-on-the-server).
 
 **Auto-filling a field from another?** `form.onFieldChange` receives
 `{ field, value, values, setValue }` on every change.
@@ -2584,6 +2600,45 @@ what the list shows:
 | `params` | the `PaginationParams` the list passes to `query.queryFn` (debounced search, current page) |
 
 `toolbarContent` renders in the list toolbar: infinite scroll (the default) and `embedded`.
+
+### Exporting every row, or exporting on the server
+
+`list.enableExport` puts an Excel/CSV/PDF menu in the toolbar. Its "All" exports the rows already
+loaded in the browser. With infinite scroll (the default) that is only the pages scrolled so far,
+so a 2 000-row list with `defaultPageSize: 100` exports 100 rows. Two opt-ins change that:
+
+```tsx
+list: {
+  enableExport: true,
+  // 1. Fetch every matching row through query.queryFn before generating the file
+  exportAll: true, // or { pageSize: 200, maxRows: 5_000 }
+},
+```
+
+```tsx
+list: {
+  // 2. Hand the export to your backend: the menu lists the formats and calls you
+  exportFormats: ['excel', 'csv'],
+  onExport: async ({ params }, format) => {
+    await ordersApi.export({ ...params, format }) // e.g. downloads a file or queues a job
+  },
+},
+```
+
+| | `exportAll` | `onExport` |
+| --- | --- | --- |
+| Who builds the file | the browser, with the list columns | your backend |
+| Query | current search, filters and sort, page by page through `query.queryFn` | `ListQueryState`, the same object `toolbarContent` gets |
+| Size | up to `maxRows` (10 000); past it the file holds the first rows and a warning says so | whatever your backend handles |
+| UX | progress toast with Cancel; "Current page" still exports the loaded rows | formats only; the trigger shows a spinner until your promise settles |
+| Cost | one request per page, sequential, so the backend sees the same load as scrolling | one request |
+
+`exportAll` requests use `exportAll.pageSize`, else `defaultPageSize` (50 when unset): a size
+your backend already accepts. Choose `onExport` when exports grow past a few thousand rows,
+need columns the table does not show, or must be audited on the server. `onExport` shows the
+menu even without `enableExport`; throw from it to show the export error toast. Announcing
+success (or a queued job) is up to you. Both options apply to the paginated list
+(`infiniteScroll: false`) as well.
 
 ### Columns only in the export
 
@@ -6327,6 +6382,7 @@ Not sure which one fits? See the [decision trees](/docs/reference).
 | [DataTable](/docs/components/data-table) | Table with sorting, filtering, pagination and row selection |
 | [ReportTable](/docs/components/report-table) | Read-only report table with "load more" pagination |
 | [MobileCard](/docs/components/mobile-card) | Card rendering of table rows on small screens |
+| [QueryErrorState](/docs/components/query-error-state) | Error state of your own `useQuery`, with a pending "Try again" |
 
 ## Standalone Pages
 
@@ -8257,6 +8313,7 @@ Inside a tabbed dashboard (`ShellPage` + `AdminHeader` + `AdminTabs`), render th
 - ✅ Create/edit/view/delete dialogs from `config.dialogs` + `config.mutations`
 - ✅ Mobile-responsive (switches to cards)
 - ✅ Loading, empty, and error states
+- ✅ Excel/CSV/PDF export (`list.enableExport`): the loaded rows, every matching row (`list.exportAll`) or your backend (`list.onExport`) — see [exporting every row](/docs/patterns/listpage-pattern#exporting-every-row-or-exporting-on-the-server)
 
 ---
 
@@ -8343,6 +8400,7 @@ export default function UsersTable({ users }: { users: User[] }) {
     searchPlaceholder: { description: 'Placeholder for the global search input (localized default)', type: 'string', default: "t('list.search')" },
     enableSearch: { description: 'Enable global search', type: 'boolean', default: 'true' },
     enableExport: { description: 'Enable export (Excel/CSV/PDF) button', type: 'boolean', default: 'true' },
+    exportMenuProps: { description: 'Extra props for the built-in export menu: `loadAll` + `allCount` (export every server page instead of the table rows), `onServerExport` (app-side export), `formats`, `filename`', type: 'DataTableExportMenuProps<TData>' },
     enablePagination: { description: 'Enable pagination controls', type: 'boolean', default: 'true' },
     pageSize: { description: 'Initial page size', type: 'number', default: '10' },
     manualPagination: { description: 'Enable server-side pagination (manual control)', type: 'boolean', default: 'false' },
@@ -9139,10 +9197,16 @@ import { Button, ConfirmActionDialog } from '@telamonjs/ui'
 - **Failure**: when it rejects, the dialog stays open and shows the error's `message` (or a
   localized fallback). Resolve `false` instead to stay open without a message — for an error
   you already reported, such as in a toast.
-- **Inputs**: `text`, `textarea`, `select` (`options` are strings, value = label) and `date`
-  (the native date input, value `YYYY-MM-DD`). A `required` input left empty (or blank) and an
-  input whose `validate` returns a message block the confirm and are marked invalid. Values
-  reach `onConfirm` keyed by `name`; every opening starts again from `defaultValue`.
+- **Inputs**: `text`, `textarea`, `select` and `date` (the native date input, value
+  `YYYY-MM-DD`). A `required` input left empty (or blank), a trimmed value outside
+  `minLength`/`maxLength`, a `date` outside `min`/`max` and an input whose `validate` returns a
+  message block the confirm and are marked invalid. Values reach `onConfirm` keyed by `name`;
+  every opening starts again from `defaultValue`.
+- **Live counts**: a `minLength`/`maxLength` input shows how many characters are missing (or
+  over) as the user types, before any attempt, so the reason is visible without clicking.
+- **`disableUntilValid`** keeps the confirm disabled while any input fails. Every failing field
+  then shows its message live: muted while untouched, as an error once edited or after an
+  attempt. Without it the confirm stays enabled and messages show from the first attempt.
 - **`confirmDisabled`** disables only the confirm button, from your own state.
 
 Pass `open` / `onOpenChange` to control it (for example from a menu item), or a `children`
@@ -9205,6 +9269,36 @@ the first confirm attempt on and update as the user types.
 For anything `inputs` cannot express, render your own fields in `body` and gate the button with
 `confirmDisabled`.
 
+## Input options
+
+| Option | Applies to | What it does |
+| --- | --- | --- |
+| `required` | all | blocks while empty or blank |
+| `minLength` / `maxLength` | `text`, `textarea` | length of the trimmed value; live count while it fails. `minLength` checks an optional field only once it is filled |
+| `min` / `max` | `date` | `YYYY-MM-DD`, set on the native input (the picker greys out other days) and validated |
+| `validate(value, values)` | all | your rule: return the message, or `undefined` |
+| `options` | `select` | strings, or `{ value, label }` when the value is a code (the label is `I18nText`) |
+| `placeholder` | all | the `select` prompt, or the native placeholder |
+| `description` | all | help text under the field, announced with it |
+| `rows` | `textarea` | visible rows |
+| `suggestions` | `text` | a native `<datalist>`: suggestions, any value still accepted |
+| `inputMode` / `autoComplete` | `text`, `textarea` | native attributes (`'decimal'`, `'off'`…) |
+
+```tsx
+<ConfirmActionDialog
+  title='Remove the record?'
+  variant='destructive'
+  disableUntilValid
+  inputs={[
+    { name: 'reason', label: 'Reason', type: 'textarea', required: true, minLength: 5, rows: 3,
+      description: 'Kept in the audit trail.' },
+  ]}
+  onConfirm={({ reason }) => recordsApi.remove(id, reason.trim())}
+>
+  <Button variant='destructive'>Remove</Button>
+</ConfirmActionDialog>
+```
+
 ## Props
 
 | Prop | Type | Default |
@@ -9220,7 +9314,8 @@ For anything `inputs` cannot express, render your own fields in `body` and gate 
 | `pending` | `boolean` — caller-controlled pending, no auto-close | dialog-owned |
 | `confirmDisabled` | `boolean` | `false` |
 | `variant` | `'default' \| 'destructive'` | `'default'` |
-| `inputs` | `ConfirmDialogInput[]` (`name`, `label`, `type`, `required?`, `validate?`, `options?`, `defaultValue?`) | — |
+| `inputs` | `ConfirmDialogInput[]` — see [Input options](#input-options) | — |
+| `disableUntilValid` | `boolean` — confirm off while an input fails, messages live | `false` |
 
 ## Migrating a local copy
 
@@ -9230,10 +9325,14 @@ and hard-coded "Confirm"/"Cancel" labels become the localized defaults. `open`,
 `onOpenChange`, `title`, `description`, `confirmText`, `pendingText`, `pending`, `variant`,
 `confirmDisabled` and `onConfirm` keep their meaning.
 
+A local "reason" dialog (a textarea whose confirm unlocks at N characters) becomes an input with
+`required`, `minLength: N` and `disableUntilValid`: the live count replaces the hand-written
+check, and the trimmed value is what the rule measures.
+
 ## In row actions
 
 `ActionConfig.confirmDialog` renders this dialog with the same `title`, `description`, button
-texts, `variant` and `inputs` (including `date` and `validate`). Its `inputs` reach the
+texts, `variant`, `inputs` (every input option) and `disableUntilValid`. Its `inputs` reach the
 action as a second argument, only when inputs are declared (handlers written for the row alone
 keep working):
 
@@ -9260,6 +9359,94 @@ A failing row action shows its error toast as before and keeps the dialog open f
 
 - [ListPage Pattern — Row Actions](/docs/patterns/listpage-pattern#row-actions)
 - [Dialogs](/docs/patterns/dialogs)
+
+---
+
+# QueryErrorState
+
+> Error state of a query with a localized title, the error's message and a "Try again" button that stays pending while it retries
+
+Source: apps/docs/content/docs/components/query-error-state.mdx
+
+The error UI for screens that run their own `useQuery`. Without it, a failed request leaves the
+screen blank or loading forever. The CRUD view and edit dialogs use the same component when their
+record fails to load.
+
+```tsx
+'use client'
+import { useQuery } from '@tanstack/react-query'
+import { QueryErrorState } from '@telamonjs/ui'
+
+export function GradingSheet({ id }: { id: string }) {
+  const { data, error, isError, refetch } = useQuery({
+    queryKey: ['grading-sheet', id],
+    queryFn: () => sheetsApi.get(id),
+  })
+
+  if (isError) return <QueryErrorState error={error} onRetry={refetch} />
+  // ...
+}
+```
+
+---
+
+## Behavior
+
+- **Title**: `title`, or the localized "Failed to load data".
+- **Message**: `description` when given, otherwise the message of `error`: an `Error`, a string,
+  or any object with a string `message` (most API client errors). Without a usable message only
+  the title shows.
+- **Retry**: the button appears only with `onRetry`. It is called with no arguments, so
+  `onRetry={refetch}` is safe. While the promise it returns is pending, the button is disabled and
+  shows a spinner (`aria-busy`). Extra clicks are ignored. A rejected promise ends the pending
+  state and is logged; the error state stays on screen.
+- **`retrying`** drives the pending state from your side, for example `retrying={query.isFetching}`
+  when something else triggers the refetch.
+- The button is `type="button"`, so the state can sit inside a form. The root is an
+  `role="alert"` region, announced when it appears.
+
+## Several queries
+
+Retry them together by returning one promise:
+
+```tsx
+<QueryErrorState
+  title='Could not load this correction'
+  error={sheet.error ?? files.error}
+  onRetry={() => Promise.all([sheet.refetch(), files.refetch()])}
+/>
+```
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `error` | `unknown`: `Error`, string or `{ message: string }` | — |
+| `title` | `I18nText` | localized "Failed to load data" |
+| `description` | `I18nText`, replaces the message of `error` | message of `error` |
+| `onRetry` | `() => unknown`, pending while its promise runs | no button |
+| `retrying` | `boolean`, caller-driven pending | `false` |
+| `retryLabel` | `I18nText` | localized "Try again" |
+| `className` | `string` | — |
+
+## Migrating a local `QueryErrorAlert`
+
+Apps that kept a local `QueryErrorAlert({ message, onRetry })` can switch by renaming one prop:
+
+| Local | `QueryErrorState` |
+| --- | --- |
+| `message="Could not load the board."` | `title="Could not load the board."` (or `description`, under the default title) |
+| `onRetry={() => refetch()}` | `onRetry={refetch}`: the button now waits for the refetch |
+| `message={errorMessage(error, fallback)}` | `error={error}` + `title={fallback}` |
+| hard-coded "Try again" | localized default (or `retryLabel`) |
+
+The local copies added a bottom margin (`mb-4`); pass `className='mb-4'` where the layout relied
+on it.
+
+## Related
+
+- [DetailAlert](/docs/components/detail-alert): informational alerts without an action
+- [ListPage](/docs/components/list-page): its lists already render their own error state with retry
 
 ---
 
@@ -18167,6 +18354,9 @@ import type { ColumnDef } from '@tanstack/react-table'
     formats: { description: 'Formats offered in the menu', type: "Array<'excel' | 'csv' | 'pdf'>", default: "['excel', 'csv', 'pdf']" },
     pdfOptions: { description: 'PDF title, subtitle, orientation, logo (string or `{ src, width?, height? }` in mm), footer and generatedAt (`datetime` or `date`)', type: "Omit<PDFExportOptions, 'filename' | 't' | 'locale' | 'sheetName' | 'appendDate'>" },
     onExport: { description: 'Custom generator: the menu only orchestrates (loading, toast, callbacks) and skips the built-in generation', type: "(format: 'excel' | 'csv' | 'pdf', rows: T[], columns: ColumnDef<T>[]) => Promise<void> | void" },
+    loadAll: { description: 'Source of the "All" scope instead of `data`, such as every page of a server query (`fetchAllPages`). A progress toast offers Cancel, which aborts `signal`; fewer `rows` than `total` shows a capped-export warning', type: '(ctx: { signal: AbortSignal; onProgress: (loaded: number, target: number) => void }) => Promise<{ rows: T[]; total: number }>' },
+    allCount: { description: 'Count next to "All" when `loadAll` is set', type: 'number' },
+    onServerExport: { description: 'App-side export: the menu lists the formats only (no scopes, no rows) and calls this, pending until it settles. Failures show the error toast; announcing success is up to you', type: "(format: ExportFormat) => unknown" },
     onExportStart: { description: 'Called before generating', type: '() => void' },
     onExportComplete: { description: 'Called after the download starts', type: '() => void' },
     onExportError: { description: 'Called on failure', type: '(error: Error) => void' },
