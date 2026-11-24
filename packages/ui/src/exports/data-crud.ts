@@ -45,6 +45,7 @@ export type {
   ActionsDisplayConfig,
   ConfirmDialogConfig,
   ConfirmDialogInput,
+  ConfirmDialogOption,
   ActionContext,
   TooltipConfig,
   ButtonVariant,

@@ -183,6 +183,40 @@ describe('DataTableActions overflow menu confirmation', () => {
       )
     })
 
+    it('confirmDialog.disableUntilValid and minLength reach the row confirmation', async () => {
+      const handler = vi.fn().mockResolvedValue({ success: true })
+      const { user, openMenu } = renderMenu({
+        custom: [
+          {
+            id: 'remove',
+            label: 'Remove',
+            position: 'dropdown',
+            handler,
+            confirmDialog: {
+              disableUntilValid: true,
+              inputs: [
+                { name: 'reason', label: 'Reason', type: 'textarea', required: true, minLength: 5 },
+              ],
+            },
+          },
+        ],
+      })
+
+      await openMenu()
+      await user.click(await screen.findByRole('menuitem', { name: 'Remove' }))
+      const confirm = await screen.findByTestId('modal-confirm')
+      const field = screen.getByRole('textbox', { name: /Reason/ })
+      expect(confirm).toBeDisabled()
+      expect(field).toHaveAccessibleDescription('Faltam 5 caracteres')
+
+      await user.type(field, 'duplicado')
+      expect(confirm).toBeEnabled()
+      await user.click(confirm)
+      await waitFor(() =>
+        expect(handler).toHaveBeenCalledWith(item, { inputs: { reason: 'duplicado' } })
+      )
+    })
+
     it('supports date inputs and per-input validate', async () => {
       const handler = vi.fn().mockResolvedValue({ success: true })
       const { user, openMenu } = renderMenu({

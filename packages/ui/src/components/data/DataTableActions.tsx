@@ -213,6 +213,7 @@ function RowConfirmDialog<TData>({
       cancelText={config?.cancelText}
       variant={config?.variant}
       inputs={inputs}
+      disableUntilValid={config?.disableUntilValid}
       onConfirm={values => onRun(inputs ? { inputs: values } : undefined)}
     >
       {children}

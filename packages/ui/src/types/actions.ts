@@ -5,6 +5,7 @@
  * These types define the configuration for automatic action column injection
  * in DataTable components with a flexible, extensible architecture.
  */
+import type { HTMLAttributes } from 'react'
 import type { I18nText } from '../i18n/msg'
 
 /**
@@ -45,6 +46,20 @@ export interface ConfirmDialogConfig<TData = any> {
    * action as the second argument of `handler`/`onClick`: `(row, { inputs })`.
    */
   inputs?: ConfirmDialogInput[]
+  /**
+   * Keep the confirm disabled while any input fails (`required`, `minLength`,
+   * `maxLength`, `min`/`max`, `validate`). Each failing field shows its message
+   * live (muted until the field is edited), so the user always sees why the
+   * confirm is off. Default: the confirm stays enabled and the messages show
+   * from the first attempt.
+   */
+  disableUntilValid?: boolean
+}
+
+/** Choice of a `select` input: `value` reaches the action, `label` is shown */
+export interface ConfirmDialogOption {
+  value: string
+  label: I18nText
 }
 
 /**
@@ -59,14 +74,39 @@ export interface ConfirmDialogInput {
   type: 'text' | 'textarea' | 'select' | 'date'
   /** Confirming is blocked while it is empty */
   required?: boolean
-  /** Choices of a `select` (value = label) */
-  options?: string[]
+  /** Choices of a `select`: a string is both value and label */
+  options?: (string | ConfirmDialogOption)[]
   defaultValue?: string
+  /** Placeholder of a `text`/`textarea`/`date`, or the `select` prompt */
+  placeholder?: I18nText
+  /** Help text under the field, announced with it */
+  description?: I18nText
+  /** Visible rows of a `textarea` */
+  rows?: number
+  /**
+   * Minimum length of the trimmed value: checked when the field is filled, and
+   * also when empty if `required`. While short, the field shows how many
+   * characters are missing, live, without a confirm attempt.
+   */
+  minLength?: number
+  /** Maximum length of the trimmed value; while over, the field shows the excess live */
+  maxLength?: number
+  /** Earliest `date` (`YYYY-MM-DD`): set on the native input and validated */
+  min?: string
+  /** Latest `date` (`YYYY-MM-DD`): set on the native input and validated */
+  max?: string
+  /** Suggestions of a `text` input (a native `<datalist>`; any value is still accepted) */
+  suggestions?: string[]
+  /** Native `inputMode` of a `text`/`textarea`, e.g. `'decimal'` */
+  inputMode?: HTMLAttributes<HTMLInputElement>['inputMode']
+  /** Native `autoComplete`, e.g. `'off'` for a typed confirmation word */
+  autoComplete?: string
   /**
    * Custom rule beyond `required`: return a message to mark the field invalid
    * and block the confirm, `undefined` when valid. Runs (pure, on every
-   * render) from the first confirm attempt on, also on empty optional fields,
-   * with all the values for cross-field rules. `required` is checked first.
+   * render) from the first confirm attempt on (live with `disableUntilValid`),
+   * also on empty optional fields, with all the values for cross-field rules.
+   * `minLength`, `required`, `maxLength` and `min`/`max` are checked first.
    */
   validate?: (
     value: string,

@@ -8,6 +8,8 @@ export const validation = {
   invalidOption: 'Opção inválida',
   tooSmallString: '{min, plural, one {Mínimo de # caractere} other {Mínimo de # caracteres}}',
   tooBigString: '{max, plural, one {Máximo de # caractere} other {Máximo de # caracteres}}',
+  charactersMissing: '{count, plural, one {Falta # caractere} other {Faltam # caracteres}}',
+  charactersOver: '{count, plural, one {# caractere a mais} other {# caracteres a mais}}',
   tooSmallNumber: 'Deve ser maior ou igual a {min, number}',
   tooBigNumber: 'Deve ser menor ou igual a {max, number}',
   tooSmallArray: '{min, plural, one {Selecione ao menos # item} other {Selecione ao menos # itens}}',

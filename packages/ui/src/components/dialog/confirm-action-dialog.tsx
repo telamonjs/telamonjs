@@ -25,7 +25,7 @@ import {
 import { Textarea } from '../../ui/textarea'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
 import { isMessageRef, type I18nText } from '../../i18n/msg'
-import type { ConfirmDialogInput } from '../../types/actions'
+import type { ConfirmDialogInput, ConfirmDialogOption } from '../../types/actions'
 
 export interface ConfirmActionDialogProps {
   /** Controlled open state. Omit it (with a `children` trigger) to let the dialog own it */
@@ -58,10 +58,17 @@ export interface ConfirmActionDialogProps {
    */
   pending?: boolean
   /**
-   * Fields asked before confirming; `required` and `validate` block the
-   * confirm while they fail
+   * Fields asked before confirming; `required`, `minLength`, `maxLength`,
+   * `min`/`max` and `validate` block the confirm while they fail
    */
   inputs?: ConfirmDialogInput[]
+  /**
+   * Keep the confirm disabled while any input fails, each failing field
+   * showing its message live (muted until edited), so the reason is always
+   * visible. Default: the confirm stays enabled and messages show from the
+   * first attempt (`minLength`/`maxLength` counts show live in both modes).
+   */
+  disableUntilValid?: boolean
   /**
    * Runs on confirm with the `inputs` values (`{}` without inputs). Without
    * `pending`, the dialog stays open, buttons disabled, while the returned
@@ -76,6 +83,15 @@ export interface ConfirmActionDialogProps {
 const initialValues = (inputs: ConfirmDialogInput[] = []) =>
   Object.fromEntries(inputs.map(i => [i.name, i.defaultValue ?? '']))
 
+const asOption = (o: string | ConfirmDialogOption): ConfirmDialogOption =>
+  typeof o === 'string' ? { value: o, label: o } : o
+
+/** `YYYY-MM-DD` as a LOCAL date (`new Date(iso)` is UTC midnight: the day before west of Greenwich) */
+const localDate = (iso: string) => {
+  const [y, m, d] = iso.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
 /**
  * ConfirmActionDialog - confirmation for an action, async aware.
  *
@@ -85,7 +101,8 @@ const initialValues = (inputs: ConfirmDialogInput[] = []) =>
  * @description
  * The dialog behind `confirmDialog` on row and menu actions, public for any
  * other button. Optional `inputs` (text, textarea, select, date) are validated
- * (`required`, `validate`) and handed to `onConfirm`; `body` adds free
+ * (`required`, `minLength`/`maxLength`, `min`/`max`, `validate`) and handed to
+ * `onConfirm`; `disableUntilValid` keeps the confirm off until they pass; `body` adds free
  * content. Two pending modes: by default the dialog awaits `onConfirm`
  * (spinner, closes on success, shows the error on failure); with a `pending`
  * prop the caller runs the action and closes the dialog itself.
@@ -127,6 +144,7 @@ export function ConfirmActionDialog({
   confirmDisabled = false,
   pending: pendingProp,
   inputs,
+  disableUntilValid = false,
   onConfirm,
 }: ConfirmActionDialogProps) {
   const t = useTelamonjsT()
@@ -137,6 +155,8 @@ export function ConfirmActionDialog({
   const [values, setValues] = useState(() => initialValues(inputs))
   // Field errors show from the first confirm attempt on, recomputed live
   const [attempted, setAttempted] = useState(false)
+  // Edited fields: with `disableUntilValid` their messages turn from hint to error
+  const [touched, setTouched] = useState<Record<string, boolean>>({})
   const [error, setError] = useState<string | null>(null)
   const [innerPending, setInnerPending] = useState(false)
   const callerOwnsPending = pendingProp !== undefined
@@ -149,6 +169,7 @@ export function ConfirmActionDialog({
     if (open) {
       setValues(initialValues(inputs))
       setAttempted(false)
+      setTouched({})
       setError(null)
     }
   }
@@ -156,11 +177,30 @@ export function ConfirmActionDialog({
   const node = (value: I18nText | ReactNode): ReactNode =>
     isMessageRef(value) ? text(value) : value
 
+  /** The live count of a `minLength`/`maxLength` field (trimmed value), if it fails */
+  const lengthMessage = (input: ConfirmDialogInput): string | undefined => {
+    const length = (values[input.name] ?? '').trim().length
+    if (input.minLength && length < input.minLength && (length > 0 || input.required))
+      return t('validation.charactersMissing', { count: input.minLength - length })
+    if (input.maxLength && length > input.maxLength)
+      return t('validation.charactersOver', { count: length - input.maxLength })
+    return undefined
+  }
+
   const fieldError = (input: ConfirmDialogInput): I18nText | undefined => {
     const value = values[input.name] ?? ''
+    const length = lengthMessage(input)
+    if (length) return length
     if (input.required && !value.trim()) return t('validation.required')
+    if (input.type === 'date' && value) {
+      if (input.min && value < input.min)
+        return t('validation.tooSmallDate', { min: localDate(input.min) })
+      if (input.max && value > input.max)
+        return t('validation.tooBigDate', { max: localDate(input.max) })
+    }
     return input.validate?.(value, values)
   }
+  const invalid = (inputs ?? []).some(input => fieldError(input))
 
   const setOpen = (next: boolean) => {
     if (openProp === undefined) setInnerOpen(next)
@@ -177,7 +217,7 @@ export function ConfirmActionDialog({
     // AlertDialogAction closes on click; this dialog closes only on success
     event.preventDefault()
     setAttempted(true)
-    if ((inputs ?? []).some(input => fieldError(input))) return
+    if (invalid) return
 
     setError(null)
     if (!callerOwnsPending) setInnerPending(true)
@@ -196,8 +236,10 @@ export function ConfirmActionDialog({
     }
   }
 
-  const setValue = (name: string, value: string) =>
+  const setValue = (name: string, value: string) => {
     setValues(prev => ({ ...prev, [name]: value }))
+    setTouched(prev => (prev[name] ? prev : { ...prev, [name]: true }))
+  }
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
@@ -219,14 +261,30 @@ export function ConfirmActionDialog({
             {inputs.map(input => {
               const id = `${idPrefix}-${input.name}`
               const errorId = `${id}-error`
-              const message = attempted ? fieldError(input) : undefined
+              const helpId = `${id}-help`
+              const listId = `${id}-suggestions`
+              const message = fieldError(input)
+              // Error (red, aria-invalid) after an attempt, or once edited with
+              // `disableUntilValid`; before that a muted hint, shown live for
+              // length counts and for every failing field with `disableUntilValid`
+              const asError =
+                !!message && (attempted || (disableUntilValid && !!touched[input.name]))
+              const shown =
+                asError || (!!message && (disableUntilValid || !!lengthMessage(input)))
+              const describedBy =
+                [input.description && helpId, shown && errorId].filter(Boolean).join(' ') ||
+                undefined
+              const placeholder = text(input.placeholder)
               const common = {
                 id,
                 name: input.name,
                 required: input.required,
                 disabled: pending,
-                'aria-invalid': message ? true : undefined,
-                'aria-describedby': message ? errorId : undefined,
+                placeholder,
+                inputMode: input.inputMode,
+                autoComplete: input.autoComplete,
+                'aria-invalid': asError ? true : undefined,
+                'aria-describedby': describedBy,
               }
               return (
                 <div key={input.name} className='grid gap-1.5'>
@@ -241,6 +299,7 @@ export function ConfirmActionDialog({
                   {input.type === 'textarea' ? (
                     <Textarea
                       {...common}
+                      rows={input.rows}
                       value={values[input.name] ?? ''}
                       onChange={e => setValue(input.name, e.target.value)}
                     />
@@ -253,28 +312,58 @@ export function ConfirmActionDialog({
                       <SelectTrigger
                         id={id}
                         aria-invalid={common['aria-invalid']}
-                        aria-describedby={common['aria-describedby']}
+                        aria-describedby={describedBy}
                       >
-                        <SelectValue placeholder={t('common.select')} />
+                        <SelectValue placeholder={placeholder || t('common.select')} />
                       </SelectTrigger>
                       <SelectContent>
-                        {(input.options ?? []).map(option => (
-                          <SelectItem key={option} value={option}>
-                            {option}
+                        {(input.options ?? []).map(asOption).map(option => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {text(option.label)}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
-                  ) : (
+                  ) : input.type === 'date' ? (
                     <Input
                       {...common}
-                      type={input.type === 'date' ? 'date' : 'text'}
+                      type='date'
+                      min={input.min}
+                      max={input.max}
                       value={values[input.name] ?? ''}
                       onChange={e => setValue(input.name, e.target.value)}
                     />
+                  ) : (
+                    <>
+                      <Input
+                        {...common}
+                        type='text'
+                        list={input.suggestions?.length ? listId : undefined}
+                        value={values[input.name] ?? ''}
+                        onChange={e => setValue(input.name, e.target.value)}
+                      />
+                      {input.suggestions?.length ? (
+                        <datalist id={listId}>
+                          {input.suggestions.map(s => (
+                            <option key={s} value={s} />
+                          ))}
+                        </datalist>
+                      ) : null}
+                    </>
                   )}
-                  {message && (
-                    <p id={errorId} className='text-sm text-destructive'>
+                  {input.description && (
+                    <p id={helpId} className='text-xs text-muted-foreground'>
+                      {text(input.description)}
+                    </p>
+                  )}
+                  {shown && message && (
+                    <p
+                      id={errorId}
+                      data-state={asError ? 'error' : 'hint'}
+                      className={
+                        asError ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'
+                      }
+                    >
                       {text(message)}
                     </p>
                   )}
@@ -300,7 +389,7 @@ export function ConfirmActionDialog({
           </AlertDialogCancel>
           <AlertDialogAction
             data-testid='modal-confirm'
-            disabled={pending || confirmDisabled}
+            disabled={pending || confirmDisabled || (disableUntilValid && invalid)}
             aria-busy={pending || undefined}
             className={
               variant === 'destructive'

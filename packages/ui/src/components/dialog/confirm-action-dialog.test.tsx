@@ -493,4 +493,181 @@ describe('ConfirmActionDialog', () => {
       expect(await axe(baseElement)).toHaveNoViolations()
     })
   })
+
+  describe('Field options and length/date rules', () => {
+    it('minLength: the missing count shows live (muted), blocks the confirm and counts the trimmed value', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        inputs: [{ name: 'reason', label: 'Reason', type: 'textarea', required: true, minLength: 5 }],
+      })
+      const field = screen.getByRole('textbox', { name: /Reason/ })
+      // visible before any attempt: the user sees why before clicking
+      expect(field).toHaveAccessibleDescription('Faltam 5 caracteres')
+      expect(field).not.toHaveAttribute('aria-invalid')
+
+      await user.type(field, '  abc  ')
+      expect(field).toHaveAccessibleDescription('Faltam 2 caracteres')
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(field).toHaveAttribute('aria-invalid', 'true')
+
+      await user.type(field, 'de')
+      expect(screen.queryByText(/Falta/)).not.toBeInTheDocument()
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({ reason: '  abc  de' })
+    })
+
+    it('minLength on an optional field only applies once it is filled; one character uses the singular', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        inputs: [{ name: 'note', label: 'Note', type: 'text', minLength: 3 }],
+      })
+      const field = screen.getByRole('textbox', { name: 'Note' })
+      expect(screen.queryByText(/Falta/)).not.toBeInTheDocument()
+      await user.type(field, 'ab')
+      expect(field).toHaveAccessibleDescription('Falta 1 caractere')
+      await user.clear(field)
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({ note: '' })
+    })
+
+    it('maxLength: the excess shows live and blocks the confirm', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        inputs: [{ name: 'code', label: 'Code', type: 'text', maxLength: 3 }],
+      })
+      const field = screen.getByRole('textbox', { name: 'Code' })
+      await user.type(field, 'abcde')
+      expect(field).toHaveAccessibleDescription('2 caracteres a mais')
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).not.toHaveBeenCalled()
+    })
+
+    it('date min/max: set on the native input and validated as local dates', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        inputs: [{ name: 'paid', label: 'Paid on', type: 'date', min: '2026-01-01', max: '2026-06-30' }],
+      })
+      const field = screen.getByLabelText('Paid on')
+      expect(field).toHaveAttribute('min', '2026-01-01')
+      expect(field).toHaveAttribute('max', '2026-06-30')
+
+      fireEvent.change(field, { target: { value: '2026-07-01' } })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(field).toHaveAccessibleDescription('A data deve ser até 30/06/26')
+
+      fireEvent.change(field, { target: { value: '2025-12-31' } })
+      expect(field).toHaveAccessibleDescription('A data deve ser a partir de 01/01/26')
+
+      fireEvent.change(field, { target: { value: '2026-03-15' } })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({ paid: '2026-03-15' })
+    })
+
+    it('select options as { value, label }: the label shows, the value reaches onConfirm', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        inputs: [
+          {
+            name: 'kind',
+            label: 'Kind',
+            type: 'select',
+            placeholder: 'Pick a kind',
+            options: [{ value: 'P', label: 'Paid' }, 'Other'],
+          },
+        ],
+      })
+      expect(screen.getByRole('combobox', { name: 'Kind' })).toHaveTextContent('Pick a kind')
+      await user.click(screen.getByRole('combobox', { name: 'Kind' }))
+      await user.click(await screen.findByRole('option', { name: 'Paid' }))
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({ kind: 'P' })
+    })
+
+    it('passes placeholder, rows, help text, suggestions, inputMode and autoComplete to the native fields', () => {
+      setup({
+        inputs: [
+          {
+            name: 'reason',
+            label: 'Reason',
+            type: 'textarea',
+            rows: 2,
+            placeholder: 'Why?',
+            description: msg('telamonjs.common.save'),
+          },
+          {
+            name: 'method',
+            label: 'Method',
+            type: 'text',
+            suggestions: ['PIX', 'Boleto'],
+            inputMode: 'decimal',
+            autoComplete: 'off',
+          },
+        ],
+      })
+      const reason = screen.getByRole('textbox', { name: 'Reason' })
+      expect(reason).toHaveAttribute('rows', '2')
+      expect(reason).toHaveAttribute('placeholder', 'Why?')
+      expect(reason).toHaveAccessibleDescription('Salvar')
+
+      const method = screen.getByRole('combobox', { name: 'Method' })
+      expect(method).toHaveAttribute('inputmode', 'decimal')
+      expect(method).toHaveAttribute('autocomplete', 'off')
+      const list = document.getElementById(method.getAttribute('list') ?? '')
+      expect(list?.tagName).toBe('DATALIST')
+      expect([...(list?.querySelectorAll('option') ?? [])].map(o => o.value)).toEqual(['PIX', 'Boleto'])
+    })
+
+    it('disableUntilValid: confirm off while invalid; messages live, muted until the field is edited', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        disableUntilValid: true,
+        inputs: [
+          {
+            name: 'word',
+            label: 'Type ANONYMIZE',
+            type: 'text',
+            required: true,
+            validate: v => (v.trim().toUpperCase() === 'ANONYMIZE' ? undefined : 'Type the word exactly'),
+          },
+        ],
+      })
+      const confirm = screen.getByTestId('modal-confirm')
+      const field = screen.getByRole('textbox', { name: /Type ANONYMIZE/ })
+      expect(confirm).toBeDisabled()
+      // the reason is visible from the start, as a hint
+      expect(field).toHaveAccessibleDescription('Campo obrigatório')
+      expect(screen.getByText('Campo obrigatório')).toHaveAttribute('data-state', 'hint')
+      expect(field).not.toHaveAttribute('aria-invalid')
+
+      await user.type(field, 'anon')
+      expect(screen.getByText('Type the word exactly')).toHaveAttribute('data-state', 'error')
+      expect(field).toHaveAttribute('aria-invalid', 'true')
+      expect(confirm).toBeDisabled()
+
+      await user.type(field, 'ymize')
+      expect(confirm).toBeEnabled()
+      await user.click(confirm)
+      expect(onConfirm).toHaveBeenCalledWith({ word: 'anonymize' })
+    })
+
+    it('has no axe violations with help text, a live count and a select with labels', async () => {
+      const { user, baseElement } = setup({
+        disableUntilValid: true,
+        inputs: [
+          { name: 'reason', label: 'Reason', type: 'textarea', required: true, minLength: 5, description: 'Kept in the audit trail' },
+          { name: 'kind', label: 'Kind', type: 'select', options: [{ value: 'a', label: 'Alpha' }] },
+        ],
+      })
+      await user.type(screen.getByRole('textbox', { name: /Reason/ }), 'ab')
+      expect(await axe(baseElement)).toHaveNoViolations()
+    })
+  })
 })

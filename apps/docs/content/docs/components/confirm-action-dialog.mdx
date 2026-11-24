@@ -33,10 +33,16 @@ import { Button, ConfirmActionDialog } from '@telamonjs/ui'
 - **Failure**: when it rejects, the dialog stays open and shows the error's `message` (or a
   localized fallback). Resolve `false` instead to stay open without a message — for an error
   you already reported, such as in a toast.
-- **Inputs**: `text`, `textarea`, `select` (`options` are strings, value = label) and `date`
-  (the native date input, value `YYYY-MM-DD`). A `required` input left empty (or blank) and an
-  input whose `validate` returns a message block the confirm and are marked invalid. Values
-  reach `onConfirm` keyed by `name`; every opening starts again from `defaultValue`.
+- **Inputs**: `text`, `textarea`, `select` and `date` (the native date input, value
+  `YYYY-MM-DD`). A `required` input left empty (or blank), a trimmed value outside
+  `minLength`/`maxLength`, a `date` outside `min`/`max` and an input whose `validate` returns a
+  message block the confirm and are marked invalid. Values reach `onConfirm` keyed by `name`;
+  every opening starts again from `defaultValue`.
+- **Live counts**: a `minLength`/`maxLength` input shows how many characters are missing (or
+  over) as the user types, before any attempt, so the reason is visible without clicking.
+- **`disableUntilValid`** keeps the confirm disabled while any input fails. Every failing field
+  then shows its message live: muted while untouched, as an error once edited or after an
+  attempt. Without it the confirm stays enabled and messages show from the first attempt.
 - **`confirmDisabled`** disables only the confirm button, from your own state.
 
 Pass `open` / `onOpenChange` to control it (for example from a menu item), or a `children`
@@ -99,6 +105,36 @@ the first confirm attempt on and update as the user types.
 For anything `inputs` cannot express, render your own fields in `body` and gate the button with
 `confirmDisabled`.
 
+## Input options
+
+| Option | Applies to | What it does |
+| --- | --- | --- |
+| `required` | all | blocks while empty or blank |
+| `minLength` / `maxLength` | `text`, `textarea` | length of the trimmed value; live count while it fails. `minLength` checks an optional field only once it is filled |
+| `min` / `max` | `date` | `YYYY-MM-DD`, set on the native input (the picker greys out other days) and validated |
+| `validate(value, values)` | all | your rule: return the message, or `undefined` |
+| `options` | `select` | strings, or `{ value, label }` when the value is a code (the label is `I18nText`) |
+| `placeholder` | all | the `select` prompt, or the native placeholder |
+| `description` | all | help text under the field, announced with it |
+| `rows` | `textarea` | visible rows |
+| `suggestions` | `text` | a native `<datalist>`: suggestions, any value still accepted |
+| `inputMode` / `autoComplete` | `text`, `textarea` | native attributes (`'decimal'`, `'off'`…) |
+
+```tsx
+<ConfirmActionDialog
+  title='Remove the record?'
+  variant='destructive'
+  disableUntilValid
+  inputs={[
+    { name: 'reason', label: 'Reason', type: 'textarea', required: true, minLength: 5, rows: 3,
+      description: 'Kept in the audit trail.' },
+  ]}
+  onConfirm={({ reason }) => recordsApi.remove(id, reason.trim())}
+>
+  <Button variant='destructive'>Remove</Button>
+</ConfirmActionDialog>
+```
+
 ## Props
 
 | Prop | Type | Default |
@@ -114,7 +150,8 @@ For anything `inputs` cannot express, render your own fields in `body` and gate 
 | `pending` | `boolean` — caller-controlled pending, no auto-close | dialog-owned |
 | `confirmDisabled` | `boolean` | `false` |
 | `variant` | `'default' \| 'destructive'` | `'default'` |
-| `inputs` | `ConfirmDialogInput[]` (`name`, `label`, `type`, `required?`, `validate?`, `options?`, `defaultValue?`) | — |
+| `inputs` | `ConfirmDialogInput[]` — see [Input options](#input-options) | — |
+| `disableUntilValid` | `boolean` — confirm off while an input fails, messages live | `false` |
 
 ## Migrating a local copy
 
@@ -124,10 +161,14 @@ and hard-coded "Confirm"/"Cancel" labels become the localized defaults. `open`,
 `onOpenChange`, `title`, `description`, `confirmText`, `pendingText`, `pending`, `variant`,
 `confirmDisabled` and `onConfirm` keep their meaning.
 
+A local "reason" dialog (a textarea whose confirm unlocks at N characters) becomes an input with
+`required`, `minLength: N` and `disableUntilValid`: the live count replaces the hand-written
+check, and the trimmed value is what the rule measures.
+
 ## In row actions
 
 `ActionConfig.confirmDialog` renders this dialog with the same `title`, `description`, button
-texts, `variant` and `inputs` (including `date` and `validate`). Its `inputs` reach the
+texts, `variant`, `inputs` (every input option) and `disableUntilValid`. Its `inputs` reach the
 action as a second argument, only when inputs are declared (handlers written for the row alone
 keep working):
 
