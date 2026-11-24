@@ -1,5 +1,10 @@
 # Changelog
 
+## queue 1.3.1 (2026-11-24)
+
+`@telamonjs/queue`: `GetActorFn` accepts a callback typed with the app's own Express 4 or 5
+`Request`, through the new minimal `ActorRequest` type.
+
 ## ui 1.4.0 (2026-11-24)
 
 Dependency refresh, lighter export peers, an opt-in sort wire format and the fixes the new tests

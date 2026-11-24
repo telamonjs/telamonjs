@@ -1283,6 +1283,7 @@ Runtime:
 
 Types:
 
+- `ActorRequest` (type)
 - `GetActorFn` (type)
 - `QueueHttpModuleOptions` (type)
 
