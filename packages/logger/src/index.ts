@@ -46,7 +46,12 @@ export { BaseLogger } from './adapters/base.js'
 export { ConsoleLogger } from './adapters/console.js'
 export { NoOpLogger } from './adapters/noop.js'
 export { PrettyLogger } from './adapters/pretty.js'
-export { BrowserLogger } from './adapters/browser.js'
+export {
+  BrowserLogger,
+  type BrowserLoggerConfig,
+  type BrowserLogTransport,
+  type BrowserLogEntry,
+} from './adapters/browser.js'
 
 // ──────────────────────────────────────────────────────────────────────────
 // Integrations

@@ -2,13 +2,120 @@
  * Browser logger (client-side)
  */
 
-import type { LogContext, LogLevel, LoggerConfig } from '../core/types.js'
-import { LOG_LEVEL_NAMES_UPPER } from '../core/levels.js'
+import { LogLevel, type LogContext, type LoggerConfig } from '../core/types.js'
+import { LOG_LEVEL_NAMES_UPPER, parseLogLevel } from '../core/levels.js'
 import { BaseLogger } from './base.js'
 import { cleanContext } from '../core/context.js'
 
+/** One log entry as the transport sends it. */
+export interface BrowserLogEntry {
+  level: LogLevel
+  /** `'ERROR'`, `'WARN'`, … */
+  levelName: string
+  message: string
+  /** ISO 8601 */
+  timestamp: string
+  /** The logger context, without PII keys unless `includePii` is set. */
+  context: LogContext
+}
+
 /**
- * Browser logger (client-side with DevTools integration)
+ * Opt-in shipping of browser logs to your backend, in batches. Give an
+ * `endpoint` (receives `POST { logs: BrowserLogEntry[] }` as JSON; a same-origin
+ * route is simplest) or a `send` function.
+ */
+export interface BrowserLogTransport {
+  endpoint?: string
+  /** Receives each batch instead of the built-in `fetch`/`sendBeacon`. */
+  send?: (logs: BrowserLogEntry[]) => void | Promise<void>
+  /** Least severe level shipped (default `LogLevel.WARN`). The console still follows the logger level. */
+  level?: LogLevel
+  /** Ship as soon as this many entries are queued (default 20). */
+  batchSize?: number
+  /** Ship what is queued every N ms (default 5000). */
+  flushIntervalMs?: number
+  /**
+   * Keep context keys that usually hold personal data (`userEmail`, `ip`,
+   * `userAgent`, tokens, passwords, cookies, phone, CPF…). Default `false`:
+   * they are dropped at any depth. Messages are sent as written.
+   */
+  includePii?: boolean
+}
+
+export interface BrowserLoggerConfig extends LoggerConfig {
+  transport?: BrowserLogTransport
+}
+
+/** Context keys dropped before shipping unless `includePii` is set. */
+const PII_KEY =
+  /e-?mail|password|passwd|secret|token|authorization|cookie|session|^ip$|useragent|phone|cpf|cnpj|ssn/i
+
+/** Queue + delivery shared by a logger and its children. */
+class LogShipper {
+  private queue: BrowserLogEntry[] = []
+  private readonly level: LogLevel
+  private readonly batchSize: number
+
+  constructor(private readonly transport: BrowserLogTransport) {
+    this.level = transport.level ?? LogLevel.WARN
+    this.batchSize = transport.batchSize ?? 20
+    setInterval(() => this.flush(), transport.flushIntervalMs ?? 5000)
+    // Last chance before the tab is hidden or closed: beacons survive unload
+    const onHide = () => this.flush(true)
+    window.addEventListener('pagehide', onHide)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') onHide()
+    })
+  }
+
+  push(level: LogLevel, message: string, context: LogContext): void {
+    if (level > this.level) return
+    const safe = JSON.stringify(cleanContext(context), (key, value: unknown) =>
+      !this.transport.includePii && PII_KEY.test(key) ? undefined : value
+    )
+    this.queue.push({
+      level,
+      levelName: LOG_LEVEL_NAMES_UPPER[level],
+      message,
+      timestamp: new Date().toISOString(),
+      context: JSON.parse(safe) as LogContext,
+    })
+    if (this.queue.length >= this.batchSize) this.flush()
+  }
+
+  /** Sends the queue; failures are dropped (a logger must not throw or loop). */
+  flush(beacon = false): void {
+    const logs = this.queue.splice(0)
+    if (logs.length === 0) return
+    const { send, endpoint } = this.transport
+    try {
+      if (send) {
+        void Promise.resolve(send(logs)).catch(() => {})
+        return
+      }
+      if (!endpoint) return
+      const body = JSON.stringify({ logs })
+      if (
+        beacon &&
+        navigator.sendBeacon?.(endpoint, new Blob([body], { type: 'application/json' }))
+      ) {
+        return
+      }
+      void fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+        keepalive: true,
+      }).catch(() => {})
+    } catch {
+      // ponytail: no retry — a dropped batch beats a logger that grows or throws
+    }
+  }
+}
+
+/**
+ * Browser logger (client-side with DevTools integration). Pass `transport` to
+ * also ship logs to your backend.
  */
 export class BrowserLogger extends BaseLogger {
   private buffer: Array<{
@@ -17,15 +124,15 @@ export class BrowserLogger extends BaseLogger {
     context?: LogContext
   }> = []
   private bufferSize: number = 100
-  private flushInterval: number = 5000 // 5 seconds
+  private readonly shipper?: LogShipper
 
-  constructor(config?: LoggerConfig) {
-    const { level = 3, context = {} } = config || {}
-    super(typeof level === 'number' ? level : 3, context)
+  constructor(config?: BrowserLoggerConfig) {
+    const { level = 3, context = {}, transport } = config || {}
+    super(parseLogLevel(level), context)
 
-    // Auto-flush buffer periodically (browser only)
-    if (typeof globalThis !== 'undefined' && 'window' in globalThis) {
-      setInterval(() => this.flush(), this.flushInterval)
+    // Browser only: nothing to ship (or listen to) during SSR
+    if (transport && typeof window !== 'undefined') {
+      this.shipper = new LogShipper(transport)
     }
   }
 
@@ -34,13 +141,15 @@ export class BrowserLogger extends BaseLogger {
     message: string,
     context?: LogContext
   ): void {
-    // Buffer logs for potential batch sending
+    // Recent history, for getBuffer()
     this.buffer.push({ level, message, context })
 
     // Trim buffer if too large
     if (this.buffer.length > this.bufferSize) {
       this.buffer.shift()
     }
+
+    this.shipper?.push(level, message, context ?? {})
 
     // Immediate console output
     this.writeToConsole(level, message, context)
@@ -94,15 +203,10 @@ export class BrowserLogger extends BaseLogger {
   }
 
   /**
-   * Flush buffered logs (e.g., send to backend)
+   * Ship queued logs now (when a `transport` is set) and clear the buffer.
    */
   flush(): void {
-    if (this.buffer.length === 0) {
-      return
-    }
-
-    // TODO: Send to backend logging service
-    // For now, just clear buffer
+    this.shipper?.flush()
     this.buffer = []
   }
 

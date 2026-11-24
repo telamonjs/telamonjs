@@ -122,15 +122,48 @@ Error and fatal lines go to `console.error`, warnings to `console.warn`, the res
 | --------------- | ----------------------------------------------------- | -------------------------------------------- |
 | `ConsoleLogger` | Development and browser                               | colorize, timestamps, context display        |
 | `PrettyLogger`  | CLIs                                                  | `banner()`, `step()`, `newLine()`            |
-| `BrowserLogger` | Client components                                     | `flush()`, `getBuffer()`, `clearBuffer()`    |
+| `BrowserLogger` | Client components                                     | `transport`, `flush()`, `getBuffer()`, `clearBuffer()` |
 | `NoOpLogger`    | Tests, benchmarks                                     | silent                                       |
 
 <Callout type='info' title='One entry point, console output'>
   Everything is exported from one browser-safe entry point, `@telamonjs/logger`. The adapters
-  write to the console; the package ships no transports. To send logs to an aggregator or an
-  error tracker, implement `ILogger` (or extend `BaseLogger`) in your app — see
+  write to the console; the only transport is the opt-in browser one below. To send logs to an
+  aggregator or an error tracker, implement `ILogger` (or extend `BaseLogger`) in your app — see
   [Custom sinks](/docs/queue/logging#custom-sinks-sentry-datadog-).
 </Callout>
+
+### Shipping browser logs to your backend
+
+`createBrowserLogger({ transport })` returns a `BrowserLogger` that still writes to the console
+and also ships entries in batches:
+
+```typescript
+'use client'
+import { createBrowserLogger, LogLevel } from '@telamonjs/logger'
+
+export const logger = createBrowserLogger({
+  transport: {
+    endpoint: '/api/logs', // POST { logs: BrowserLogEntry[] } as JSON
+    level: LogLevel.WARN, // default: WARN, ERROR and FATAL
+  },
+})
+```
+
+| Option            | Default         | Meaning                                                                 |
+| ----------------- | --------------- | ----------------------------------------------------------------------- |
+| `endpoint`        | —               | URL that receives the batches (same-origin is simplest)                 |
+| `send`            | —               | Your own function per batch, instead of `fetch`/`sendBeacon`            |
+| `level`           | `LogLevel.WARN` | Least severe level shipped; the console still follows the logger level |
+| `batchSize`       | `20`            | Ship as soon as this many entries are queued                            |
+| `flushIntervalMs` | `5000`          | Ship what is queued on this interval                                    |
+| `includePii`      | `false`         | Keep context keys that usually hold personal data                       |
+
+Each `BrowserLogEntry` holds `level`, `levelName`, `message`, `timestamp` (ISO 8601) and
+`context`. By default, context keys that usually hold personal data (`userEmail`, `ip`,
+`userAgent`, tokens, passwords, cookies, phone, CPF…) are dropped at any depth; messages are sent
+as written, so keep personal data out of them. When the tab is hidden or closed, the queue goes
+out through `navigator.sendBeacon`. Failed deliveries are dropped, never retried or thrown. Child
+loggers share the parent's queue. On the server (no `window`) the transport is inactive.
 
 ## Context management
 

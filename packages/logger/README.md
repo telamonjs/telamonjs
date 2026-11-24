@@ -47,8 +47,30 @@ const log = createServerLogger()   // JSON lines, no colors: Next.js Server Comp
 `'json'` (one JSON object per line: `timestamp`, `level`, `message`, `context`)
 or `'pretty'` (a `PrettyLogger`). `createServerLogger()` defaults to `'json'`.
 The adapters are exported too (`ConsoleLogger`,
-`PrettyLogger`, `BrowserLogger`, `NoOpLogger`). To ship logs elsewhere,
-implement `ILogger` or extend `BaseLogger` in your app.
+`PrettyLogger`, `BrowserLogger`, `NoOpLogger`). To ship logs anywhere other than
+your own backend (below), implement `ILogger` or extend `BaseLogger` in your app.
+
+## Ship browser logs to your backend
+
+Opt-in: with a `transport`, `createBrowserLogger` returns a `BrowserLogger` that
+keeps writing to the console and also sends entries in batches.
+
+```ts
+const logger = createBrowserLogger({
+  transport: {
+    endpoint: '/api/logs',   // POST { logs: BrowserLogEntry[] } as JSON — or `send: batch => …`
+    level: LogLevel.WARN,    // default: WARN and more severe
+    batchSize: 20,           // default: ship when 20 are queued…
+    flushIntervalMs: 5000,   // …or every 5 s
+  },
+})
+```
+
+Context keys that usually hold personal data (`userEmail`, `ip`, `userAgent`,
+tokens, passwords, cookies, phone, CPF…) are dropped unless you set
+`includePii: true`; messages are sent as written. When the tab is hidden or
+closed the queue goes out through `navigator.sendBeacon`. Failed deliveries are
+dropped, never retried or thrown, and the transport is inactive on the server.
 
 ## Audit trails
 

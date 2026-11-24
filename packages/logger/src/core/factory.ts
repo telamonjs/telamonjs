@@ -6,6 +6,7 @@
 import { ConsoleLogger } from '../adapters/console.js'
 import { NoOpLogger } from '../adapters/noop.js'
 import { PrettyLogger } from '../adapters/pretty.js'
+import { BrowserLogger, type BrowserLoggerConfig } from '../adapters/browser.js'
 import type { ILogger } from './types.js'
 import type { LoggerConfig } from './types.js'
 import { getLogLevelFromEnv, parseLogLevel } from './levels.js'
@@ -76,9 +77,18 @@ export function createLogger(config?: LoggerConfig): ILogger {
 }
 
 /**
- * Create browser logger
+ * Create browser logger. With `transport`, returns a `BrowserLogger` that also
+ * ships logs to your backend in batches.
+ *
+ * @example
+ * ```ts
+ * const logger = createBrowserLogger({ transport: { endpoint: '/api/logs' } })
+ * ```
  */
-export function createBrowserLogger(config?: LoggerConfig): ILogger {
+export function createBrowserLogger(config?: BrowserLoggerConfig): ILogger {
+  if (config?.transport) {
+    return config.enabled === false ? new NoOpLogger() : new BrowserLogger(config)
+  }
   return createLogger({
     colorize: true,
     ...config,
