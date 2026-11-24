@@ -185,13 +185,18 @@ export const useFormStore = create<FormState>()(
         dataKeys: Object.keys(formData),
       })
 
-      // Basic validation of required fields
+      // Basic validation of required fields. 0 is a value; an unchecked
+      // checkbox (false) and an empty multiselect ([]) are not.
       sections?.forEach((section: ValidationSection) => {
         section.fields?.forEach(field => {
-          if (
-            field.required &&
-            (!formData[field.name] || formData[field.name] === '')
-          ) {
+          const value = formData[field.name]
+          const missing =
+            value === undefined ||
+            value === null ||
+            value === '' ||
+            value === false ||
+            (Array.isArray(value) && value.length === 0)
+          if (field.required && missing) {
             errors[field.name] = requiredMessage(field.label)
           }
         })
@@ -350,12 +355,15 @@ export const useForms = (formIds: string[]) => {
 
     // Actions em batch
     resetAll: () => formIds.forEach(id => store.resetForm(id)),
+    // map, then every: each form gets its errors, not only up to the first invalid one
     validateAll: (sectionsMap: Record<string, ValidationSection[]>) =>
-      formIds.every(id =>
-        store.validateForm(id, sectionsMap[id] || [], label =>
-          t('form.fieldRequired', { label })
+      formIds
+        .map(id =>
+          store.validateForm(id, sectionsMap[id] || [], label =>
+            t('form.fieldRequired', { label })
+          )
         )
-      ),
+        .every(Boolean),
 
     // Getters por form
     getForm: (formId: string) => ({
