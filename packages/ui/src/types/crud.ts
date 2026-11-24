@@ -208,11 +208,14 @@ export interface ListConfig<T> {
   /**
    * Empty-state title for a list with no rows. Applies only when no search/filter is active
    * (an active search keeps the localized "no results" text). Works for DataTable and InfiniteList.
-   * Default: localized "No items found". Set it for lists without creation, where the default
-   * invites adding an item.
+   * Default: localized "No items found".
    */
   emptyTitle?: I18nText
-  /** Empty-state description; same rules as `emptyTitle`. Default: "Start by adding a new item". */
+  /**
+   * Empty-state description; same rules as `emptyTitle`. Default: "Start by adding a new item"
+   * when the "New" button shows, else a neutral "There are no items to show yet" (no `form`,
+   * no `dialogs.create`, or `permissions.create` denied).
+   */
   emptyDescription?: I18nText
   /** Table columns definition */
   columns: CrudColumnDef<T>[]

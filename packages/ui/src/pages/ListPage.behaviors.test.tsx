@@ -857,7 +857,10 @@ describe('ListPage behaviors (characterization)', () => {
     })
 
     it('empty copy: "no results" with an active search, "start adding" otherwise', async () => {
-      const { config } = makeConfig({ list: { infiniteScroll: undefined } })
+      const { config } = makeConfig({
+        list: { infiniteScroll: undefined },
+        dialogs: { create: { title: 'Novo' } },
+      })
       renderListPage(config)
       await waitFor(() => expect(infiniteListSpy).toHaveBeenCalled())
       expect(latest(infiniteListSpy).emptyDescription).toBe(
@@ -873,6 +876,47 @@ describe('ListPage behaviors (characterization)', () => {
           'Tente ajustar a busca ou os filtros.'
         )
       })
+    })
+
+    it('empty copy is neutral when there is no create dialog (no "New" button)', async () => {
+      const { config } = makeConfig({ list: { infiniteScroll: undefined } })
+      renderListPage(config)
+      await waitFor(() => expect(infiniteListSpy).toHaveBeenCalled())
+      expect(latest(infiniteListSpy).emptyDescription).toBe(
+        'Ainda não há itens para exibir.'
+      )
+    })
+
+    it('empty copy is neutral when permissions.create is denied', async () => {
+      const { config } = makeConfig({
+        list: { infiniteScroll: undefined },
+        dialogs: { create: { title: 'Novo' } },
+      })
+      config.permissions = { can: () => false, create: 'users.create' }
+      renderListPage(config)
+      await waitFor(() => expect(infiniteListSpy).toHaveBeenCalled())
+      expect(screen.queryByRole('button', { name: /adicionar|novo/i })).not.toBeInTheDocument()
+      expect(latest(infiniteListSpy).emptyDescription).toBe(
+        'Ainda não há itens para exibir.'
+      )
+    })
+
+    it('empty copy: an explicit list.emptyDescription wins without create', async () => {
+      const { config } = makeConfig({
+        list: { infiniteScroll: undefined, emptyDescription: 'Nada por aqui.' },
+      })
+      renderListPage(config)
+      await waitFor(() => expect(infiniteListSpy).toHaveBeenCalled())
+      expect(latest(infiniteListSpy).emptyDescription).toBe('Nada por aqui.')
+    })
+
+    it('empty copy is neutral in the paginated DataTable too', async () => {
+      const { config } = makeConfig()
+      renderListPage(config)
+      await waitFor(() => expect(dataTableSpy).toHaveBeenCalled())
+      expect(latest(dataTableSpy).emptyDescription).toBe(
+        'Ainda não há itens para exibir.'
+      )
     })
 
     it('renders InfiniteList by default (no infiniteScroll flag)', async () => {

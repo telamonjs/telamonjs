@@ -3,6 +3,7 @@ export const list = {
   empty: 'Nenhum item encontrado',
   emptyDescription: 'Tente ajustar os filtros ou adicione novos itens.',
   emptyDescriptionNewItem: 'Comece adicionando um novo item.',
+  emptyDescriptionNoCreate: 'Ainda não há itens para exibir.',
   noResults: 'Nenhum resultado encontrado',
   noResultsDescription: 'Tente ajustar a busca ou os filtros.',
   selectAll: 'Selecionar todos',

@@ -6,6 +6,7 @@ export const list = {
   empty: 'No items found',
   emptyDescription: 'Try adjusting the filters or add new items.',
   emptyDescriptionNewItem: 'Start by adding a new item.',
+  emptyDescriptionNoCreate: 'There are no items to show yet.',
   noResults: 'No results found',
   noResultsDescription: 'Try adjusting the search or the filters.',
   selectAll: 'Select all',

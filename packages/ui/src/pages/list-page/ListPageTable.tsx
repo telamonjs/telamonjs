@@ -37,7 +37,7 @@ interface ListPageTableProps<TData> {
   /** True when embedded mode with list.infiniteScroll enabled */
   isInfiniteScroll: boolean
   infiniteQuery: UseInfiniteListQueryReturn<TData>
-  /** True when dialogs.create is configured (enables the Add button) */
+  /** True when dialogs.create survives permissions/form (enables the Add button and the "start by adding" empty copy) */
   hasCreateDialog: boolean
   /** Already resolved: undefined when no view dialog is configured */
   onRowClick: ((row: TData) => void) | undefined
@@ -93,9 +93,11 @@ export function ListPageTable<TData>({
   const text = useText()
   // Custom empty texts only apply without an active search/filter.
   const emptyTitle = hasActiveQuery ? t('list.noResults') : (text(list.emptyTitle) ?? t('list.empty'))
+  // Only invite adding when the "New" button exists (same `hasCreateDialog` decision)
   const emptyDescription = hasActiveQuery
     ? t('list.noResultsDescription')
-    : (text(list.emptyDescription) ?? t('list.emptyDescriptionNewItem'))
+    : (text(list.emptyDescription) ??
+      t(hasCreateDialog ? 'list.emptyDescriptionNewItem' : 'list.emptyDescriptionNoCreate'))
   const retry = () => void onRefresh()
   // `meta.exportOnly` columns feed only the export (ListPageToolbar)
   const columns = useMemo(
