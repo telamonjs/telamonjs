@@ -24,7 +24,7 @@ pnpm add @telamonjs/ui framer-motion jspdf jspdf-autotable next next-auth papapa
 | `jspdf` | `^4.2.1` |
 | `jspdf-autotable` | `^5.0.7` |
 | `next` | `^15.5.29 \|\| ^16.4.6` |
-| `next-auth` | `5.0.0-beta.31` |
+| `next-auth` | `^5.0.0-beta.20` |
 | `papaparse` | `^5.5.0` |
 | `react` | `^18.0.0 \|\| ^19.0.0` |
 | `react-dom` | `^18.0.0 \|\| ^19.0.0` |
