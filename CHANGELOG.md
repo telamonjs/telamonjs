@@ -1,5 +1,10 @@
 # Changelog
 
+## ui 1.3.1 (2026-11-24)
+
+`@telamonjs/ui`: `ConfirmActionDialog` (and `confirmDialog.inputs`) focuses the first input on
+open; without inputs, focus still starts on Cancel.
+
 ## ui 1.3.0 (2026-11-24)
 
 More consumer-driven additions; `packages/ui/CHANGELOG.md` has the details. Everything is opt-in,

@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.3.1
+
+### Patch Changes
+
+- 25f34e0: `ConfirmActionDialog` (and `confirmDialog.inputs` on row actions) focuses the first input on open,
+  so a reason can be typed right away. Without inputs, focus still starts on Cancel.
+
 ## 1.3.0
 
 ### Minor Changes

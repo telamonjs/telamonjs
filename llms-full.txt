@@ -9208,6 +9208,8 @@ import { Button, ConfirmActionDialog } from '@telamonjs/ui'
   then shows its message live: muted while untouched, as an error once edited or after an
   attempt. Without it the confirm stays enabled and messages show from the first attempt.
 - **`confirmDisabled`** disables only the confirm button, from your own state.
+- **Focus**: with `inputs`, the first field is focused on open, so a reason can be typed right
+  away; without inputs, focus starts on Cancel, the safe default for a destructive confirmation.
 
 Pass `open` / `onOpenChange` to control it (for example from a menu item), or a `children`
 trigger and nothing else to let it own its state. `children` is always the trigger; content
