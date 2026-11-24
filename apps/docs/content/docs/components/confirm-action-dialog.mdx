@@ -1,6 +1,6 @@
 ---
 title: ConfirmActionDialog
-description: Confirmation dialog for an async action, with optional inputs, a pending state and inline errors
+description: Confirmation dialog for an async action, with validated inputs, free content, a dialog- or caller-controlled pending state and inline errors
 ---
 
 The dialog behind `confirmDialog` on the row and menu actions of a `ListPage`, available for any
@@ -27,17 +27,77 @@ import { Button, ConfirmActionDialog } from '@telamonjs/ui'
 ## Behavior
 
 - **Pending**: while the promise returned by `onConfirm` is pending, both buttons are disabled,
-  the confirm button shows a spinner and the dialog cannot be dismissed.
+  the confirm button shows a spinner (and `pendingText`, if set) and the dialog cannot be
+  dismissed.
 - **Success**: when `onConfirm` resolves, the dialog closes.
 - **Failure**: when it rejects, the dialog stays open and shows the error's `message` (or a
   localized fallback). Resolve `false` instead to stay open without a message — for an error
   you already reported, such as in a toast.
-- **Inputs**: `text`, `textarea` and `select` (`options` are strings, value = label). A
-  `required` input left empty (or blank) blocks the confirm and is marked invalid. Values
+- **Inputs**: `text`, `textarea`, `select` (`options` are strings, value = label) and `date`
+  (the native date input, value `YYYY-MM-DD`). A `required` input left empty (or blank) and an
+  input whose `validate` returns a message block the confirm and are marked invalid. Values
   reach `onConfirm` keyed by `name`; every opening starts again from `defaultValue`.
+- **`confirmDisabled`** disables only the confirm button, from your own state.
 
 Pass `open` / `onOpenChange` to control it (for example from a menu item), or a `children`
-trigger and nothing else to let it own its state.
+trigger and nothing else to let it own its state. `children` is always the trigger; content
+inside the dialog goes in `body`.
+
+## Caller-controlled pending
+
+When you already run the action yourself — typically a React Query mutation — pass `pending`.
+Its presence (even `false`) hands the lifecycle to you: confirming calls `onConfirm` and never
+closes the dialog, so it stays locked on `pendingText` until you close it when the mutation
+settles. While `pending` is `true` both buttons are disabled and the dialog cannot be dismissed.
+A rejected promise from `onConfirm` still shows its message.
+
+```tsx
+const publish = useMutation({
+  mutationFn: () => api.publish(id),
+  onSuccess: () => setOpen(false),
+})
+
+<ConfirmActionDialog
+  open={open}
+  onOpenChange={setOpen}
+  title={<>Publish <strong>{name}</strong>?</>}
+  description='Candidates see it right away.'
+  pending={publish.isPending}
+  pendingText='Publishing...'
+  onConfirm={() => publish.mutate()}
+/>
+```
+
+## Free content and custom validation
+
+`title` and `description` take JSX as well as text or `msg()` (the description renders inside
+a `<p>`, so keep it phrasing content). `body` renders anything between the description and the
+buttons. For fields, prefer `inputs` with `validate`: it receives the field value and every
+value, and returns the message to show (text or `msg()`) or `undefined`. Messages appear from
+the first confirm attempt on and update as the user types.
+
+```tsx
+<ConfirmActionDialog
+  title='Write off invoice?'
+  variant='destructive'
+  body={<p className='text-sm'>Balance: {formatMoney(invoice.balance)}</p>}
+  inputs={[
+    { name: 'date', label: 'Effective date', type: 'date', required: true },
+    {
+      name: 'word',
+      label: 'Type WRITE OFF to confirm',
+      type: 'text',
+      validate: value => (value === 'WRITE OFF' ? undefined : 'Type WRITE OFF'),
+    },
+  ]}
+  onConfirm={({ date }) => invoicesApi.writeOff(invoice.id, date)}
+>
+  <Button variant='destructive'>Write off</Button>
+</ConfirmActionDialog>
+```
+
+For anything `inputs` cannot express, render your own fields in `body` and gate the button with
+`confirmDisabled`.
 
 ## Props
 
@@ -46,15 +106,28 @@ trigger and nothing else to let it own its state.
 | `onConfirm` | `(values: Record<string, string>) => unknown` | required |
 | `open` / `onOpenChange` | `boolean` / `(open: boolean) => void` | uncontrolled |
 | `children` | `ReactNode` — the element that opens it | — |
-| `title` | `I18nText` | localized "Confirm action" |
-| `description` | `I18nText` | — |
+| `title` | `I18nText \| ReactNode` | localized "Confirm action" |
+| `description` | `I18nText \| ReactNode` | — |
+| `body` | `ReactNode` — between the description and the buttons | — |
 | `confirmText` / `cancelText` | `I18nText` | localized "Confirm" / "Cancel" |
+| `pendingText` | `I18nText` — confirm label while pending | `confirmText` |
+| `pending` | `boolean` — caller-controlled pending, no auto-close | dialog-owned |
+| `confirmDisabled` | `boolean` | `false` |
 | `variant` | `'default' \| 'destructive'` | `'default'` |
-| `inputs` | `ConfirmDialogInput[]` (`name`, `label`, `type`, `required?`, `options?`, `defaultValue?`) | — |
+| `inputs` | `ConfirmDialogInput[]` (`name`, `label`, `type`, `required?`, `validate?`, `options?`, `defaultValue?`) | — |
+
+## Migrating a local copy
+
+Apps that kept their own confirmation dialog (controlled, `pending`, JSX title, free content)
+can switch to this one by renaming two props: the local `children` (content) becomes `body`,
+and hard-coded "Confirm"/"Cancel" labels become the localized defaults. `open`,
+`onOpenChange`, `title`, `description`, `confirmText`, `pendingText`, `pending`, `variant`,
+`confirmDisabled` and `onConfirm` keep their meaning.
 
 ## In row actions
 
-`ActionConfig.confirmDialog` renders this dialog with the same options. Its `inputs` reach the
+`ActionConfig.confirmDialog` renders this dialog with the same `title`, `description`, button
+texts, `variant` and `inputs` (including `date` and `validate`). Its `inputs` reach the
 action as a second argument, only when inputs are declared (handlers written for the row alone
 keep working):
 

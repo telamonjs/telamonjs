@@ -24,32 +24,51 @@ import {
 } from '../../ui/select'
 import { Textarea } from '../../ui/textarea'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
-import type { I18nText } from '../../i18n/msg'
+import { isMessageRef, type I18nText } from '../../i18n/msg'
 import type { ConfirmDialogInput } from '../../types/actions'
 
 export interface ConfirmActionDialogProps {
   /** Controlled open state. Omit it (with a `children` trigger) to let the dialog own it */
   open?: boolean
   onOpenChange?: (open: boolean) => void
-  /** Element that opens the dialog on click */
+  /** Element that opens the dialog on click (the trigger, never content: see `body`) */
   children?: ReactNode
-  /** Default: localized "Confirm action" */
-  title?: I18nText
-  description?: I18nText
+  /** Text, `msg()` or JSX. Default: localized "Confirm action" */
+  title?: I18nText | ReactNode
+  /** Text, `msg()` or JSX (phrasing content: it renders inside a `<p>`) */
+  description?: I18nText | ReactNode
+  /** Free content between the description and the buttons (fields, a summary, a warning) */
+  body?: ReactNode
   /** Default: localized "Confirm" */
   confirmText?: I18nText
+  /** Confirm label while pending. Default: `confirmText` */
+  pendingText?: I18nText
   /** Default: localized "Cancel" */
   cancelText?: I18nText
   /** `'destructive'` paints the confirm button red */
   variant?: 'default' | 'destructive'
-  /** Fields asked before confirming; required ones block the confirm while empty */
+  /** Disables only the confirm button, e.g. until a confirmation word is typed */
+  confirmDisabled?: boolean
+  /**
+   * Caller-controlled pending state (usually `mutation.isPending`). Passing it,
+   * even `false`, hands the lifecycle to the caller: confirming never closes
+   * the dialog; close it yourself (`open`/`onOpenChange`) when the action
+   * settles. While `true`, both buttons are disabled, the confirm shows a
+   * spinner and `pendingText`, and the dialog cannot be dismissed.
+   */
+  pending?: boolean
+  /**
+   * Fields asked before confirming; `required` and `validate` block the
+   * confirm while they fail
+   */
   inputs?: ConfirmDialogInput[]
   /**
-   * Runs on confirm with the `inputs` values (`{}` without inputs). The dialog
-   * stays open, buttons disabled, while it is pending; it closes when it
-   * resolves, and stays open showing the error message when it rejects.
-   * Resolve `false` to stay open without a message (an error you already
-   * reported, e.g. in a toast).
+   * Runs on confirm with the `inputs` values (`{}` without inputs). Without
+   * `pending`, the dialog stays open, buttons disabled, while the returned
+   * promise is pending; it closes when it resolves, and stays open showing
+   * the error message when it rejects. Resolve `false` to stay open without a
+   * message (an error you already reported, e.g. in a toast). With `pending`,
+   * a rejection still shows its message, but nothing closes the dialog.
    */
   onConfirm: (values: Record<string, string>) => unknown
 }
@@ -65,12 +84,15 @@ const initialValues = (inputs: ConfirmDialogInput[] = []) =>
  *
  * @description
  * The dialog behind `confirmDialog` on row and menu actions, public for any
- * other button. Optional `inputs` (text, textarea, select) are validated and
- * handed to `onConfirm`; while `onConfirm` is pending the dialog stays open
- * with a spinner, it closes on success and shows the error on failure.
+ * other button. Optional `inputs` (text, textarea, select, date) are validated
+ * (`required`, `validate`) and handed to `onConfirm`; `body` adds free
+ * content. Two pending modes: by default the dialog awaits `onConfirm`
+ * (spinner, closes on success, shows the error on failure); with a `pending`
+ * prop the caller runs the action and closes the dialog itself.
  *
  * @example
  * ```tsx
+ * // The dialog awaits the action
  * <ConfirmActionDialog
  *   title='Reject request?'
  *   variant='destructive'
@@ -79,6 +101,16 @@ const initialValues = (inputs: ConfirmDialogInput[] = []) =>
  * >
  *   <Button variant='destructive'>Reject</Button>
  * </ConfirmActionDialog>
+ *
+ * // The caller runs a mutation and closes on success
+ * <ConfirmActionDialog
+ *   open={open}
+ *   onOpenChange={setOpen}
+ *   title={<>Publish <strong>{name}</strong>?</>}
+ *   pending={publish.isPending}
+ *   pendingText='Publishing...'
+ *   onConfirm={() => publish.mutate(undefined, { onSuccess: () => setOpen(false) })}
+ * />
  * ```
  */
 export function ConfirmActionDialog({
@@ -87,9 +119,13 @@ export function ConfirmActionDialog({
   children,
   title,
   description,
+  body,
   confirmText,
+  pendingText,
   cancelText,
   variant = 'default',
+  confirmDisabled = false,
+  pending: pendingProp,
   inputs,
   onConfirm,
 }: ConfirmActionDialogProps) {
@@ -99,9 +135,12 @@ export function ConfirmActionDialog({
   const [innerOpen, setInnerOpen] = useState(false)
   const open = openProp ?? innerOpen
   const [values, setValues] = useState(() => initialValues(inputs))
-  const [missing, setMissing] = useState<string[]>([])
+  // Field errors show from the first confirm attempt on, recomputed live
+  const [attempted, setAttempted] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [pending, setPending] = useState(false)
+  const [innerPending, setInnerPending] = useState(false)
+  const callerOwnsPending = pendingProp !== undefined
+  const pending = pendingProp ?? innerPending
 
   // Every opening starts clean (React "adjust state on prop change" pattern)
   const [wasOpen, setWasOpen] = useState(open)
@@ -109,9 +148,18 @@ export function ConfirmActionDialog({
     setWasOpen(open)
     if (open) {
       setValues(initialValues(inputs))
-      setMissing([])
+      setAttempted(false)
       setError(null)
     }
+  }
+
+  const node = (value: I18nText | ReactNode): ReactNode =>
+    isMessageRef(value) ? text(value) : value
+
+  const fieldError = (input: ConfirmDialogInput): I18nText | undefined => {
+    const value = values[input.name] ?? ''
+    if (input.required && !value.trim()) return t('validation.required')
+    return input.validate?.(value, values)
   }
 
   const setOpen = (next: boolean) => {
@@ -128,20 +176,18 @@ export function ConfirmActionDialog({
   const handleConfirm = async (event: MouseEvent) => {
     // AlertDialogAction closes on click; this dialog closes only on success
     event.preventDefault()
-    const empty = (inputs ?? [])
-      .filter(i => i.required && !values[i.name]?.trim())
-      .map(i => i.name)
-    setMissing(empty)
-    if (empty.length > 0) return
+    setAttempted(true)
+    if ((inputs ?? []).some(input => fieldError(input))) return
 
     setError(null)
-    setPending(true)
+    if (!callerOwnsPending) setInnerPending(true)
     try {
       const result = await onConfirm(values)
-      setPending(false)
+      if (callerOwnsPending) return
+      setInnerPending(false)
       if (result !== false) setOpen(false)
     } catch (err) {
-      setPending(false)
+      if (!callerOwnsPending) setInnerPending(false)
       setError(
         err instanceof Error && err.message
           ? err.message
@@ -150,10 +196,8 @@ export function ConfirmActionDialog({
     }
   }
 
-  const setValue = (name: string, value: string) => {
+  const setValue = (name: string, value: string) =>
     setValues(prev => ({ ...prev, [name]: value }))
-    if (missing.includes(name)) setMissing(prev => prev.filter(n => n !== name))
-  }
 
   return (
     <AlertDialog open={open} onOpenChange={handleOpenChange}>
@@ -161,26 +205,28 @@ export function ConfirmActionDialog({
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
-            {text(title) || t('dialog.confirmActionTitle')}
+            {node(title) || t('dialog.confirmActionTitle')}
           </AlertDialogTitle>
           {description && (
-            <AlertDialogDescription>{text(description)}</AlertDialogDescription>
+            <AlertDialogDescription>{node(description)}</AlertDialogDescription>
           )}
         </AlertDialogHeader>
+
+        {body}
 
         {inputs && inputs.length > 0 && (
           <div className='grid gap-4'>
             {inputs.map(input => {
               const id = `${idPrefix}-${input.name}`
               const errorId = `${id}-error`
-              const invalid = missing.includes(input.name)
+              const message = attempted ? fieldError(input) : undefined
               const common = {
                 id,
                 name: input.name,
                 required: input.required,
                 disabled: pending,
-                'aria-invalid': invalid || undefined,
-                'aria-describedby': invalid ? errorId : undefined,
+                'aria-invalid': message ? true : undefined,
+                'aria-describedby': message ? errorId : undefined,
               }
               return (
                 <div key={input.name} className='grid gap-1.5'>
@@ -222,13 +268,14 @@ export function ConfirmActionDialog({
                   ) : (
                     <Input
                       {...common}
+                      type={input.type === 'date' ? 'date' : 'text'}
                       value={values[input.name] ?? ''}
                       onChange={e => setValue(input.name, e.target.value)}
                     />
                   )}
-                  {invalid && (
+                  {message && (
                     <p id={errorId} className='text-sm text-destructive'>
-                      {t('validation.required')}
+                      {text(message)}
                     </p>
                   )}
                 </div>
@@ -253,7 +300,7 @@ export function ConfirmActionDialog({
           </AlertDialogCancel>
           <AlertDialogAction
             data-testid='modal-confirm'
-            disabled={pending}
+            disabled={pending || confirmDisabled}
             aria-busy={pending || undefined}
             className={
               variant === 'destructive'
@@ -265,7 +312,9 @@ export function ConfirmActionDialog({
             {pending && (
               <Loader2 className='mr-2 h-4 w-4 animate-spin' aria-hidden='true' />
             )}
-            {text(confirmText) || t('common.confirm')}
+            {(pending && text(pendingText)) ||
+              text(confirmText) ||
+              t('common.confirm')}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -55,12 +55,23 @@ export interface ConfirmDialogInput {
   /** Key of the value in `inputs` */
   name: string
   label: I18nText
-  type: 'text' | 'textarea' | 'select'
+  /** `date` is the native date input; its value is `YYYY-MM-DD` (`''` when empty) */
+  type: 'text' | 'textarea' | 'select' | 'date'
   /** Confirming is blocked while it is empty */
   required?: boolean
   /** Choices of a `select` (value = label) */
   options?: string[]
   defaultValue?: string
+  /**
+   * Custom rule beyond `required`: return a message to mark the field invalid
+   * and block the confirm, `undefined` when valid. Runs (pure, on every
+   * render) from the first confirm attempt on, also on empty optional fields,
+   * with all the values for cross-field rules. `required` is checked first.
+   */
+  validate?: (
+    value: string,
+    values: Record<string, string>
+  ) => I18nText | undefined
 }
 
 /**

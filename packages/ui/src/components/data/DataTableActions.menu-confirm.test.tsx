@@ -5,7 +5,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import type { Row } from '@tanstack/react-table'
 import { axe } from 'vitest-axe'
@@ -180,6 +180,47 @@ describe('DataTableActions overflow menu confirmation', () => {
       )
       await waitFor(() =>
         expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+      )
+    })
+
+    it('supports date inputs and per-input validate', async () => {
+      const handler = vi.fn().mockResolvedValue({ success: true })
+      const { user, openMenu } = renderMenu({
+        custom: [
+          {
+            id: 'write-off',
+            label: 'Write off',
+            position: 'dropdown',
+            handler,
+            confirmDialog: {
+              inputs: [
+                {
+                  name: 'date',
+                  label: 'Date',
+                  type: 'date',
+                  validate: value =>
+                    value > '2026-12-31' ? 'Must be this year' : undefined,
+                },
+              ],
+            },
+          },
+        ],
+      })
+
+      await openMenu()
+      await user.click(await screen.findByRole('menuitem', { name: 'Write off' }))
+      const field = await screen.findByLabelText('Date')
+      expect(field).toHaveAttribute('type', 'date')
+
+      fireEvent.change(field, { target: { value: '2027-01-02' } })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(field).toHaveAccessibleDescription('Must be this year')
+      expect(handler).not.toHaveBeenCalled()
+
+      fireEvent.change(field, { target: { value: '2026-06-01' } })
+      await user.click(screen.getByTestId('modal-confirm'))
+      await waitFor(() =>
+        expect(handler).toHaveBeenCalledWith(item, { inputs: { date: '2026-06-01' } })
       )
     })
 

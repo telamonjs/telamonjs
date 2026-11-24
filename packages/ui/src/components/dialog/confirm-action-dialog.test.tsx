@@ -4,12 +4,13 @@
  */
 
 import { describe, it, expect, vi } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useState } from 'react'
 import { axe } from 'vitest-axe'
 import * as axeMatchers from 'vitest-axe/matchers'
 
+import { msg } from '../../i18n/msg'
 import { ConfirmActionDialog } from './confirm-action-dialog'
 import type { ConfirmActionDialogProps } from './confirm-action-dialog'
 
@@ -91,9 +92,91 @@ describe('ConfirmActionDialog', () => {
       expect(screen.getByRole('textbox', { name: /Reason/ })).toBeRequired()
       expect(screen.getByRole('combobox', { name: 'Kind' })).toBeInTheDocument()
     })
+
+    it('renders ReactNode title and description', () => {
+      setup({
+        title: (
+          <span>
+            Delete <strong>Alpha</strong>?
+          </span>
+        ),
+        description: (
+          <>
+            From <strong>today</strong> on.
+          </>
+        ),
+      })
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('Delete Alpha?')
+      expect(screen.getByText('today').tagName).toBe('STRONG')
+    })
+
+    it('resolves a msg() title and description', () => {
+      setup({
+        title: msg('telamonjs.common.save'),
+        description: msg('telamonjs.common.cancel'),
+      })
+      const dialog = screen.getByRole('alertdialog')
+      expect(dialog).toHaveTextContent('Salvar')
+      expect(dialog).toHaveAccessibleDescription('Cancelar')
+    })
+
+    it('renders the body between the description and the buttons', () => {
+      setup({
+        description: 'Desc',
+        body: <p data-testid='body'>Extra content</p>,
+      })
+      const body = screen.getByTestId('body')
+      const description = screen.getByText('Desc')
+      const confirm = screen.getByTestId('modal-confirm')
+      expect(description.compareDocumentPosition(body)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+      expect(body.compareDocumentPosition(confirm)).toBe(
+        Node.DOCUMENT_POSITION_FOLLOWING
+      )
+    })
+
+    it('renders a date input', () => {
+      setup({
+        inputs: [
+          { name: 'due', label: 'Due date', type: 'date', defaultValue: '2026-01-31' },
+        ],
+      })
+      const field = screen.getByLabelText('Due date')
+      expect(field).toHaveAttribute('type', 'date')
+      expect(field).toHaveValue('2026-01-31')
+    })
   })
 
   describe('Interactions', () => {
+    it('confirmDisabled disables only the confirm button', () => {
+      setup({ confirmDisabled: true })
+      expect(screen.getByTestId('modal-confirm')).toBeDisabled()
+      expect(screen.getByTestId('modal-cancel')).toBeEnabled()
+    })
+
+    it('a date input value reaches onConfirm', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        inputs: [{ name: 'due', label: 'Due date', type: 'date' }],
+      })
+      fireEvent.change(screen.getByLabelText('Due date'), {
+        target: { value: '2026-03-15' },
+      })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({ due: '2026-03-15' })
+    })
+
+    it('controlled pending: confirming does not close, even when onConfirm resolves', async () => {
+      const onConfirm = vi.fn().mockResolvedValue(undefined)
+      const { user } = setup({ pending: false, onConfirm })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({})
+      await waitFor(() => expect(screen.getByTestId('modal-confirm')).toBeEnabled())
+      expect(screen.getByTestId('state')).toHaveTextContent('open')
+    })
+
     it('confirms with the input values and closes when onConfirm resolves', async () => {
       const onConfirm = vi.fn().mockResolvedValue(undefined)
       const { user } = setup({
@@ -134,6 +217,111 @@ describe('ConfirmActionDialog', () => {
   })
 
   describe('State Management', () => {
+    it('controlled pending: locks both buttons, shows pendingText and blocks dismissal', async () => {
+      const { user } = setup({ pending: true, confirmText: 'Send', pendingText: 'Sending...' })
+      const confirm = screen.getByTestId('modal-confirm')
+      expect(confirm).toBeDisabled()
+      expect(confirm).toHaveAttribute('aria-busy', 'true')
+      expect(confirm).toHaveTextContent('Sending...')
+      expect(screen.getByTestId('modal-cancel')).toBeDisabled()
+      await user.keyboard('{Escape}')
+      expect(screen.getByTestId('state')).toHaveTextContent('open')
+    })
+
+    it('controlled pending: the caller closes it when its mutation settles', async () => {
+      const user = userEvent.setup()
+      const job = deferred()
+      function Caller() {
+        const [open, setOpen] = useState(true)
+        const [pending, setPending] = useState(false)
+        const mutate = () => {
+          setPending(true)
+          void job.promise.then(() => {
+            setPending(false)
+            setOpen(false)
+          })
+        }
+        return (
+          <>
+            <span data-testid='state'>{open ? 'open' : 'closed'}</span>
+            <ConfirmActionDialog
+              open={open}
+              onOpenChange={setOpen}
+              pending={pending}
+              pendingText='Sending...'
+              onConfirm={mutate}
+            />
+          </>
+        )
+      }
+      render(<Caller />)
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(screen.getByTestId('modal-confirm')).toHaveTextContent('Sending...')
+      expect(screen.getByTestId('state')).toHaveTextContent('open')
+
+      job.resolve()
+      await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('closed'))
+    })
+
+    it('pendingText also labels the built-in pending state', async () => {
+      const job = deferred()
+      const { user } = setup({ pendingText: 'Saving...', onConfirm: () => job.promise })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(screen.getByTestId('modal-confirm')).toHaveTextContent('Saving...')
+      job.resolve()
+      await waitFor(() => expect(screen.getByTestId('state')).toHaveTextContent('closed'))
+    })
+
+    it('validate blocks the confirm, shows its message and re-validates as the user types', async () => {
+      const onConfirm = vi.fn()
+      const validate = vi.fn((value: string) =>
+        value === 'DELETE' ? undefined : 'Type DELETE to confirm'
+      )
+      const { user } = setup({
+        onConfirm,
+        inputs: [{ name: 'word', label: 'Confirmation', type: 'text', validate }],
+      })
+      // no message before the first confirm attempt
+      expect(screen.queryByText('Type DELETE to confirm')).not.toBeInTheDocument()
+
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).not.toHaveBeenCalled()
+      const field = screen.getByRole('textbox', { name: 'Confirmation' })
+      expect(field).toHaveAttribute('aria-invalid', 'true')
+      expect(field).toHaveAccessibleDescription('Type DELETE to confirm')
+
+      await user.type(field, 'DELETE')
+      expect(field).not.toHaveAttribute('aria-invalid')
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({ word: 'DELETE' })
+    })
+
+    it('validate receives every value (cross-field rules) and may return a msg()', async () => {
+      const onConfirm = vi.fn()
+      const { user } = setup({
+        onConfirm,
+        inputs: [
+          { name: 'from', label: 'From', type: 'date', defaultValue: '2026-05-10' },
+          {
+            name: 'to',
+            label: 'To',
+            type: 'date',
+            required: true,
+            validate: (to, values) =>
+              values.from && to < values.from ? msg('telamonjs.common.cancel') : undefined,
+          },
+        ],
+      })
+      fireEvent.change(screen.getByLabelText(/To/), { target: { value: '2026-05-01' } })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).not.toHaveBeenCalled()
+      expect(screen.getByLabelText(/To/)).toHaveAccessibleDescription('Cancelar')
+
+      fireEvent.change(screen.getByLabelText(/To/), { target: { value: '2026-05-20' } })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(onConfirm).toHaveBeenCalledWith({ from: '2026-05-10', to: '2026-05-20' })
+    })
+
     it('stays open with disabled buttons while onConfirm is pending', async () => {
       const pending = deferred()
       const { user } = setup({ onConfirm: () => pending.promise })
@@ -195,6 +383,44 @@ describe('ConfirmActionDialog', () => {
       expect(onConfirm).toHaveBeenCalledWith({ reason: '   ok' })
     })
 
+    it('required wins over validate on an empty field', async () => {
+      const validate = vi.fn(() => 'custom')
+      const { user } = setup({
+        inputs: [{ name: 'r', label: 'Reason', type: 'text', required: true, validate }],
+      })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(screen.getByRole('textbox', { name: /Reason/ })).toHaveAccessibleDescription(
+        'Campo obrigatório'
+      )
+    })
+
+    it('validate also runs on an optional empty field', async () => {
+      const onConfirm = vi.fn()
+      const validate = vi.fn(() => undefined)
+      const { user } = setup({
+        onConfirm,
+        inputs: [{ name: 'note', label: 'Note', type: 'text', validate }],
+      })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(validate).toHaveBeenCalledWith('', { note: '' })
+      expect(onConfirm).toHaveBeenCalled()
+    })
+
+    it('controlled pending: a rejected onConfirm still shows the error and stays open', async () => {
+      const { user } = setup({
+        pending: false,
+        onConfirm: () => Promise.reject(new Error('Server said no')),
+      })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(await screen.findByRole('alert')).toHaveTextContent('Server said no')
+      expect(screen.getByTestId('state')).toHaveTextContent('open')
+    })
+
+    it('a keyed React element title is rendered, not mistaken for a msg()', () => {
+      setup({ title: <span key='only'>Keyed title</span> })
+      expect(screen.getByRole('alertdialog')).toHaveTextContent('Keyed title')
+    })
+
     it('a rejection without a message shows the localized fallback', async () => {
       const { user } = setup({ onConfirm: () => Promise.reject('nope') })
       await user.click(screen.getByTestId('modal-confirm'))
@@ -242,6 +468,28 @@ describe('ConfirmActionDialog', () => {
       await user.type(screen.getByRole('textbox', { name: /Reason/ }), 'x')
       await user.click(screen.getByTestId('modal-confirm'))
       await screen.findByRole('alert')
+      expect(await axe(baseElement)).toHaveNoViolations()
+    })
+
+    it('has no axe violations with a body, a date input and a validate error', async () => {
+      const { user, baseElement } = setup({
+        title: <span>Write off invoice?</span>,
+        description: 'The balance is cleared.',
+        body: <p>Balance: 10.00</p>,
+        pending: false,
+        inputs: [
+          {
+            name: 'when',
+            label: 'Effective date',
+            type: 'date',
+            validate: v => (v ? undefined : 'Pick a date'),
+          },
+        ],
+      })
+      await user.click(screen.getByTestId('modal-confirm'))
+      expect(screen.getByLabelText('Effective date')).toHaveAccessibleDescription(
+        'Pick a date'
+      )
       expect(await axe(baseElement)).toHaveNoViolations()
     })
   })
