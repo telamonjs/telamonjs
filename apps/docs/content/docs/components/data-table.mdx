@@ -57,6 +57,7 @@ export default function UsersTable({ users }: { users: User[] }) {
     searchPlaceholder: { description: 'Placeholder for the global search input (localized default)', type: 'string', default: "t('list.search')" },
     enableSearch: { description: 'Enable global search', type: 'boolean', default: 'true' },
     enableExport: { description: 'Enable export (Excel/CSV/PDF) button', type: 'boolean', default: 'true' },
+    exportMenuProps: { description: 'Extra props for the built-in export menu: `loadAll` + `allCount` (export every server page instead of the table rows), `onServerExport` (app-side export), `formats`, `filename`', type: 'DataTableExportMenuProps<TData>' },
     enablePagination: { description: 'Enable pagination controls', type: 'boolean', default: 'true' },
     pageSize: { description: 'Initial page size', type: 'number', default: '10' },
     manualPagination: { description: 'Enable server-side pagination (manual control)', type: 'boolean', default: 'false' },

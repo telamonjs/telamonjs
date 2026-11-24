@@ -20,6 +20,7 @@ export type { FilterOption, ColumnFilterConfig } from '../types/filters'
 export type {
   ModuleMetadata,
   ListConfig,
+  ExportAllOptions,
   CrudColumnDef,
   FormConfig,
   QueryConfig,

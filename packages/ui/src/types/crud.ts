@@ -66,7 +66,8 @@ import type {
 } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import type { ActionConfig, DataTableActionsConfig } from './actions'
-import type { PaginationParams, PaginatedResponse } from './pagination'
+import type { PaginationParams, PaginatedResponse, SortField } from './pagination'
+import type { ExportFormat } from '../data/ExportMenu'
 import type { FormSection } from './forms/admin-form'
 import type { DialogHeaderConfig } from './dialog-header'
 import type { DialogSize, DialogHeight } from '../utils/spacing'
@@ -198,6 +199,29 @@ export interface ToolbarConfig {
 /**
  * List page configuration
  */
+/** Current query of a ListPage, handed to `toolbarContent` (as a function) and `list.onExport` */
+export interface ListQueryState {
+  /** Search box value, as typed */
+  search: string
+  /** Every active filter: toolbar filters (resets dropped), column filters and `urlFilters` */
+  filters: Record<string, unknown>
+  /** Current sort */
+  sorting: SortField[]
+  /**
+   * The params the list passes to `query.queryFn` (debounced search). `page`/`pageSize` are the
+   * paginated view's; set your own when fetching everything for an export.
+   */
+  params: PaginationParams
+}
+
+/** Options of `list.exportAll` */
+export interface ExportAllOptions {
+  /** Rows per request (default: `list.defaultPageSize` or 50, what the list itself requests) */
+  pageSize?: number
+  /** Row cap (default 10 000): past it the file holds the first rows and a warning says so */
+  maxRows?: number
+}
+
 export interface ListConfig<T> {
   /** Page title */
   title: I18nText
@@ -231,6 +255,22 @@ export interface ListConfig<T> {
   enableExport?: boolean
   /** Export filename */
   exportFilename?: string
+  /**
+   * What "Export all" exports. By default, the rows already loaded in the browser — with
+   * infinite scroll, only the pages scrolled so far. `true` fetches every row matching the
+   * current search, filters and sort through `query.queryFn`, page by page, with a progress
+   * toast and Cancel, up to `maxRows` (10 000). For bigger exports, use `onExport`.
+   */
+  exportAll?: boolean | ExportAllOptions
+  /** Formats the export menu offers (default: Excel, CSV, PDF) */
+  exportFormats?: ExportFormat[]
+  /**
+   * App-side export, e.g. a file the server generates from the same query: the menu lists
+   * `exportFormats` only and calls this with the list's current query. Wins over `exportAll`;
+   * shows the export menu even without `enableExport`. Throw to show the export error toast;
+   * announcing success (or a queued job) is up to you.
+   */
+  onExport?: (state: ListQueryState, format: ExportFormat) => unknown
   /** Toolbar config for embedded mode */
   toolbar?: ToolbarConfig
   /**

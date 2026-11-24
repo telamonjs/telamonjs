@@ -114,6 +114,32 @@ describe('ListPageToolbar export (consumer QA 7.3.1: Export missing in the 7.x t
     renderToolbar(false)
     expect(screen.queryByRole('button', { name: /exportar/i })).not.toBeInTheDocument()
   })
+
+  it('list.onExport alone shows the menu, formats only, and calls the extras from useListPageExport', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event')
+    const user = userEvent.setup()
+    const onServerExport = vi.fn()
+    render(
+      <ListPageToolbar
+        list={{ ...list, columns: [], onExport: vi.fn(), exportFormats: ['excel'] } as ListConfig<unknown>}
+        localSearch=''
+        onSearchChange={vi.fn()}
+        toolbarFilters={{}}
+        onFilterChange={vi.fn()}
+        total={18}
+        loading={false}
+        isFetching={false}
+        showAddButton={false}
+        onAdd={vi.fn()}
+        onRefresh={vi.fn(async () => undefined)}
+        exportMenu={{ onServerExport }}
+      />
+    )
+    await user.click(screen.getByTestId('export-menu-trigger'))
+    expect(screen.queryByText('CSV (.csv)')).not.toBeInTheDocument()
+    await user.click(screen.getByText('Excel (.xlsx)'))
+    expect(onServerExport).toHaveBeenCalledWith('excel')
+  })
 })
 
 describe('ListPageToolbar levels (7.14)', () => {

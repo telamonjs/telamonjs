@@ -24,6 +24,7 @@ import { useListPageActions } from './list-page/useListPageActions'
 import { ListPageToolbar } from './list-page/ListPageToolbar'
 import { ListPageTable } from './list-page/ListPageTable'
 import { ListPageDialogs } from './list-page/ListPageDialogs'
+import { useListPageExport } from './list-page/useListPageExport'
 import { applyCrudPermissions } from './list-page/apply-crud-permissions'
 
 const logger = withComponent('ListPage')
@@ -292,6 +293,14 @@ export function ListPage<TData>({
       ? toolbarContent(listQuery)
       : toolbarContent
 
+  // Export menu (toolbar + paginated DataTable): loaded rows by default,
+  // every page with `list.exportAll`, the app's handler with `list.onExport`
+  const exportMenu = useListPageExport({
+    config,
+    listQuery,
+    total: effectiveTotal,
+  })
+
   // Root element ref — lets useDialogUrlSync gate URL→state opening by visibility
   // (keep-alive tab dashboards co-mount several ListPages sharing one param).
   const rootRef = useRef<HTMLDivElement>(null)
@@ -360,24 +369,6 @@ export function ListPage<TData>({
     }
   }, [loadFilterOptions])
 
-  const handleExport = () => {
-    // Check if enableExport in config
-    if (!list.enableExport) return
-
-    // Default export to CSV
-    const csvContent = data
-      .map(item => Object.values(item as Record<string, unknown>).join(','))
-      .join('\n')
-
-    const blob = new Blob([csvContent], { type: 'text/csv' })
-    const url = window.URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = list.exportFilename || `${module.name}.csv`
-    a.click()
-    window.URL.revokeObjectURL(url)
-  }
-
   // Root container class:
   // - Infinite (embedded or standalone): flex column, full height, min-h-0 so
   //   InfiniteList's internal scroll container works correctly. In a shell with
@@ -415,6 +406,7 @@ export function ListPage<TData>({
             onRefresh={handleRefresh}
             exportData={isInfiniteScroll ? infiniteQuery.data : data}
             exportFilename={module.name}
+            exportMenu={exportMenu}
           />
         )}
 
@@ -441,7 +433,7 @@ export function ListPage<TData>({
           onRowClick={dialogs?.view ? handleRowClick : undefined}
           actionsConfig={finalActionsConfig}
           onRefresh={handleRefresh}
-          onExport={handleExport}
+          exportMenu={exportMenu}
           onAdd={handleAdd}
           hasActiveQuery={Boolean(search) || Object.keys(allFilters).length > 0}
         />

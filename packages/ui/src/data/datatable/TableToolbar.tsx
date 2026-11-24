@@ -32,11 +32,15 @@ import { SortField } from '../../types/pagination'
 import { ToolbarActionsMenu } from '../../components/toolbar/ToolbarActionsMenu'
 import { QueryBuilder, QueryBuilderField } from '../QueryBuilder'
 import { BulkActionsToolbar, BulkAction } from '../BulkActionsToolbar'
-import { ExportMenu } from '../ExportMenu'
+import { ExportMenu, type ExportMenuProps } from '../ExportMenu'
 import { ViewsMenu } from '../ViewsMenu'
 import { PDFExportOptions } from '../exportUtils'
 import { useTelamonjsT } from '../../i18n/use-t'
-import { DataTableHeaderActions, ViewMode } from './types'
+import {
+  DataTableExportMenuProps,
+  DataTableHeaderActions,
+  ViewMode,
+} from './types'
 import { QueryBuilderControl } from './useQueryBuilderControl'
 import { SavedViewsControl } from './useSavedViewsControl'
 import { getColumnLabel } from '../column-label'
@@ -75,6 +79,7 @@ export interface TableToolbarProps<TData, TValue> {
   exportFormats: Array<'excel' | 'csv' | 'pdf'>
   exportFilename: string
   exportPdfOptions: Omit<PDFExportOptions, 'filename' | 't' | 'locale'>
+  exportMenuProps?: DataTableExportMenuProps<TData>
   onExport?: () => void
   // Saved Views
   enableSavedViews: boolean
@@ -138,6 +143,7 @@ export function TableToolbar<TData, TValue>({
   exportFormats,
   exportFilename,
   exportPdfOptions,
+  exportMenuProps,
   onExport,
   enableSavedViews,
   savedViews,
@@ -170,6 +176,22 @@ export function TableToolbar<TData, TValue>({
   } = queryBuilder
   const { getCurrentViewConfig, handleLoadView, handleResetToDefault } =
     savedViews
+  // One ExportMenu config for the desktop button and the compact (< lg) one
+  const exportMenu: ExportMenuProps<TData> | undefined =
+    enableExport && !onExport
+      ? {
+          data: table.getFilteredRowModel().rows.map(row => row.original),
+          columns: columns as ColumnDef<TData>[],
+          selectedRows: table
+            .getFilteredSelectedRowModel()
+            .rows.map(row => row.original),
+          currentPageRows: table.getRowModel().rows.map(row => row.original),
+          filename: exportFilename,
+          formats: exportFormats,
+          pdfOptions: exportPdfOptions,
+          ...exportMenuProps,
+        }
+      : undefined
 
   return (
     <div className='flex flex-row items-center justify-between gap-2'>
@@ -334,22 +356,7 @@ export function TableToolbar<TData, TValue>({
           )}
 
           {/* Export */}
-          {enableExport && !onExport && (
-            <ExportMenu
-              data={table.getFilteredRowModel().rows.map(row => row.original)}
-              columns={columns as ColumnDef<TData>[]}
-              selectedRows={table
-                .getFilteredSelectedRowModel()
-                .rows.map(row => row.original)}
-              currentPageRows={table
-                .getRowModel()
-                .rows.map(row => row.original)}
-              filename={exportFilename}
-              formats={exportFormats}
-              pdfOptions={exportPdfOptions}
-              className='h-8'
-            />
-          )}
+          {exportMenu && <ExportMenu<TData> {...exportMenu} className='h-8' />}
 
           {/* Custom export handler (backward compatibility) */}
           {enableExport && onExport && (
@@ -486,6 +493,27 @@ export function TableToolbar<TData, TValue>({
             <Plus className='h-4 w-4' />
             <span className='hidden sm:inline ml-1.5'>{t('list.add')}</span>
           </Button>
+        )}
+
+        {/* Export below lg (the desktop button lives in the hidden lg:flex row) */}
+        {exportMenu && (
+          <div className='lg:hidden'>
+            <ExportMenu<TData>
+              {...exportMenu}
+              trigger={
+                <Button
+                  variant='outline'
+                  size='sm'
+                  className='h-8 w-8 p-0'
+                  aria-label={t('data.export')}
+                  title={t('data.export')}
+                  data-testid='toolbar-export-menu-compact'
+                >
+                  <Download className='h-4 w-4' />
+                </Button>
+              }
+            />
+          </div>
         )}
 
         {/* Actions Menu (⋮) */}

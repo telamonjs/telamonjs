@@ -18,6 +18,10 @@ export const data = {
   noDataToExport: 'No data to export',
   exportSuccess: '{format} exported successfully ({scope})',
   exportError: 'Error exporting data',
+  exportFetching: 'Fetching records to export: {loaded, number} of {total, number}',
+  exportCancelled: 'Export cancelled',
+  exportTruncated:
+    'Exported the first {count, number} of {total, number} records (export limit)',
   scopeAll: 'all data',
   scopeSelected:
     '{count, plural, one {# row selected} other {# rows selected}}',

@@ -452,6 +452,45 @@ what the list shows:
 
 `toolbarContent` renders in the list toolbar: infinite scroll (the default) and `embedded`.
 
+### Exporting every row, or exporting on the server
+
+`list.enableExport` puts an Excel/CSV/PDF menu in the toolbar. Its "All" exports the rows already
+loaded in the browser. With infinite scroll (the default) that is only the pages scrolled so far,
+so a 2 000-row list with `defaultPageSize: 100` exports 100 rows. Two opt-ins change that:
+
+```tsx
+list: {
+  enableExport: true,
+  // 1. Fetch every matching row through query.queryFn before generating the file
+  exportAll: true, // or { pageSize: 200, maxRows: 5_000 }
+},
+```
+
+```tsx
+list: {
+  // 2. Hand the export to your backend: the menu lists the formats and calls you
+  exportFormats: ['excel', 'csv'],
+  onExport: async ({ params }, format) => {
+    await ordersApi.export({ ...params, format }) // e.g. downloads a file or queues a job
+  },
+},
+```
+
+| | `exportAll` | `onExport` |
+| --- | --- | --- |
+| Who builds the file | the browser, with the list columns | your backend |
+| Query | current search, filters and sort, page by page through `query.queryFn` | `ListQueryState`, the same object `toolbarContent` gets |
+| Size | up to `maxRows` (10 000); past it the file holds the first rows and a warning says so | whatever your backend handles |
+| UX | progress toast with Cancel; "Current page" still exports the loaded rows | formats only; the trigger shows a spinner until your promise settles |
+| Cost | one request per page, sequential, so the backend sees the same load as scrolling | one request |
+
+`exportAll` requests use `exportAll.pageSize`, else `defaultPageSize` (50 when unset): a size
+your backend already accepts. Choose `onExport` when exports grow past a few thousand rows,
+need columns the table does not show, or must be audited on the server. `onExport` shows the
+menu even without `enableExport`; throw from it to show the export error toast. Announcing
+success (or a queued job) is up to you. Both options apply to the paginated list
+(`infiniteScroll: false`) as well.
+
 ### Columns only in the export
 
 `meta.exportOnly` keeps a column out of the table and in the CSV/Excel/PDF export, so a table that

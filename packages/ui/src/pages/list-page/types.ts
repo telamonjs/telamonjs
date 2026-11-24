@@ -1,8 +1,7 @@
 'use client'
 
 import type { ComponentType, ReactNode } from 'react'
-import type { CrudConfigWithAnyForm } from '../../types/crud'
-import type { PaginationParams, SortField } from '../../types/pagination'
+import type { CrudConfigWithAnyForm, ListQueryState } from '../../types/crud'
 import type { ColumnFilterConfig } from '../../types/filters'
 import type { BulkAction } from '../../data/BulkActionsToolbar'
 
@@ -132,17 +131,5 @@ export interface ActiveFilterChip {
   onRemove: () => void
 }
 
-/** Current query of a ListPage, handed to `toolbarContent` when it is a function */
-export interface ListQueryState {
-  /** Search box value, as typed */
-  search: string
-  /** Every active filter: toolbar filters (resets dropped), column filters and `urlFilters` */
-  filters: Record<string, unknown>
-  /** Current sort */
-  sorting: SortField[]
-  /**
-   * The params the list passes to `query.queryFn` (debounced search). `page`/`pageSize` are the
-   * paginated view's; set your own when fetching everything for an export.
-   */
-  params: PaginationParams
-}
+// Lives with ListConfig (`list.onExport` receives it); re-exported for existing imports
+export type { ListQueryState } from '../../types/crud'

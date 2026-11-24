@@ -437,7 +437,8 @@ component from the page.
 
 **Custom toolbar buttons (import, sync)?** Use the `ListPage` props
 `headerActions`, `toolbarPrepend` and `toolbarContent`. Export comes from
-`list.enableExport`.
+`list.enableExport` (loaded rows), `list.exportAll` (every page) or `list.onExport`
+(your backend); see [exporting every row](/docs/patterns/listpage-pattern#exporting-every-row-or-exporting-on-the-server).
 
 **Auto-filling a field from another?** `form.onFieldChange` receives
 `{ field, value, values, setValue }` on every change.

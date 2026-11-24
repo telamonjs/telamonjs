@@ -3,7 +3,7 @@
 // ============================================================================
 
 export { DataTable } from '../data/DataTable'
-export type { DataTableProps } from '../data/DataTable'
+export type { DataTableProps, DataTableExportMenuProps } from '../data/DataTable'
 export { InfiniteList } from '../data/InfiniteList'
 export type { InfiniteListProps } from '../data/InfiniteList'
 export { useInfiniteListQuery } from '../hooks/useInfiniteListQuery'
@@ -20,7 +20,13 @@ export type { FieldType as QueryBuilderFieldType } from '../data/queryBuilderUti
 
 // Export & Views
 export { ExportMenu } from '../data/ExportMenu'
-export type { ExportMenuProps } from '../data/ExportMenu'
+export type {
+  ExportMenuProps,
+  ExportFormat,
+  ExportLoadAllContext,
+} from '../data/ExportMenu'
+export { fetchAllPages } from '../data/fetch-all-pages'
+export type { FetchAllPagesOptions } from '../data/fetch-all-pages'
 
 export {
   exportToExcel,

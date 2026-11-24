@@ -18,7 +18,7 @@ import { TableDesktopView } from './datatable/TableDesktopView'
 import { TableCardsView } from './datatable/TableCardsView'
 import { TableFooter } from './datatable/TableFooter'
 
-export type { DataTableProps } from './datatable/types'
+export type { DataTableProps, DataTableExportMenuProps } from './datatable/types'
 
 /**
  * DataTable - Advanced data table component with TanStack Table
@@ -237,6 +237,7 @@ export function DataTable<TData, TValue>({
   exportFormats = ['excel', 'csv', 'pdf'],
   exportFilename = 'export',
   exportPdfOptions = {},
+  exportMenuProps,
   enableSavedViews = false,
   enableAdd = true,
   enableRefresh = true,
@@ -483,6 +484,7 @@ export function DataTable<TData, TValue>({
               exportFormats={exportFormats}
               exportFilename={exportFilename}
               exportPdfOptions={exportPdfOptions}
+              exportMenuProps={exportMenuProps}
               onExport={onExport}
               enableSavedViews={enableSavedViews}
               savedViews={savedViews}

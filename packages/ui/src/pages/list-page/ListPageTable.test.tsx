@@ -38,7 +38,6 @@ describe('ListPageTable embedded scroll container', () => {
         onRowClick={undefined}
         actionsConfig={undefined}
         onRefresh={async () => {}}
-        onExport={() => {}}
         onAdd={() => {}}
       />
     )
@@ -75,7 +74,6 @@ describe('ListPageTable embedded scroll container', () => {
         onRowClick={undefined}
         actionsConfig={undefined}
         onRefresh={async () => {}}
-        onExport={() => {}}
         onAdd={() => {}}
       />
     )

@@ -13,6 +13,7 @@ import type {
   ToolbarFilterConfig,
 } from '../../types/crud'
 import { ExportMenu } from '../../data/ExportMenu'
+import type { DataTableExportMenuProps } from '../../data/datatable/types'
 import { Button } from '../../ui/button'
 import { Badge } from '../../ui/badge'
 import { DropdownMenuItem } from '../../ui/dropdown-menu'
@@ -84,6 +85,8 @@ interface ListPageToolbarProps<TData> {
   exportData?: TData[]
   /** Base name of the exported file (default: module name). */
   exportFilename?: string
+  /** Export menu extras from `useListPageExport` (`loadAll`, `onServerExport`, formats) */
+  exportMenu?: DataTableExportMenuProps<TData>
   /** "Filters" popover content (second level) */
   filtersPanel?: ReactNode
   /** Chips of the active `filtersPanel` filters */
@@ -115,6 +118,7 @@ export function ListPageToolbar<TData>({
   onRefresh,
   exportData,
   exportFilename,
+  exportMenu,
   filtersPanel,
   activeFilters = [],
   onClearFilters,
@@ -129,9 +133,11 @@ export function ListPageToolbar<TData>({
     contentProps: filtersContentProps
   } = useHoverPopover()
   const counter = useCounterLabel(list.toolbar?.counterLabel)
+  // `onExport` alone shows the menu too (the app exports; no rows needed)
+  const exportEnabled = Boolean(list.enableExport || list.onExport)
   const exportColumns = useMemo(
-    () => (list.enableExport ? resolveColumns(list.columns, text) : []),
-    [list.enableExport, list.columns, text]
+    () => (exportEnabled ? resolveColumns(list.columns, text) : []),
+    [exportEnabled, list.columns, text]
   )
   // Options marked `more` live in the Filters panel; the active one is a chip
   const moreFilters = (list.toolbar?.filters ?? [])
@@ -156,7 +162,7 @@ export function ListPageToolbar<TData>({
   })
   const chips = [...moreChips, ...activeFilters]
   const showFiltersButton = Boolean(filtersPanel) || moreFilters.length > 0
-  const actionsMenu = list.toolbar?.actionsMenu && list.enableExport
+  const actionsMenu = list.toolbar?.actionsMenu && exportEnabled
 
   return (
     <>
@@ -291,12 +297,14 @@ export function ListPageToolbar<TData>({
 
           {/* Export (Excel/CSV/PDF, locale-aware) — the TabToolbar path had none since
             infinite became the default; DataTable's paginated toolbar always had it. */}
-          {list.enableExport && !actionsMenu && (
+          {exportEnabled && !actionsMenu && (
             <ExportMenu<TData>
               data={exportData ?? []}
               columns={exportColumns}
               currentPageRows={exportData ?? []}
               filename={list.exportFilename || exportFilename}
+              formats={list.exportFormats}
+              {...exportMenu}
               className='h-8'
             />
           )}
@@ -320,6 +328,8 @@ export function ListPageToolbar<TData>({
               columns={exportColumns}
               currentPageRows={exportData ?? []}
               filename={list.exportFilename || exportFilename}
+              formats={list.exportFormats}
+              {...exportMenu}
               trigger={
                 <Button
                   variant='outline'

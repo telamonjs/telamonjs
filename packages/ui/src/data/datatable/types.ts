@@ -6,6 +6,15 @@ import { DataTableActionsConfig } from '../../types/actions'
 import { BulkAction } from '../BulkActionsToolbar'
 import { QueryBuilderField } from '../QueryBuilder'
 import { PDFExportOptions } from '../exportUtils'
+import type { ExportMenuProps } from '../ExportMenu'
+
+/** `DataTable.exportMenuProps`: what the built-in export menu takes beyond the table rows. */
+export type DataTableExportMenuProps<TData> = Partial<
+  Pick<
+    ExportMenuProps<TData>,
+    'loadAll' | 'allCount' | 'onServerExport' | 'formats' | 'filename'
+  >
+>
 
 /**
  * DataTableProps - Configuration for DataTable component
@@ -58,6 +67,13 @@ export interface DataTableProps<TData, TValue> {
 
   /** PDF export options (orientation, page size, etc.). */
   exportPdfOptions?: Omit<PDFExportOptions, 'filename' | 't' | 'locale'>
+
+  /**
+   * Extra props for the built-in export menu: `loadAll` (+ `allCount`) to export every
+   * server page instead of the table rows, `onServerExport` for an app-side export.
+   * `formats`/`filename` here win over `exportFormats`/`exportFilename`.
+   */
+  exportMenuProps?: DataTableExportMenuProps<TData>
 
   // Saved Views
   /** Enable saved views functionality (save/load column visibility, sorting, filters). Default: false */

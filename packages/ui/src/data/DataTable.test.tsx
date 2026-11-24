@@ -765,6 +765,29 @@ describe('DataTable', () => {
       expect(screen.getByRole('table')).toBeInTheDocument()
     })
 
+    it('built-in menu: exportMenuProps.onServerExport hands the format to the app, also from the compact (< lg) trigger', async () => {
+      const user = userEvent.setup()
+      const onServerExport = vi.fn()
+
+      renderWithProviders(
+        <DataTable
+          tableId='export-server'
+          data={mockData}
+          columns={mockColumns}
+          totalItems={mockData.length}
+          exportFormats={['csv']}
+          exportMenuProps={{ onServerExport }}
+        />
+      )
+
+      // desktop button + compact trigger (CSS decides which one shows)
+      expect(screen.getByTestId('export-menu-trigger')).toBeInTheDocument()
+      expect(screen.getByTestId('toolbar-export-menu-compact')).toHaveAccessibleName('Exportar')
+      expect(screen.queryByText('Exportar tudo')).not.toBeInTheDocument()
+      await user.click(screen.getAllByText('CSV (.csv)')[0]!)
+      expect(onServerExport).toHaveBeenCalledWith('csv')
+    })
+
     it('uses custom export filename', () => {
       renderWithProviders(
         <DataTable

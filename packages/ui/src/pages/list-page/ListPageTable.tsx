@@ -8,6 +8,7 @@ import type { DataTableActionsConfig } from '../../types/actions'
 import type { ListConfig } from '../../types/crud'
 import type { ColumnFilterConfig } from '../../types/filters'
 import type { BulkAction } from '../../data/BulkActionsToolbar'
+import type { DataTableExportMenuProps } from '../../data/datatable/types'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
 import { resolveColumns } from './resolve-columns'
 import type { ListPageProps } from './types'
@@ -43,7 +44,8 @@ interface ListPageTableProps<TData> {
   onRowClick: ((row: TData) => void) | undefined
   actionsConfig: DataTableActionsConfig<TData> | undefined
   onRefresh: () => Promise<void>
-  onExport: () => void
+  /** Export menu props (`useListPageExport`); undefined = no export */
+  exportMenu?: DataTableExportMenuProps<TData>
   onAdd: () => void
   /** Search or filters active → "no results" copy instead of "start by adding". */
   hasActiveQuery?: boolean
@@ -84,7 +86,7 @@ export function ListPageTable<TData>({
   onRowClick,
   actionsConfig,
   onRefresh,
-  onExport,
+  exportMenu,
   onAdd,
   hasActiveQuery = false,
 }: ListPageTableProps<TData>) {
@@ -140,7 +142,8 @@ export function ListPageTable<TData>({
     enableSearch: true,
     enableFilters: true,
     filterOptions,
-    enableExport: list.enableExport || false,
+    enableExport: Boolean(exportMenu),
+    exportMenuProps: exportMenu,
     enableAdd: hasCreateDialog,
     enableRefresh: true,
     enableColumnVisibility: true,
@@ -150,7 +153,6 @@ export function ListPageTable<TData>({
     enableBulkActions,
     pageSize,
     onRefresh,
-    onExport,
     onAdd,
     bulkActions: refreshingBulkActions,
     headerActions,

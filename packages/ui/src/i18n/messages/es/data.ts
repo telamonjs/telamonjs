@@ -18,6 +18,10 @@ export const data = {
   noDataToExport: 'Sin datos para exportar',
   exportSuccess: '{format} exportado con éxito ({scope})',
   exportError: 'Error al exportar datos',
+  exportFetching: 'Buscando registros para exportar: {loaded, number} de {total, number}',
+  exportCancelled: 'Exportación cancelada',
+  exportTruncated:
+    'Se exportaron los primeros {count, number} de {total, number} registros (límite de exportación)',
   scopeAll: 'todos los datos',
   scopeSelected:
     '{count, plural, one {# fila seleccionada} other {# filas seleccionadas}}',
