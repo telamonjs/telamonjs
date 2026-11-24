@@ -156,6 +156,15 @@ describe('exportUtils', () => {
     })
   })
 
+  describe('filename', () => {
+    it('drops a known extension from the name before the date and the real one', async () => {
+      const { names } = captureDownloads()
+      await exportTableData([{ a: 1 }], cols, 'excel', 'params.csv', base)
+      await exportTableData([{ a: 1 }], cols, 'csv', `params_${TODAY}.CSV`, base)
+      expect(names).toEqual([`params_${TODAY}.xlsx`, `params_${TODAY}.csv`])
+    })
+  })
+
   describe('logo', () => {
     it('keeps 30x15 for a string logo', async () => {
       await exportToPDF([{ a: 1 }], cols, 'x', { ...base, logo: 'data:l' })

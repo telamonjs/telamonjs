@@ -266,7 +266,7 @@ export interface ListConfig<T> {
   serverSidePagination?: boolean
   /** Enable export functionality */
   enableExport?: boolean
-  /** Export filename */
+  /** Export file name, without extension: the date and the format's extension are appended */
   exportFilename?: string
   /**
    * What "Export all" exports. By default, the rows already loaded in the browser — with
