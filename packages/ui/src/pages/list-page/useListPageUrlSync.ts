@@ -12,7 +12,8 @@ interface UseListPageUrlSyncParams {
   page: number
   pageSize: number
   search: string
-  sorting: SortField[]  /**
+  sorting: SortField[]
+  /**
    * Filters owned by live UI state (the toolbar selects) that must follow the
    * user into the URL when `urlSync` is on. `undefined` removes the
    * param, so clearing a select also clears the deep link.
@@ -56,6 +57,10 @@ export function useListPageUrlSync({
     return filters
   })
 
+  // Keyed by content: callers rebuild this object on every render (an inline
+  // `urlFilters` prop changes its memo deps each time).
+  const liveFiltersKey = JSON.stringify(liveFilters ?? null)
+
   // Sync URL when state changes (when urlSync=true). `replace`: pagination,
   // search and filters are view state, not navigation — a push per change
   // made the Back button walk through every page/filter the user touched
@@ -76,7 +81,7 @@ export function useListPageUrlSync({
     // searchParams update, so including it would re-run this effect after each
     // URL push performed here (feedback loop of redundant router.push calls).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [page, pageSize, search, sorting, customFilters, liveFilters, urlSync])
+  }, [page, pageSize, search, sorting, customFilters, liveFiltersKey, urlSync])
 
   return customFilters
 }

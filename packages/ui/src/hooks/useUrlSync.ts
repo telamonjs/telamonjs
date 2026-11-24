@@ -13,6 +13,25 @@ export function useUrlSync() {
   const pathname = usePathname()
 
   /**
+   * Navigates to `params`, or does nothing when the query would not change.
+   * A same-URL navigation still updates `searchParams`, which re-renders the
+   * caller; an effect that writes the URL on render would then loop forever.
+   */
+  const navigate = useCallback(
+    (params: URLSearchParams, options?: { replace?: boolean }) => {
+      const query = params.toString()
+      if (query === searchParams.toString()) return
+      const newUrl = query ? `${pathname}?${query}` : pathname
+      if (options?.replace) {
+        router.replace(newUrl, { scroll: false })
+      } else {
+        router.push(newUrl, { scroll: false })
+      }
+    },
+    [searchParams, pathname, router]
+  )
+
+  /**
    * Get the value of a query param
    */
   const getParam = useCallback(
@@ -65,16 +84,9 @@ export function useUrlSync() {
         params.set(key, String(value))
       }
 
-      const newUrl = params.toString()
-        ? `${pathname}?${params.toString()}`
-        : pathname
-      if (options?.replace) {
-        router.replace(newUrl, { scroll: false })
-      } else {
-        router.push(newUrl, { scroll: false })
-      }
+      navigate(params, options)
     },
-    [searchParams, pathname, router]
+    [searchParams, navigate]
   )
 
   /**
@@ -100,16 +112,9 @@ export function useUrlSync() {
         }
       })
 
-      const newUrl = params.toString()
-        ? `${pathname}?${params.toString()}`
-        : pathname
-      if (options?.replace) {
-        router.replace(newUrl, { scroll: false })
-      } else {
-        router.push(newUrl, { scroll: false })
-      }
+      navigate(params, options)
     },
-    [searchParams, pathname, router]
+    [searchParams, navigate]
   )
 
   /**
@@ -119,21 +124,17 @@ export function useUrlSync() {
     (key: string) => {
       const params = new URLSearchParams(searchParams.toString())
       params.delete(key)
-
-      const newUrl = params.toString()
-        ? `${pathname}?${params.toString()}`
-        : pathname
-      router.push(newUrl, { scroll: false })
+      navigate(params)
     },
-    [searchParams, pathname, router]
+    [searchParams, navigate]
   )
 
   /**
    * Remove all query params
    */
   const clearAllParams = useCallback(() => {
-    router.push(pathname, { scroll: false })
-  }, [pathname, router])
+    navigate(new URLSearchParams())
+  }, [navigate])
 
   /**
    * Get all query params as an object

@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useSyncExternalStore } from 'react'
 import { renderHook, act } from '@testing-library/react'
 import { useListPageUrlSync } from './useListPageUrlSync'
 
@@ -27,11 +28,22 @@ const mockReplace = vi.fn()
 
 // Mutable ref so each test can override `searchParams` content
 let currentSearchParams = new URLSearchParams()
+// Subscribers re-render on `setUrl`, as a Next navigation does
+const listeners = new Set<() => void>()
+const subscribe = (fn: () => void) => {
+  listeners.add(fn)
+  return () => listeners.delete(fn)
+}
+/** What router.replace does in Next: a NEW searchParams object, same URL or not */
+const setUrl = (url: string) => {
+  currentSearchParams = new URLSearchParams(url.split('?')[1] ?? '')
+  listeners.forEach(fn => fn())
+}
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace, refresh: vi.fn() }),
   usePathname: () => '/admin/entities',
-  useSearchParams: () => currentSearchParams,
+  useSearchParams: () => useSyncExternalStore(subscribe, () => currentSearchParams),
 }))
 
 // ---------------------------------------------------------------------------
@@ -413,4 +425,42 @@ describe('useListPageUrlSync', () => {
     })
   })
 
+  describe('No navigation loop (1.4.1)', () => {
+    it('settles after one replace when liveFilters is a new object every render', () => {
+      mockReplace.mockImplementation(setUrl)
+
+      renderHook(() =>
+        useListPageUrlSync({
+          urlSync: true,
+          // inline props: new identities on every render
+          urlFilters: { status: 'string' },
+          page: 1,
+          pageSize: 100,
+          search: '',
+          sorting: [{ field: 'ordem', order: 'asc' }],
+          liveFilters: { status: undefined },
+        })
+      )
+
+      expect(mockReplace).toHaveBeenCalledTimes(1)
+    })
+
+    it('does not navigate when the URL already matches the state', () => {
+      currentSearchParams = new URLSearchParams('page=1&pageSize=20')
+
+      renderHook(() =>
+        useListPageUrlSync({
+          urlSync: true,
+          urlFilters: {},
+          page: 1,
+          pageSize: 20,
+          search: '',
+          sorting: [],
+        })
+      )
+
+      expect(mockReplace).not.toHaveBeenCalled()
+      expect(mockPush).not.toHaveBeenCalled()
+    })
+  })
 })
