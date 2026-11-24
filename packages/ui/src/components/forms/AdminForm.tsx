@@ -970,10 +970,13 @@ export function AdminForm<T extends Record<string, unknown>>({
         >
           {/* Scrollable content area */}
           <div className={cn(flush ? 'flex-1 overflow-y-auto' : 'contents')}>
-            {/* Inner content with padding */}
+            {/* Inner content: the real container of the field groups/sections,
+                so its space-y-6 separates them in both modes (a `contents`
+                wrapper would keep the form's space-y-6 from reaching them) */}
             <div
               className={cn(
-                flush ? 'px-6 pt-4 pb-4 space-y-6' : 'contents',
+                'space-y-6',
+                flush && 'px-6 pt-4 pb-4',
                 flush && contentClassName
               )}
             >

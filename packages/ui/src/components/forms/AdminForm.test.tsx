@@ -140,6 +140,31 @@ describe('AdminForm', () => {
     })
   })
 
+  describe('Section spacing', () => {
+    const twoSections = [
+      { label: 'Personal', fields: [createMockField({ name: 'name', label: 'Name' })] },
+      { label: 'Details', fields: [createMockField({ name: 'phone', label: 'Phone' })] },
+    ]
+    // group (field grid) → section block → container that spaces the sections
+    const sectionsContainer = (label: string) =>
+      screen.getByRole('group', { name: label }).parentElement?.parentElement
+
+    it.each([
+      ['non-flush', false],
+      ['flush', true],
+    ])('separates sections with space-y-6 (%s)', (_mode, flush) => {
+      renderWithProviders(
+        <AdminForm sections={twoSections} action={mockAction} flush={flush} />
+      )
+
+      const container = sectionsContainer('Personal')
+      expect(container).toBe(sectionsContainer('Details'))
+      // a `display: contents` wrapper swallowed the form's space-y-6 (Meritux)
+      expect(container).toHaveClass('space-y-6')
+      expect(container).not.toHaveClass('contents')
+    })
+  })
+
   describe('Form Submission', () => {
     it('calls action with form data on submit', async () => {
       const user = userEvent.setup()
