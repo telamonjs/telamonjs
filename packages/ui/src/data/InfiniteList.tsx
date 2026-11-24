@@ -33,6 +33,7 @@ import {
 } from 'lucide-react'
 import { Button } from '../ui/button'
 import { cn } from '../utils'
+import { isOwnRowClick } from './row-click'
 import { useTranslations } from 'next-intl'
 import { useTelamonjsT, useText } from '../i18n/use-t'
 import { isMessageRef, msg } from '../i18n/msg'
@@ -387,13 +388,7 @@ export function InfiniteList<TData>({
                     onRowClick && 'cursor-pointer'
                   )}
                   onClick={e => {
-                    const target = e.target as HTMLElement
-                    if (
-                      target.closest('input[type="checkbox"]') ||
-                      target.closest('button')
-                    )
-                      return
-                    onRowClick?.(row.original)
+                    if (isOwnRowClick(e)) onRowClick?.(row.original)
                   }}
                 >
                   {row.getVisibleCells().map(cell => (

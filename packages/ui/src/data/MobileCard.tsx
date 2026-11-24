@@ -15,6 +15,7 @@ import { ColumnDef, flexRender } from '@tanstack/react-table'
 import type { CellContext } from '@tanstack/react-table'
 import { useTelamonjsT } from '../i18n/use-t'
 import { getColumnLabel } from './column-label'
+import { isOwnRowClick } from './row-click'
 
 /**
  * MobileCardProps - Configuration for MobileCard component
@@ -322,7 +323,9 @@ function MobileCardImpl<TData, TValue = unknown>({
       className={`relative transition-all hover:shadow-md cursor-pointer ${
         isSelected ? 'ring-2 ring-primary' : ''
       }`}
-      onClick={() => onSelect?.(data)}
+      onClick={e => {
+        if (isOwnRowClick(e)) onSelect?.(data)
+      }}
     >
       <CardHeader className='pb-2'>
         <div className='flex items-start justify-between'>

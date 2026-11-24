@@ -34,6 +34,7 @@ import {
   TableRow,
 } from '../ui/table'
 import { cn } from '../utils'
+import { isOwnRowClick } from './row-click'
 
 interface VirtualDataTableProps<TData> {
   data: TData[]
@@ -164,7 +165,9 @@ export function VirtualDataTable<TData>({
                   'border-b transition-colors hover:bg-muted/50',
                   onRowClick && 'cursor-pointer'
                 )}
-                onClick={() => onRowClick?.(row.original)}
+                onClick={e => {
+                  if (isOwnRowClick(e)) onRowClick?.(row.original)
+                }}
               >
                 {row.getVisibleCells().map(cell => (
                   <TableCell key={cell.id} className='py-2'>

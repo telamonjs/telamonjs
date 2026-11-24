@@ -22,6 +22,7 @@ import { cn } from '../../utils'
 import type { HeadingLevel } from '../../ui/heading-level'
 import { SkeletonTable } from '../../components/skeletons/SkeletonTable'
 import { getDensityStyles } from './density'
+import { isOwnRowClick } from '../row-click'
 import { ViewMode } from './types'
 
 export interface TableDesktopViewProps<TData, TValue> {
@@ -168,16 +169,8 @@ export function TableDesktopView<TData, TValue>({
                         'border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted cursor-pointer group'
                       )}
                       data-state={row.getIsSelected() && 'selected'}
-                      onClick={(e: React.MouseEvent<HTMLTableRowElement>) => {
-                        // Prevent row click when clicking on checkboxes or action buttons
-                        const target = e.target as HTMLElement
-                        if (
-                          target.closest('input[type="checkbox"]') ||
-                          target.closest('button')
-                        ) {
-                          return
-                        }
-                        handleRowClick(row.original)
+                      onClick={e => {
+                        if (isOwnRowClick(e)) handleRowClick(row.original)
                       }}
                     >
                       {row.getVisibleCells().map(cell => (
