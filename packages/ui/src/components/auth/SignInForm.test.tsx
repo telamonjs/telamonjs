@@ -218,6 +218,24 @@ describe('SignInForm', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent('Too many attempts, wait 15 minutes.')
     })
 
+    it('errorMessages accepts a ReactNode, e.g. a message with an action link', async () => {
+      signIn.mockResolvedValueOnce({ ok: false, error: 'CredentialsSignin', code: 'sso_only', status: 401, url: null })
+      render(
+        <SignInForm errorMessages={{ sso_only: <span>Use single sign-on: <a href='/sso'>continue</a></span> }} />
+      )
+      await fillAndSubmit()
+      const alert = await screen.findByRole('alert')
+      expect(alert).toHaveTextContent('Use single sign-on: continue')
+      expect(screen.getByRole('link', { name: 'continue' })).toHaveAttribute('href', '/sso')
+    })
+
+    it('autoFocus, passwordPlaceholder and submitClassName reach the fields', () => {
+      render(<SignInForm autoFocus passwordPlaceholder='Your password' submitClassName='h-12' />)
+      expect(screen.getByLabelText('E-mail')).toHaveFocus()
+      expect(screen.getByLabelText('Senha')).toHaveAttribute('placeholder', 'Your password')
+      expect(screen.getByRole('button', { name: 'Entrar' }).className).toContain('h-12')
+    })
+
     it('a thrown error shows the generic message; the next attempt clears it', async () => {
       signIn.mockRejectedValueOnce(new Error('network'))
       render(<SignInForm />)

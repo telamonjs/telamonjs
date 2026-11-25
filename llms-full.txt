@@ -11013,13 +11013,16 @@ above), or anything else to continue to `onSuccess` / navigation.
 | `identifierLabel` | `I18nText` | localized "Email" |
 | `identifierType` | `'email' \| 'text' \| 'tel'` | `'email'` |
 | `identifierPlaceholder` | `I18nText` | — |
+| `passwordPlaceholder` | `I18nText` | — |
+| `autoFocus` | `boolean`, focuses the identifier on mount | `false` |
 | `normalizeIdentifier` | `(value: string) => string` | — |
 | `callbackUrl` | `string`, used when the URL has no same-origin `?callbackUrl` | `'/'` |
 | `forgotPasswordHref` | `string`, renders the "Forgot your password?" link | no link |
-| `errorMessages` | `Record<string, I18nText>`, by error `code`, then `error` | — |
+| `errorMessages` | `Record<string, I18nText \| ReactNode>`, by error `code`, then `error`; a node can carry an action link | — |
 | `onSubmit` | `(values: SignInFormValues) => Promise<SignInFormResult>` | next-auth `signIn` |
 | `onSuccess` | `(url: string) => void \| Promise<void>` | `router.push` + `router.refresh` |
 | `className` | `string`, on the `<form>` | — |
+| `submitClassName` | `string`, on the submit button (merged with `w-full`) | — |
 
 `SignInFormValues` is `{ identifier: string; password: string }`. `SignInFormResult` is
 `{ error?: string | null; code?: string | null } | void`, which next-auth's `SignInResponse` fits.
@@ -11037,7 +11040,10 @@ above), or anything else to continue to `onSuccess` / navigation.
 
 | Prop | Type | Default |
 | --- | --- | --- |
-| `onSubmit` | `(email: string) => Promise<void>` | — |
+| `onSubmit` | `(email: string) => Promise<unknown>`, the resolved value is ignored | — |
+| `emailPlaceholder` | `I18nText` | — |
+| `autoFocus` | `boolean` | `false` |
+| `submitClassName` | `string`, on the submit button | — |
 | `signInHref` | `string`, renders "Back to sign in" in both states | no link |
 | `className` | `string` | — |
 

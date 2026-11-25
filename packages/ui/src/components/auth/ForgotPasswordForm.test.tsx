@@ -34,6 +34,20 @@ describe('ForgotPasswordForm', () => {
       expect(screen.queryByRole('link')).not.toBeInTheDocument()
     })
 
+    it('takes emailPlaceholder, autoFocus and submitClassName', () => {
+      render(<ForgotPasswordForm onSubmit={vi.fn()} emailPlaceholder='you@example.com' autoFocus submitClassName='h-12' />)
+      const email = screen.getByLabelText('E-mail')
+      expect(email).toHaveAttribute('placeholder', 'you@example.com')
+      expect(email).toHaveFocus()
+      expect(screen.getByRole('button').className).toContain('h-12')
+    })
+
+    it('accepts an onSubmit that resolves a value (e.g. a server action result)', async () => {
+      const onSubmit = async (_email: string) => ({ success: true })
+      render(<ForgotPasswordForm onSubmit={onSubmit} />)
+      expect(screen.getByLabelText('E-mail')).toBeInTheDocument()
+    })
+
     it('renders the back-to-sign-in link only with signInHref', () => {
       render(<ForgotPasswordForm onSubmit={vi.fn()} signInHref='/sign-in' />)
       expect(screen.getByRole('link', { name: 'Voltar para o login' })).toHaveAttribute('href', '/sign-in')

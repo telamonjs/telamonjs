@@ -1,6 +1,6 @@
 'use client'
 
-import { useId, useMemo, useState } from 'react'
+import { isValidElement, useId, useMemo, useState, type ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { signIn } from 'next-auth/react'
@@ -46,6 +46,9 @@ export interface SignInFormProps {
   /** `'email'` also validates the format. Default: `'email'`. */
   identifierType?: 'email' | 'text' | 'tel'
   identifierPlaceholder?: I18nText
+  passwordPlaceholder?: I18nText
+  /** Focuses the identifier field on mount (a sign-in page with nothing else to do). */
+  autoFocus?: boolean
   /** Applied to the trimmed identifier before sign-in (e.g. lowercase, strip a CPF mask). */
   normalizeIdentifier?: (value: string) => string
   /**
@@ -59,8 +62,9 @@ export interface SignInFormProps {
    * Messages per next-auth error, looked up by `code` (the `code` of a custom
    * `CredentialsSignin` subclass) and then by `error`. Unmapped errors get the
    * localized "invalid credentials" (`CredentialsSignin`) or a generic failure.
+   * A value may be a React node, e.g. a message with an action link.
    */
-  errorMessages?: Record<string, I18nText>
+  errorMessages?: Record<string, I18nText | ReactNode>
   /**
    * Replaces `signIn('credentials', ...)` for apps that authenticate another
    * way. Resolve `{ error }` to show an error, anything else to succeed.
@@ -72,6 +76,8 @@ export interface SignInFormProps {
    */
   onSuccess?: (url: string) => void | Promise<void>
   className?: string
+  /** Classes for the submit button (merged with `w-full`). */
+  submitClassName?: string
 }
 
 /**
@@ -92,6 +98,8 @@ export function SignInForm({
   identifierLabel,
   identifierType = 'email',
   identifierPlaceholder,
+  passwordPlaceholder,
+  autoFocus,
   normalizeIdentifier,
   callbackUrl = '/',
   forgotPasswordHref,
@@ -99,13 +107,14 @@ export function SignInForm({
   onSubmit,
   onSuccess,
   className,
+  submitClassName,
 }: SignInFormProps) {
   const t = useTelamonjsT()
   const text = useText()
   const router = useRouter()
   const id = useId()
   const [pending, setPending] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [error, setError] = useState<ReactNode>(null)
   const [showPassword, setShowPassword] = useState(false)
 
   const schema = useMemo(() => {
@@ -129,7 +138,8 @@ export function SignInForm({
 
   const errorText = (res: { error?: string | null; code?: string | null }) => {
     const custom = (res.code && errorMessages?.[res.code]) || (res.error && errorMessages?.[res.error])
-    if (custom) return text(custom) ?? ''
+    if (isValidElement(custom)) return custom
+    if (custom) return text(custom as I18nText) ?? ''
     return res.error === 'CredentialsSignin' ? t('auth.invalidCredentials') : t('auth.signInError')
   }
 
@@ -191,6 +201,8 @@ export function SignInForm({
           autoCorrect='off'
           spellCheck={false}
           placeholder={text(identifierPlaceholder)}
+          // opt-in: a page whose only task is signing in
+          autoFocus={autoFocus}
           disabled={pending}
           aria-invalid={errors.identifier ? true : undefined}
           aria-describedby={errors.identifier ? `${identifierId}-error` : undefined}
@@ -206,6 +218,7 @@ export function SignInForm({
             id={passwordId}
             type={showPassword ? 'text' : 'password'}
             autoComplete='current-password'
+            placeholder={text(passwordPlaceholder)}
             className='pr-10'
             disabled={pending}
             aria-invalid={errors.password ? true : undefined}
@@ -239,7 +252,7 @@ export function SignInForm({
       )}
 
       {/* data-testid kept from the CLI template's form, which e2e suites already target */}
-      <Button type='submit' className='w-full' loading={pending} data-testid='submit-button'>
+      <Button type='submit' className={cn('w-full', submitClassName)} loading={pending} data-testid='submit-button'>
         {pending ? t('auth.submitting') : t('auth.submit')}
       </Button>
     </form>
