@@ -5,7 +5,11 @@ function service(context: object = {}) {
   const { createPaginatedService } = createPaginationContext({
     prisma: {
       item: {
-        findMany: vi.fn().mockResolvedValue([{ active: true }, { active: false }]),
+        findMany: vi.fn(),
+        groupBy: vi.fn().mockResolvedValue([
+          { active: true, _count: { _all: 1 } },
+          { active: false, _count: { _all: 1 } },
+        ]),
         count: vi.fn(),
       },
     },
