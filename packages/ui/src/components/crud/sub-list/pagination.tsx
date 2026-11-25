@@ -1,6 +1,5 @@
 'use client'
 
-import { memo } from 'react'
 import {
   ChevronRight,
   ChevronLeft,
@@ -177,6 +176,6 @@ function SubListPaginationComponent<TData extends Record<string, unknown>>({
   )
 }
 
-export const SubListPagination = memo(
-  SubListPaginationComponent
-) as typeof SubListPaginationComponent
+// Not memo'd: it reads `table`, whose identity never changes (useReactTable
+// returns one instance), so memo skipped every filter/page/visibility change.
+export const SubListPagination = SubListPaginationComponent

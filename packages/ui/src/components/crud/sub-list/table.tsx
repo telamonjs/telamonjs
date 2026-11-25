@@ -1,6 +1,5 @@
 'use client'
 
-import { memo } from 'react'
 import {
   Table as UiTable,
   TableBody,
@@ -127,6 +126,6 @@ function SubListTableComponent<TData extends Record<string, unknown>>({
   )
 }
 
-export const SubListTable = memo(
-  SubListTableComponent
-) as typeof SubListTableComponent
+// Not memo'd: it reads `table`, whose identity never changes (useReactTable
+// returns one instance), so memo skipped every filter/page/visibility change.
+export const SubListTable = SubListTableComponent

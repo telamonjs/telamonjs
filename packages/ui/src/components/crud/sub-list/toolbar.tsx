@@ -1,6 +1,6 @@
 'use client'
 
-import React, { memo } from 'react'
+import React from 'react'
 import { SlidersHorizontal, X, Search, RefreshCw } from 'lucide-react'
 import { useTelamonjsT } from '../../../i18n/use-t'
 import { Button } from '../../../ui/button'
@@ -23,7 +23,7 @@ import type { Column, Table } from '@tanstack/react-table'
  * render function gets a new identity every render, which forces React to
  * unmount/remount the subtree (the search input loses focus per keystroke).
  * Hoisting it here — with data passed as props instead of closed over —
- * makes `memo` legitimate and fixes that bug.
+ * fixes that bug. (Not memo'd: see the export below.)
  */
 export interface SubListToolbarProps<TData extends Record<string, unknown>> {
   leftActions?: React.ReactNode
@@ -142,6 +142,6 @@ function SubListToolbarComponent<TData extends Record<string, unknown>>({
   )
 }
 
-export const SubListToolbar = memo(
-  SubListToolbarComponent
-) as typeof SubListToolbarComponent
+// Not memo'd: it reads `table`, whose identity never changes (useReactTable
+// returns one instance), so memo skipped every filter/page/visibility change.
+export const SubListToolbar = SubListToolbarComponent

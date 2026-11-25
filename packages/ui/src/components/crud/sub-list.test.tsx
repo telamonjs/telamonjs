@@ -435,6 +435,33 @@ describe('SubList', () => {
       expect(m.queryByText('XYZ9876')).not.toBeInTheDocument()
     })
 
+    it('typing in the desktop filter hides non-matching rows (accessorKey)', async () => {
+      const { container } = render(
+        <SubList<Asset> data={rows} listFields={fields} />
+      )
+      const d = within(desktop(container))
+      fireEvent.change(d.getByPlaceholderText('Filtrar...'), {
+        target: { value: 'zzz' },
+      })
+      await waitFor(() => expect(d.queryByText('ABC1234')).not.toBeInTheDocument())
+      expect(d.queryByText('XYZ9876')).not.toBeInTheDocument()
+    })
+
+    it('typing in the desktop filter hides non-matching rows (accessorFn only)', async () => {
+      const fnFields = [
+        { header: 'Plate', accessorFn: (row: Asset) => `P-${row.plate}` },
+      ]
+      const { container } = render(
+        <SubList<Asset> data={rows} listFields={fnFields} />
+      )
+      const d = within(desktop(container))
+      fireEvent.change(d.getByPlaceholderText('Filtrar...'), {
+        target: { value: 'abc' },
+      })
+      await waitFor(() => expect(d.queryByText('P-XYZ9876')).not.toBeInTheDocument())
+      expect(d.getByText('P-ABC1234')).toBeInTheDocument()
+    })
+
     it('keeps focus on the desktop search input while typing multiple characters', async () => {
       // Regression: DesktopView used to be declared INSIDE the render body,
       // so every keystroke (globalFilter state change) created a new
