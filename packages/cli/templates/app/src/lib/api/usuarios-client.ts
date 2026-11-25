@@ -10,11 +10,14 @@ export interface Usuario {
   name: string | null
   email: string
   image: string | null
-  role: 'ADMIN' | 'USER'
-  ativo: boolean
+  roles: Array<{ id: string; code: string; name: string }>
+  active: boolean
   createdAt: string
   updatedAt: string
 }
+
+/** What the API takes: the form data, or any part of it (e.g. `{ active }`). */
+export type UsuarioInput = Partial<UsuarioFormData>
 
 const BASE_URL = '/api/usuarios'
 
@@ -37,12 +40,12 @@ export const usuariosApi = {
     if (params.sortOrder) query.set('sortOrder', params.sortOrder)
 
     return fetch(`${BASE_URL}?${query}`, { credentials: 'include' }).then((res) =>
-      parse(res, 'Erro ao carregar usuários')
+      parse(res, 'Failed to load users')
     )
   },
   getById: (id: string): Promise<Usuario> =>
     fetch(`${BASE_URL}/${id}`, { credentials: 'include' }).then((res) =>
-      parse(res, 'Usuário não encontrado')
+      parse(res, 'User not found')
     ),
   create: (data: UsuarioFormData): Promise<Usuario> =>
     fetch(BASE_URL, {
@@ -50,16 +53,12 @@ export const usuariosApi = {
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(data),
-    }).then((res) => parse(res, 'Erro ao criar usuário')),
-  update: (id: string, data: Partial<UsuarioFormData>): Promise<Usuario> =>
+    }).then((res) => parse(res, 'Failed to create user')),
+  update: (id: string, data: UsuarioInput): Promise<Usuario> =>
     fetch(`${BASE_URL}/${id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       credentials: 'include',
       body: JSON.stringify(data),
-    }).then((res) => parse(res, 'Erro ao atualizar usuário')),
-  delete: (id: string): Promise<void> =>
-    fetch(`${BASE_URL}/${id}`, { method: 'DELETE', credentials: 'include' }).then((res) => {
-      if (!res.ok) throw new Error('Erro ao desativar usuário')
-    }),
+    }).then((res) => parse(res, 'Failed to update user')),
 }

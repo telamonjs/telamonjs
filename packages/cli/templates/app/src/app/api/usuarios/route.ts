@@ -1,28 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 
 const createSchema = z.object({
   name: z.string().min(1),
   email: z.string().email(),
-  password: z.string().min(5, 'Senha deve ter no mínimo 5 caracteres'),
-  role: z.enum(['ADMIN', 'USER']).default('USER'),
-  ativo: z.boolean().default(true),
+  password: z.string().min(5, 'Password must be at least 5 characters'),
+  roleIds: z.array(z.string()).default([]),
+  active: z.boolean().default(true),
 })
 
-const SORTABLE_FIELDS = new Set(['name', 'email', 'role', 'ativo', 'createdAt', 'updatedAt'])
+const SORTABLE_FIELDS = new Set(['name', 'email', 'active', 'createdAt', 'updatedAt'])
 
-function serialize<T extends { password: string }>({ password: _password, ...rest }: T) {
-  return rest
+const include = { roles: { select: { role: { select: { id: true, code: true, name: true } } } } }
+
+function serialize({
+  password: _password,
+  roles,
+  ...rest
+}: Prisma.UserGetPayload<{ include: typeof include }>) {
+  return { ...rest, roles: roles.map(({ role }) => role) }
 }
 
 export async function GET(request: NextRequest) {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
-  }
+  const currentUser = await requirePermission('users.read')
+  if (currentUser instanceof NextResponse) return currentUser
 
   const { searchParams } = new URL(request.url)
   const page = Number(searchParams.get('page') ?? '1')
@@ -44,6 +49,7 @@ export async function GET(request: NextRequest) {
   const [data, total] = await Promise.all([
     prisma.user.findMany({
       where,
+      include,
       orderBy: { [sortBy]: sortOrder },
       skip: (page - 1) * pageSize,
       take: pageSize,
@@ -61,32 +67,30 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
-  }
-  if (currentUser.role.code !== 'ADMIN') {
-    return NextResponse.json(
-      { message: 'Apenas administradores podem criar usuários' },
-      { status: 403 }
-    )
-  }
+  const currentUser = await requirePermission('users.write')
+  if (currentUser instanceof NextResponse) return currentUser
 
   const parsed = createSchema.safeParse(await request.json())
   if (!parsed.success) {
     return NextResponse.json(
-      { message: parsed.error.issues[0]?.message ?? 'Dados inválidos' },
+      { message: parsed.error.issues[0]?.message ?? 'Invalid data' },
       { status: 400 }
     )
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } })
   if (existing) {
-    return NextResponse.json({ message: 'Este email já está em uso' }, { status: 409 })
+    return NextResponse.json({ message: 'This email is already in use' }, { status: 409 })
   }
 
+  const { roleIds, password, ...data } = parsed.data
   const usuario = await prisma.user.create({
-    data: { ...parsed.data, password: await bcrypt.hash(parsed.data.password, 10) },
+    data: {
+      ...data,
+      password: await bcrypt.hash(password, 10),
+      roles: { create: roleIds.map((roleId) => ({ roleId })) },
+    },
+    include,
   })
 
   return NextResponse.json(serialize(usuario), { status: 201 })

@@ -50,6 +50,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
+# The seed (docker-entrypoint.sh) reads the permission catalog from src/rbac.ts
+COPY --from=builder /app/src/rbac.ts ./src/rbac.ts
 COPY --from=builder /app/package.json ./package.json
 
 # Copy entrypoint script

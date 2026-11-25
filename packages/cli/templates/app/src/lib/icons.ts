@@ -23,9 +23,12 @@ import {
   Pencil,
   Settings,
   Shield,
+  ShieldCheck,
   Trash2,
   TrendingUp,
   User,
+  UserCheck,
+  UserX,
   Users,
   type LucideIcon,
 } from 'lucide-react'
@@ -43,9 +46,12 @@ export const iconRegistry: Record<string, LucideIcon> = {
   Pencil,
   Settings,
   Shield,
+  ShieldCheck,
   Trash2,
   TrendingUp,
   User,
+  UserCheck,
+  UserX,
   Users,
 }
 

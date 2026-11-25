@@ -5,7 +5,9 @@
   },
   "nav": {
     "home": "Inicio",
-    "users": "Usuarios"
+    "administration": "Administración",
+    "users": "Usuarios",
+    "roles": "Roles"
   },
   "auth": {
     "signIn": "Iniciar sesión",
@@ -14,10 +16,10 @@
   "usuarios": {
     "title": "Usuarios",
     "description": "Gestión de usuarios del sistema",
+    "counter": "{count, plural, one {# usuario} other {# usuarios}}",
     "searchPlaceholder": "Buscar por nombre o email...",
     "noName": "Sin nombre",
-    "roleAdmin": "Administrador",
-    "roleUser": "Usuario",
+    "noRoles": "Sin roles",
     "statusActive": "Activo",
     "statusInactive": "Inactivo",
     "sections": {
@@ -27,26 +29,41 @@
       },
       "access": {
         "label": "Acceso",
-        "description": "Configuración de inicio de sesión y permisos"
+        "description": "Contraseña, roles e inicio de sesión"
       }
     },
     "columns": {
       "name": "Nombre",
-      "role": "Perfil",
+      "roles": "Roles",
       "status": "Estado",
       "createdAt": "Creado el"
     },
     "fields": {
       "name": "Nombre Completo",
       "namePlaceholder": "Ingrese el nombre del usuario",
-      "email": "Email",
+      "email": "Correo",
       "emailPlaceholder": "usuario@ejemplo.com",
       "password": "Contraseña",
       "passwordPlaceholder": "Mínimo 5 caracteres",
-      "passwordDescription": "Déjelo en blanco para mantener la contraseña actual (solo al editar)",
-      "role": "Perfil",
-      "ativo": "Usuario Activo",
-      "ativoDescription": "Los usuarios inactivos no pueden iniciar sesión"
+      "passwordDescription": "Déjelo en blanco para mantener la contraseña actual (solo edición)",
+      "roles": "Roles",
+      "rolesDescription": "El usuario recibe todos los permisos de todos los roles",
+      "active": "Usuario Activo",
+      "activeDescription": "Los usuarios inactivos no pueden iniciar sesión"
+    },
+    "detail": {
+      "tabs": {
+        "info": "Información",
+        "access": "Acceso",
+        "audit": "Auditoría"
+      },
+      "identification": "Identificación",
+      "contact": "Contacto",
+      "signIn": "Inicio de sesión",
+      "signInAllowed": "Permitido",
+      "signInBlocked": "Bloqueado (usuario inactivo)",
+      "record": "Registro",
+      "updatedAt": "Actualizado el"
     },
     "dialogs": {
       "view": {
@@ -64,12 +81,67 @@
     "actions": {
       "view": "Ver detalles",
       "edit": "Editar usuario",
-      "delete": "Desactivar usuario"
+      "deactivate": "Desactivar usuario",
+      "activate": "Activar usuario",
+      "deactivated": "Usuario desactivado",
+      "activated": "Usuario activado"
+    },
+    "confirmDeactivate": {
+      "title": "¿Desactivar a {name}?",
+      "description": "Los usuarios desactivados no pueden iniciar sesión y sus sesiones abiertas terminan.",
+      "confirmText": "Desactivar",
+      "cancelText": "Cancelar"
+    }
+  },
+  "papeis": {
+    "title": "Roles",
+    "description": "Roles y los permisos que otorgan",
+    "counter": "{count, plural, one {# rol} other {# roles}}",
+    "searchPlaceholder": "Buscar por nombre o código...",
+    "system": "Integrado",
+    "custom": "Personalizado",
+    "tabs": {
+      "roles": "Roles",
+      "permissions": "Permisos"
+    },
+    "sections": {
+      "role": {
+        "label": "Rol",
+        "description": "Otorgue sus permisos en la pestaña Permisos"
+      }
+    },
+    "columns": {
+      "name": "Nombre",
+      "description": "Descripción",
+      "users": "Usuarios",
+      "permissions": "Permisos",
+      "type": "Tipo"
+    },
+    "fields": {
+      "name": "Nombre",
+      "namePlaceholder": "p. ej. Editor",
+      "code": "Código",
+      "codePlaceholder": "p. ej. editor",
+      "codeDescription": "Letras minúsculas, dígitos, - y _",
+      "description": "Descripción"
+    },
+    "dialogs": {
+      "edit": {
+        "title": "Editar Rol"
+      },
+      "create": {
+        "title": "Nuevo Rol",
+        "description": "Cree un rol y luego otórguele permisos"
+      }
+    },
+    "actions": {
+      "edit": "Editar rol",
+      "delete": "Eliminar rol"
     },
     "confirmDelete": {
-      "title": "¿Desactivar {name}?",
-      "description": "Los usuarios desactivados no podrán iniciar sesión en el sistema.",
-      "confirmText": "Desactivar",
+      "title": "¿Eliminar {name}?",
+      "description": "Sus usuarios pierden los permisos que otorga.",
+      "confirmText": "Eliminar",
       "cancelText": "Cancelar"
     }
   }

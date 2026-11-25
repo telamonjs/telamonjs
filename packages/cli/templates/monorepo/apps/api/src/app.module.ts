@@ -7,7 +7,9 @@ import { HealthModule } from '@telamonjs/data/nest'
 import { PrismaModule } from './common/prisma/prisma.module'
 import { PrismaService } from './common/prisma/prisma.service'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
+import { PermissionsGuard } from './common/guards/permissions.guard'
 import { UsuariosModule } from './modules/usuarios/usuarios.module'
+import { RolesModule } from './modules/roles/roles.module'
 
 /**
  * AppModule — API root. Add new domain modules to `imports` following the
@@ -30,10 +32,13 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
       checks: (prisma: PrismaService) => ({ database: () => prisma.client.$queryRaw`SELECT 1` }),
     }),
     UsuariosModule,
+    RolesModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
+    // after JwtAuthGuard (global guards run in this order): it reads request.user
+    { provide: APP_GUARD, useClass: PermissionsGuard },
   ],
 })
 export class AppModule {}

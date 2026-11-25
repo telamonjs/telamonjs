@@ -18,12 +18,21 @@ using it.
 
 ## What lives where
 
-- **Route Handlers are gone from `apps/web/src/app/api/usuarios`.** The
-  `usuarios` CRUD now lives in `apps/api` (`/v1/usuarios`) — `apps/web`
+- **Route Handlers are gone from `apps/web/src/app/api/{usuarios,roles}`.**
+  The `usuarios` and `roles` modules live in `apps/api` (`/v1/usuarios`,
+  `/v1/roles`) — `apps/web`
   calls it through `src/lib/api/client.ts` (SuperJSON, `credentials:
   'include'`). Only `apps/web/src/app/api/auth/[...nextauth]` remains: the
   NextAuth session itself is issued by the web app, `apps/api` only decodes
   the cookie it produces.
+- **RBAC.** The permission catalog and `loadAccess()` are
+  `packages/shared/src/rbac.ts` (`{{scope}}/shared/rbac`): `apps/web` puts the
+  user's roles and permission codes into the session token at sign-in,
+  `apps/api` enforces them with `@Permissions('users.write')` (global
+  `PermissionsGuard`) and recomputes them for a stale token. Role/permission
+  changes stamp `accessChangedAt`; deactivating stamps `sessionsRevokedAt`
+  (see `apps/api/CLAUDE.md`). New permission: catalog → `@Permissions` →
+  `pnpm db:seed`.
 - **Prisma lives in `packages/shared` only.** `apps/web` and `apps/api`
   import the singleton client from `{{scope}}/shared/prisma` — never
   instantiate `PrismaClient` anywhere else.
@@ -45,7 +54,7 @@ pnpm type-check       # every package
 pnpm test             # shared + api (jobs has no tests of its own yet)
 pnpm lint:telamonjs   # CrudConfig/dialogs conventions, apps/web only
 pnpm db:push          # prisma db push (packages/shared)
-pnpm db:seed          # admin@example.com / 12345
+pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345
 pnpm telamonjs:link   # @telamonjs/ui from ../telamonjs (hooks unlink around commits)
 pnpm telamonjs:unlink # back to the published range
 docker compose up -d  # postgres + redis, dev-only ports

@@ -1,5 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator'
-import { RoleName } from '@prisma/client'
+import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator'
 
 export class CreateUsuarioDto {
   @IsString()
@@ -9,14 +8,16 @@ export class CreateUsuarioDto {
   email!: string
 
   @IsString()
-  @MinLength(5, { message: 'Senha deve ter no mínimo 5 caracteres' })
+  @MinLength(5, { message: 'Password must be at least 5 characters' })
   password!: string
 
+  /** Role ids — the user holds the union of their permissions */
   @IsOptional()
-  @IsEnum(RoleName)
-  role?: RoleName = RoleName.USER
+  @IsArray()
+  @IsString({ each: true })
+  roleIds?: string[] = []
 
   @IsOptional()
   @IsBoolean()
-  ativo?: boolean = true
+  active?: boolean = true
 }

@@ -1,5 +1,4 @@
-import { IsBoolean, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator'
-import { RoleName } from '@prisma/client'
+import { IsArray, IsBoolean, IsEmail, IsOptional, IsString, MinLength } from 'class-validator'
 
 export class UpdateUsuarioDto {
   @IsOptional()
@@ -12,14 +11,17 @@ export class UpdateUsuarioDto {
 
   @IsOptional()
   @IsString()
-  @MinLength(5, { message: 'Senha deve ter no mínimo 5 caracteres' })
+  @MinLength(5, { message: 'Password must be at least 5 characters' })
   password?: string
 
+  /** Replaces the user's roles; their token goes stale (accessChangedAt) */
   @IsOptional()
-  @IsEnum(RoleName)
-  role?: RoleName
+  @IsArray()
+  @IsString({ each: true })
+  roleIds?: string[]
 
+  /** false ends every open session (sessionsRevokedAt) */
   @IsOptional()
   @IsBoolean()
-  ativo?: boolean
+  active?: boolean
 }

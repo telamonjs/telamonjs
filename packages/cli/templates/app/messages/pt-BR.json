@@ -5,7 +5,9 @@
   },
   "nav": {
     "home": "Início",
-    "users": "Usuários"
+    "administration": "Administração",
+    "users": "Usuários",
+    "roles": "Papéis"
   },
   "auth": {
     "signIn": "Entrar",
@@ -14,10 +16,10 @@
   "usuarios": {
     "title": "Usuários",
     "description": "Gerenciamento de usuários do sistema",
+    "counter": "{count, plural, one {# usuário} other {# usuários}}",
     "searchPlaceholder": "Buscar por nome ou email...",
     "noName": "Sem nome",
-    "roleAdmin": "Administrador",
-    "roleUser": "Usuário",
+    "noRoles": "Sem papéis",
     "statusActive": "Ativo",
     "statusInactive": "Inativo",
     "sections": {
@@ -27,12 +29,12 @@
       },
       "access": {
         "label": "Acesso",
-        "description": "Configurações de login e permissões"
+        "description": "Senha, papéis e login"
       }
     },
     "columns": {
       "name": "Nome",
-      "role": "Perfil",
+      "roles": "Papéis",
       "status": "Status",
       "createdAt": "Criado em"
     },
@@ -43,10 +45,25 @@
       "emailPlaceholder": "usuario@exemplo.com",
       "password": "Senha",
       "passwordPlaceholder": "Mínimo 5 caracteres",
-      "passwordDescription": "Deixe em branco para manter a senha atual (apenas ao editar)",
-      "role": "Perfil",
-      "ativo": "Usuário Ativo",
-      "ativoDescription": "Usuários inativos não podem fazer login"
+      "passwordDescription": "Deixe em branco para manter a senha atual (apenas edição)",
+      "roles": "Papéis",
+      "rolesDescription": "O usuário recebe todas as permissões de todos os papéis",
+      "active": "Usuário Ativo",
+      "activeDescription": "Usuários inativos não conseguem fazer login"
+    },
+    "detail": {
+      "tabs": {
+        "info": "Informações",
+        "access": "Acesso",
+        "audit": "Auditoria"
+      },
+      "identification": "Identificação",
+      "contact": "Contato",
+      "signIn": "Login",
+      "signInAllowed": "Permitido",
+      "signInBlocked": "Bloqueado (usuário inativo)",
+      "record": "Registro",
+      "updatedAt": "Atualizado em"
     },
     "dialogs": {
       "view": {
@@ -62,14 +79,69 @@
       }
     },
     "actions": {
-      "view": "Ver detalhes",
+      "view": "Visualizar detalhes",
       "edit": "Editar usuário",
-      "delete": "Desativar usuário"
+      "deactivate": "Desativar usuário",
+      "activate": "Ativar usuário",
+      "deactivated": "Usuário desativado",
+      "activated": "Usuário ativado"
+    },
+    "confirmDeactivate": {
+      "title": "Desativar {name}?",
+      "description": "Usuários desativados não conseguem fazer login, e as sessões abertas são encerradas.",
+      "confirmText": "Desativar",
+      "cancelText": "Cancelar"
+    }
+  },
+  "papeis": {
+    "title": "Papéis",
+    "description": "Papéis e as permissões que concedem",
+    "counter": "{count, plural, one {# papel} other {# papéis}}",
+    "searchPlaceholder": "Buscar por nome ou código...",
+    "system": "Nativo",
+    "custom": "Personalizado",
+    "tabs": {
+      "roles": "Papéis",
+      "permissions": "Permissões"
+    },
+    "sections": {
+      "role": {
+        "label": "Papel",
+        "description": "Conceda as permissões na aba Permissões"
+      }
+    },
+    "columns": {
+      "name": "Nome",
+      "description": "Descrição",
+      "users": "Usuários",
+      "permissions": "Permissões",
+      "type": "Tipo"
+    },
+    "fields": {
+      "name": "Nome",
+      "namePlaceholder": "ex.: Editor",
+      "code": "Código",
+      "codePlaceholder": "ex.: editor",
+      "codeDescription": "Letras minúsculas, dígitos, - e _",
+      "description": "Descrição"
+    },
+    "dialogs": {
+      "edit": {
+        "title": "Editar Papel"
+      },
+      "create": {
+        "title": "Novo Papel",
+        "description": "Crie um papel e depois conceda as permissões"
+      }
+    },
+    "actions": {
+      "edit": "Editar papel",
+      "delete": "Excluir papel"
     },
     "confirmDelete": {
-      "title": "Desativar {name}?",
-      "description": "Usuários desativados não poderão fazer login no sistema.",
-      "confirmText": "Desativar",
+      "title": "Excluir {name}?",
+      "description": "Os usuários perdem as permissões que ele concede.",
+      "confirmText": "Excluir",
       "cancelText": "Cancelar"
     }
   }

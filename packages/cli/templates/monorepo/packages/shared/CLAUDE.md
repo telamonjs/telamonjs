@@ -8,7 +8,14 @@ in `package.json` — never via a relative `../../packages/shared/src` import.
 
 ```
 ./prisma  → dist/lib/prisma.js
+./rbac    → dist/rbac.js        # PERMISSIONS catalog, loadAccess, markRoleHoldersStale
 ```
+
+`src/rbac.ts` is the RBAC source of the whole repo: the permission catalog
+(the seed syncs the `Permission` table with it), `loadAccess()` (roles +
+permission codes, read by `apps/web` at sign-in and by `apps/api`'s guard on a
+stale token) and `markRoleHoldersStale()`. Add a permission there, enforce it
+with `@Permissions()` in `apps/api`, then `pnpm db:seed`.
 
 Add more entries here as real shared logic moves in (e.g. `./lib/*` →
 `dist/lib/*.js`) — don't add a barrel `index.ts` re-exporting everything:

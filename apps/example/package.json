@@ -21,6 +21,7 @@
     "@auth/prisma-adapter": "2.11.3",
     "@hookform/resolvers": "4.1.3",
     "@telamonjs/auth": "workspace:*",
+    "@telamonjs/permissions": "workspace:*",
     "@telamonjs/ui": "workspace:*",
     "@prisma/client": "6.2.0",
     "@radix-ui/react-dialog": "1.3.1",

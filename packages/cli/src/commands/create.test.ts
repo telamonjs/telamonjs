@@ -51,6 +51,14 @@ describe('createApp — generated app structure', () => {
       'src/app/admin/usuarios/config.tsx',
       'src/app/admin/usuarios/_components/UsuarioDetail.tsx',
       'src/app/api/usuarios/[id]/route.ts',
+      'src/app/admin/papeis/config.tsx',
+      'src/app/admin/papeis/page.tsx',
+      'src/app/admin/papeis/_components/RolesMatrix.tsx',
+      'src/app/api/roles/route.ts',
+      'src/app/api/roles/matrix/route.ts',
+      'src/app/api/roles/[id]/permissions/[permissionId]/route.ts',
+      'src/rbac.ts',
+      'src/lib/permissions.ts',
       'src/lib/icons.ts',
       'AGENTS.md',
       '.claude/skills/telamonjs-crud/SKILL.md',
@@ -101,6 +109,21 @@ describe('createApp — generated app structure', () => {
     const envExample = readFileSync(join(projectPath, '.env.example'), 'utf-8')
     expect(envExample).toContain('DATABASE_URL="postgresql://')
     expect(envExample).toMatch(/^NEXTAUTH_SECRET=\s*$/m)
+
+    // Database-backed RBAC: the core tables, no role enum, permissions in the
+    // JWT at sign-in and a freshness check on every token renewal.
+    const schema = read('prisma/schema.prisma')
+    for (const model of ['Role', 'Permission', 'RolePermission', 'UserRole']) {
+      expect(schema).toMatch(new RegExp(`^model ${model} \\{`, 'm'))
+    }
+    expect(schema).not.toContain('enum RoleName')
+    expect(schema).toContain('accessChangedAt   DateTime?')
+    expect(schema).toContain('sessionsRevokedAt DateTime?')
+    expect(read('prisma/migrations/20251015035454_init/migration.sql')).toContain('CREATE TABLE "role_permissions"')
+    expect(read('prisma/seed.ts')).toContain('diffPermissionCatalog(')
+    expect(read('src/auth.ts')).toContain('loadAccess(prisma, user.id)')
+    expect(read('src/auth.ts')).toContain('sessionState(token')
+    expect(pkg.dependencies['@telamonjs/permissions']).toMatch(/^\^\d+\.\d+\.\d+/)
   })
 })
 
@@ -161,7 +184,13 @@ describe('createApp --monorepo — generated tree', () => {
       'apps/web/src/app/admin/usuarios/config.tsx',
       'apps/web/src/lib/api/client.ts',
       'apps/web/src/lib/api/usuarios-client.ts',
+      'apps/web/src/lib/api/roles-client.ts',
+      'apps/web/src/app/admin/papeis/page.tsx',
       'apps/web/src/auth.ts',
+      'packages/shared/src/rbac.ts',
+      'apps/api/src/common/guards/permissions.guard.ts',
+      'apps/api/src/modules/roles/roles.controller.ts',
+      'apps/api/src/modules/roles/roles.service.spec.ts',
       'apps/web/AGENTS.md',
     ]
     for (const file of expectedFiles) {
@@ -172,8 +201,11 @@ describe('createApp --monorepo — generated tree', () => {
     // the API and packages/shared own them now.
     for (const gone of [
       'apps/web/src/app/api/usuarios',
+      'apps/web/src/app/api/roles',
       'apps/web/src/lib/prisma.ts',
+      'apps/web/src/rbac.ts',
       'apps/web/prisma',
+      'apps/api/src/common/guards/admin.guard.ts',
     ]) {
       expect(existsSync(join(root, gone)), `should not exist: ${gone}`).toBe(false)
     }
@@ -234,25 +266,38 @@ describe('createApp --monorepo — generated tree', () => {
 })
 
 /**
- * Drift guard for the reference module: the template's `usuarios` module
- * (config + Detail + client + icons) must type-check against the real
- * @telamonjs/ui. `src/lib/utils` is stubbed (date-fns is not a
- * CLI dependency); everything else is the template verbatim.
+ * Drift guard for the reference modules: the template's `usuarios` and
+ * `papeis` modules (configs, Detail, matrix, page, clients, icons, permission
+ * checker) must type-check against the real @telamonjs/ui and
+ * @telamonjs/permissions. `src/lib/utils` and `src/hooks/use-session` are
+ * stubbed (date-fns and next-auth are not CLI dependencies); everything else
+ * is the template verbatim.
  */
-describe('template usuarios module — compile guard', () => {
+describe('template usuarios/papeis modules — compile guard', () => {
   it('type-checks against @telamonjs/ui', () => {
     const cliRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
     const template = join(cliRoot, 'templates', 'app')
     // Inside the package so `npx tsc` resolves node_modules like a real app.
     const cwd = mkdtempSync(join(cliRoot, '.template-compile-'))
     try {
-      for (const rel of ['src/app/admin/usuarios', 'src/lib/api', 'src/lib/icons.ts']) {
+      for (const rel of [
+        'src/app/admin/usuarios',
+        'src/app/admin/papeis',
+        'src/lib/api',
+        'src/lib/icons.ts',
+        'src/lib/permissions.ts',
+      ]) {
         cpSync(join(template, rel), join(cwd, rel), { recursive: true })
       }
       mkdirSync(join(cwd, 'src', 'lib'), { recursive: true })
       writeFileSync(
         join(cwd, 'src', 'lib', 'utils.ts'),
         'export function formatDate(value: Date | string): string {\n  return String(value)\n}\n'
+      )
+      mkdirSync(join(cwd, 'src', 'hooks'), { recursive: true })
+      writeFileSync(
+        join(cwd, 'src', 'hooks', 'use-session.ts'),
+        "import type { UserWithPermissions } from '@telamonjs/permissions'\nexport function useSession(): { user: UserWithPermissions | undefined } {\n  return { user: undefined }\n}\n"
       )
       writeFileSync(
         join(cwd, 'tsconfig.json'),
@@ -277,7 +322,7 @@ describe('template usuarios module — compile guard', () => {
         execSync('npx tsc --noEmit -p tsconfig.json', { cwd, stdio: 'pipe' })
       } catch (error) {
         const out = error instanceof Error && 'stdout' in error ? String((error as { stdout: unknown }).stdout) : String(error)
-        throw new Error(`template usuarios module failed to type-check:\n${out}`)
+        throw new Error(`template admin modules failed to type-check:\n${out}`)
       }
     } finally {
       rmSync(cwd, { recursive: true, force: true })

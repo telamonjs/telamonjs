@@ -5,7 +5,9 @@
   },
   "nav": {
     "home": "Home",
-    "users": "Users"
+    "administration": "Administration",
+    "users": "Users",
+    "roles": "Roles"
   },
   "auth": {
     "signIn": "Sign in",
@@ -14,10 +16,10 @@
   "usuarios": {
     "title": "Users",
     "description": "System user management",
+    "counter": "{count, plural, one {# user} other {# users}}",
     "searchPlaceholder": "Search by name or email...",
     "noName": "No name",
-    "roleAdmin": "Administrator",
-    "roleUser": "User",
+    "noRoles": "No roles",
     "statusActive": "Active",
     "statusInactive": "Inactive",
     "sections": {
@@ -27,12 +29,12 @@
       },
       "access": {
         "label": "Access",
-        "description": "Login and permission settings"
+        "description": "Password, roles and sign-in"
       }
     },
     "columns": {
       "name": "Name",
-      "role": "Role",
+      "roles": "Roles",
       "status": "Status",
       "createdAt": "Created at"
     },
@@ -44,9 +46,24 @@
       "password": "Password",
       "passwordPlaceholder": "At least 5 characters",
       "passwordDescription": "Leave blank to keep the current password (edit only)",
-      "role": "Role",
-      "ativo": "Active User",
-      "ativoDescription": "Inactive users can't sign in"
+      "roles": "Roles",
+      "rolesDescription": "The user gets every permission of every role",
+      "active": "Active User",
+      "activeDescription": "Inactive users can't sign in"
+    },
+    "detail": {
+      "tabs": {
+        "info": "Information",
+        "access": "Access",
+        "audit": "Audit"
+      },
+      "identification": "Identification",
+      "contact": "Contact",
+      "signIn": "Sign-in",
+      "signInAllowed": "Allowed",
+      "signInBlocked": "Blocked (inactive user)",
+      "record": "Record",
+      "updatedAt": "Updated at"
     },
     "dialogs": {
       "view": {
@@ -64,12 +81,67 @@
     "actions": {
       "view": "View details",
       "edit": "Edit user",
-      "delete": "Deactivate user"
+      "deactivate": "Deactivate user",
+      "activate": "Activate user",
+      "deactivated": "User deactivated",
+      "activated": "User activated"
+    },
+    "confirmDeactivate": {
+      "title": "Deactivate {name}?",
+      "description": "Deactivated users can't sign in, and their open sessions end.",
+      "confirmText": "Deactivate",
+      "cancelText": "Cancel"
+    }
+  },
+  "papeis": {
+    "title": "Roles",
+    "description": "Roles and the permissions they grant",
+    "counter": "{count, plural, one {# role} other {# roles}}",
+    "searchPlaceholder": "Search by name or code...",
+    "system": "Built-in",
+    "custom": "Custom",
+    "tabs": {
+      "roles": "Roles",
+      "permissions": "Permissions"
+    },
+    "sections": {
+      "role": {
+        "label": "Role",
+        "description": "Grant its permissions in the Permissions tab"
+      }
+    },
+    "columns": {
+      "name": "Name",
+      "description": "Description",
+      "users": "Users",
+      "permissions": "Permissions",
+      "type": "Type"
+    },
+    "fields": {
+      "name": "Name",
+      "namePlaceholder": "e.g. Editor",
+      "code": "Code",
+      "codePlaceholder": "e.g. editor",
+      "codeDescription": "Lowercase letters, digits, - and _",
+      "description": "Description"
+    },
+    "dialogs": {
+      "edit": {
+        "title": "Edit Role"
+      },
+      "create": {
+        "title": "New Role",
+        "description": "Create a role, then grant it permissions"
+      }
+    },
+    "actions": {
+      "edit": "Edit role",
+      "delete": "Delete role"
     },
     "confirmDelete": {
-      "title": "Deactivate {name}?",
-      "description": "Deactivated users won't be able to sign in.",
-      "confirmText": "Deactivate",
+      "title": "Delete {name}?",
+      "description": "Its users lose the permissions it grants.",
+      "confirmText": "Delete",
       "cancelText": "Cancel"
     }
   }

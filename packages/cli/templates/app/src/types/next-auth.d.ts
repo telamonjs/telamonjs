@@ -2,14 +2,16 @@ import 'next-auth'
 import type { RoleInfo } from '@telamonjs/auth'
 
 // The session contract of @telamonjs/auth (createAuthCallbacks in src/auth.ts):
-// `role` is a RoleInfo — its `code` is the Prisma RoleName ('ADMIN' | 'USER').
+// `roles` are the user's Role rows ({ id, code, name }), `role` the primary one
+// (absent for a user without roles) and `permissions` the union of the
+// roles' permission codes — check them with `can()` from src/lib/permissions.ts.
 declare module 'next-auth' {
   interface Session {
     user: {
       id: string
       email: string
       name: string | null
-      role: RoleInfo
+      role?: RoleInfo
       roles: RoleInfo[]
       permissions: string[]
       image: string | null
@@ -20,7 +22,8 @@ declare module 'next-auth' {
     id: string
     email: string
     name: string | null
-    role: RoleInfo
+    role?: RoleInfo
+    roles: RoleInfo[]
     permissions: string[]
     image: string | null
   }

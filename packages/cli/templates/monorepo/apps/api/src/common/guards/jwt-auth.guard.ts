@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { payloadToAuthUser, type AuthUser } from '@telamonjs/auth'
+import { payloadToAuthUser, sessionState, type AuthUser } from '@telamonjs/auth'
 import { createJwtAuthGuard, type MfJwtPayload } from '@telamonjs/auth/nest'
+import { loadAccess } from '{{scope}}/shared/rbac'
 import { PrismaService } from '../prisma/prisma.service'
 
 export type { AuthUser }
@@ -12,11 +13,14 @@ export type { AuthUser }
  * `?token=` for SSE, then the `authjs.session-token` / `__Secure-` cookies)
  * with the same NEXTAUTH_SECRET. Routes marked with @Public() (health) skip it.
  *
- * `resolveUser` runs once the token is decoded: a deactivated or deleted user
- * can't stay "logged in" just because the token hasn't expired yet, and the
- * role comes from the database, so a demotion applies on the next request —
- * one query per request, by primary key. To also revoke sessions, see
- * "Session freshness & revocation" in the @telamonjs/auth docs.
+ * `resolveUser` runs once the token is decoded — one query per request, by
+ * primary key — and applies the session-freshness marks (`sessionState`):
+ * - deleted, deactivated, or sessions revoked → 401;
+ * - access changed after the token's claims were computed (`stale`) → the
+ *   roles/permissions are recomputed for this request, so a revoked
+ *   permission stops working right away (apps/web rewrites the cookie itself);
+ * - otherwise the token's claims stand: `request.user.permissions` is what
+ *   PermissionsGuard checks.
  */
 @Injectable()
 export class JwtAuthGuard extends createJwtAuthGuard() {
@@ -28,16 +32,24 @@ export class JwtAuthGuard extends createJwtAuthGuard() {
   }
 
   protected override async resolveUser(payload: MfJwtPayload): Promise<AuthUser | null> {
-    const usuario = await this.prisma.client.user.findUnique({
+    const marks = await this.prisma.client.user.findUnique({
       where: { id: payload.id },
-      select: { ativo: true, email: true, role: true },
+      select: { active: true, accessChangedAt: true, sessionsRevokedAt: true },
     })
-    if (!usuario || !usuario.ativo) return null
+    if (!marks?.active) return null
 
-    return {
-      ...payloadToAuthUser(payload),
-      email: usuario.email,
-      role: { id: usuario.role, name: usuario.role, code: usuario.role },
+    const user = payloadToAuthUser(payload)
+    switch (sessionState(payload, { revokedAt: marks.sessionsRevokedAt, accessChangedAt: marks.accessChangedAt })) {
+      case 'revoked':
+        return null
+      case 'stale': {
+        const access = await loadAccess(this.prisma.client, payload.id)
+        // `role` is display data (a user without roles keeps the token's);
+        // the checks read `permissions`.
+        return { ...user, ...access, role: access.role ?? user.role }
+      }
+      default:
+        return user
     }
   }
 }

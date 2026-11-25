@@ -1,16 +1,27 @@
+import { cache } from 'react'
 import NextAuth from 'next-auth'
 import type { Adapter } from 'next-auth/adapters'
 import { PrismaAdapter } from '@auth/prisma-adapter'
 import Credentials from 'next-auth/providers/credentials'
+import { sessionState } from '@telamonjs/auth'
 import { createAuthCallbacks } from '@telamonjs/auth/next'
 import { prisma } from '@/lib/prisma'
+import { loadAccess } from '@/rbac'
 import bcrypt from 'bcryptjs'
 
 // Canonical claim-copy of @telamonjs/auth: id/role/roles/permissions into the
 // token and back into session.user, plus `authTime`/`accessAt` stamped at
-// login. To revoke sessions or refresh stale roles, compose over these
-// callbacks — see "Session freshness & revocation" in the @telamonjs/auth docs.
+// login. The `jwt` callback below composes the session-freshness recipe on top.
 const base = createAuthCallbacks()
+
+// `auth()` runs the jwt callback on every call: one lookup by primary key,
+// cached per request (React `cache`) so a render doesn't repeat it.
+const loadMarks = cache((userId: string) =>
+  prisma.user.findUnique({
+    where: { id: userId },
+    select: { active: true, accessChangedAt: true, sessionsRevokedAt: true },
+  })
+)
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   // @auth/prisma-adapter's return type lags next-auth's Adapter type across
@@ -46,7 +57,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           },
         })
 
-        if (!user || !user.ativo) {
+        if (!user || !user.active) {
           return null
         }
 
@@ -64,17 +75,34 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
           email: user.email,
           name: user.name,
           image: user.image,
-          // The session contract (SessionClaims of @telamonjs/auth): the role
-          // enum becomes a RoleInfo, and `permissions` stays empty until the
-          // app materializes RBAC into it (@telamonjs/permissions).
-          role: { id: user.role, name: user.role, code: user.role },
-          permissions: [],
+          // The session contract (SessionClaims of @telamonjs/auth): roles and
+          // the union of their permission codes, materialized into the JWT.
+          ...(await loadAccess(prisma, user.id)),
         }
       },
     }),
   ],
   callbacks: {
-    jwt: base.jwt,
+    async jwt(args) {
+      const token = await base.jwt(args)
+      if (args.user) return token // fresh login: claims and times just stamped
+      const marks = await loadMarks(token.id as string)
+      if (!marks?.active) return null // deleted or deactivated: signs out
+      const state = sessionState(token, {
+        revokedAt: marks.sessionsRevokedAt,
+        accessChangedAt: marks.accessChangedAt,
+      })
+      if (state === 'revoked') return null
+      if (state === 'stale') {
+        // Roles/permissions changed since the claims were computed: recompute
+        // them (same source as authorize) and move only `accessAt` — never
+        // `authTime`, or a revoked session would come back.
+        Object.assign(token, await loadAccess(prisma, token.id as string), {
+          accessAt: Date.now(),
+        })
+      }
+      return token
+    },
     session: base.session,
   },
 })

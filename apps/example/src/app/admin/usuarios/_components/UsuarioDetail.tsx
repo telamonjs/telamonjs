@@ -1,6 +1,7 @@
 'use client'
 
 import { memo } from 'react'
+import { useTranslations } from 'next-intl'
 import {
   Badge,
   ContentTabs,
@@ -28,51 +29,61 @@ interface UsuarioDetailProps {
  * config to `dialogs.view.portal`.
  */
 function UsuarioDetail({ usuario }: UsuarioDetailProps) {
+  const t = useTranslations('usuarios')
   // Fixed height: the dialog must not resize when switching tabs.
   const contentHeight = 'h-[min(600px,60vh)] overflow-y-auto'
+  const status = usuario.active ? t('statusActive') : t('statusInactive')
 
   const tabs: TabItem[] = [
     {
       value: 'info',
-      label: 'Informações',
+      label: t('detail.tabs.info'),
       icon: 'Info',
       content: (
         <div className={`p-6 ${contentHeight}`}>
           <div className='grid gap-4 md:grid-cols-2'>
-            <SemanticCard title='Identificação' icon={UserIcon} color='blue'>
-              <SemanticField label='Nome' value={usuario.name} icon={UserIcon} />
+            <SemanticCard title={t('detail.identification')} icon={UserIcon} color='blue'>
+              <SemanticField label={t('fields.name')} value={usuario.name} icon={UserIcon} />
               <div>
-                <label className='text-xs font-medium text-muted-foreground'>Status</label>
+                <label className='text-xs font-medium text-muted-foreground'>
+                  {t('columns.status')}
+                </label>
                 <div className='mt-1'>
-                  <Badge variant={usuario.ativo ? 'default' : 'secondary'}>
-                    {usuario.ativo ? 'Ativo' : 'Inativo'}
-                  </Badge>
+                  <Badge variant={usuario.active ? 'default' : 'secondary'}>{status}</Badge>
                 </div>
               </div>
             </SemanticCard>
-            <SemanticCard title='Contato' icon={MailIcon} color='green'>
-              <SemanticField label='Email' value={usuario.email} icon={MailIcon} />
+            <SemanticCard title={t('detail.contact')} icon={MailIcon} color='green'>
+              <SemanticField label={t('fields.email')} value={usuario.email} icon={MailIcon} />
             </SemanticCard>
           </div>
         </div>
       ),
     },
     {
-      value: 'acesso',
-      label: 'Acesso',
+      value: 'access',
+      label: t('detail.tabs.access'),
       icon: 'Shield',
       content: (
         <div className={`p-6 ${contentHeight}`}>
           <div className='grid gap-4 md:grid-cols-2'>
-            <SemanticCard title='Permissões' icon={ShieldIcon} color='orange'>
+            <SemanticCard title={t('fields.roles')} icon={ShieldIcon} color='green'>
+              <div className='flex flex-wrap gap-1'>
+                {usuario.roles.length ? (
+                  usuario.roles.map((role) => (
+                    <Badge key={role.id} variant='outline'>
+                      {role.name}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className='text-sm text-muted-foreground'>{t('noRoles')}</span>
+                )}
+              </div>
+            </SemanticCard>
+            <SemanticCard title={t('detail.signIn')} icon={KeyIcon} color='orange'>
               <SemanticField
-                label='Perfil'
-                value={usuario.role === 'ADMIN' ? 'Administrador' : 'Usuário'}
-                icon={ShieldIcon}
-              />
-              <SemanticField
-                label='Login'
-                value={usuario.ativo ? 'Permitido' : 'Bloqueado (usuário inativo)'}
+                label={t('detail.signIn')}
+                value={usuario.active ? t('detail.signInAllowed') : t('detail.signInBlocked')}
                 icon={KeyIcon}
               />
             </SemanticCard>
@@ -81,20 +92,20 @@ function UsuarioDetail({ usuario }: UsuarioDetailProps) {
       ),
     },
     {
-      value: 'auditoria',
-      label: 'Auditoria',
+      value: 'audit',
+      label: t('detail.tabs.audit'),
       icon: 'History',
       content: (
         <div className={`p-6 ${contentHeight}`}>
           <div className='grid gap-4 md:grid-cols-2'>
-            <SemanticCard title='Registro' icon={CalendarIcon} color='purple'>
+            <SemanticCard title={t('detail.record')} icon={CalendarIcon} color='purple'>
               <SemanticField
-                label='Criado em'
+                label={t('columns.createdAt')}
                 value={formatDate(usuario.createdAt)}
                 icon={CalendarIcon}
               />
               <SemanticField
-                label='Atualizado em'
+                label={t('detail.updatedAt')}
                 value={formatDate(usuario.updatedAt)}
                 icon={CalendarIcon}
               />

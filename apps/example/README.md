@@ -240,23 +240,37 @@ pnpm prisma migrate dev --name add_seu_model
 
 - **Email:** admin@example.com
 - **Password:** 12345
-- **Role:** ADMIN
+- **Role:** `admin` (built-in, holds every permission)
+
+### Roles and Permissions
+
+Roles and permissions live in the database (`Role`, `Permission`,
+`RolePermission`, `UserRole`) and are copied into the session token at sign-in.
+Manage them at `/admin/papeis` (role CRUD + permission matrix) and assign roles
+to users at `/admin/usuarios`. The permission catalog is code: `src/rbac.ts`.
+After adding a permission there, run `pnpm db:seed` (idempotent) to create it
+and grant it to `admin`.
+
+Role or permission changes apply on the user's next request (the token is
+refreshed); deactivating a user ends their sessions.
 
 ### Protecting Routes
 
-Use the helpers in `src/lib/auth.ts`:
+Route Handlers check a permission with `requirePermission` (`src/lib/auth.ts`):
 
 ```typescript
-import { requireAuth, requireAdmin } from '@/lib/auth'
+import { NextResponse } from 'next/server'
+import { requirePermission } from '@/lib/auth'
 
-export default async function MinhaPage() {
-  const user = await requireAuth() // Requires authentication
-  // or
-  const admin = await requireAdmin() // Requires the ADMIN role
-
-  return <div>Conteúdo protegido</div>
+export async function GET() {
+  const user = await requirePermission('users.read') // 401/403 response, or the user
+  if (user instanceof NextResponse) return user
+  // ...
 }
 ```
+
+In the UI, `permission` on a menu item and `permissions` in a CrudConfig hide
+what the user can't do (the `PermissionsProvider` in `LayoutProviders.tsx`).
 
 ### Middleware
 

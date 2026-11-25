@@ -21,7 +21,7 @@ pnpm install
 cp .env.example .env  # fill NEXTAUTH_SECRET (openssl rand -base64 32)
 docker compose up -d  # postgres + redis
 pnpm db:push
-pnpm db:seed          # admin@example.com / 12345
+pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345
 pnpm dev              # apps/web   — http://localhost:{{appPort}}
 pnpm dev:api          # apps/api   — http://localhost:{{apiPort}}/v1
 pnpm worker           # apps/jobs

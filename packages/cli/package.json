@@ -43,6 +43,7 @@
     "validate-npm-package-name": "^5.0.0"
   },
   "devDependencies": {
+    "@telamonjs/permissions": "workspace:*",
     "@telamonjs/ui": "workspace:*",
     "@tanstack/react-query": "^5.108.2",
     "@tanstack/react-table": "^8.21.3",
@@ -54,6 +55,7 @@
     "@types/validate-npm-package-name": "^4.0.2",
     "lucide-react": "^0.545.0",
     "next": "catalog:",
+    "next-intl": "^4.15.3",
     "sonner": "^2.0.7",
     "vitest": "catalog:",
     "zod": "catalog:"

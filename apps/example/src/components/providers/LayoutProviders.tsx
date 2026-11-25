@@ -1,8 +1,9 @@
 'use client'
 
-import React from 'react'
-import { AdminShell, Sonner as Toaster } from '@telamonjs/ui'
+import React, { useCallback } from 'react'
+import { AdminShell, PermissionsProvider, Sonner as Toaster } from '@telamonjs/ui'
 import { menuConfig } from '@/config/menu'
+import { can } from '@/lib/permissions'
 import { Session } from 'next-auth'
 import { useRouter } from 'next/navigation'
 
@@ -13,22 +14,27 @@ interface LayoutProvidersProps {
 
 export function LayoutProviders({ children, session }: LayoutProvidersProps) {
   const router = useRouter()
+  // One checker for the whole shell: menu items with `permission` and every
+  // CrudConfig `permissions` read it. Hiding is UX only — the Route Handlers
+  // check again (requirePermission).
+  const user = session?.user
+  const check = useCallback((permission: string) => can(user, permission), [user])
 
   const handleSignOut = () => {
     router.push('/sign-out')
   }
 
   return (
-    <>
+    <PermissionsProvider can={check}>
       <AdminShell
         menuConfig={menuConfig}
         session={
-          session?.user
+          user
             ? {
                 user: {
-                  name: session.user.name ?? undefined,
-                  email: session.user.email ?? undefined,
-                  role: session.user.role,
+                  name: user.name ?? undefined,
+                  email: user.email ?? undefined,
+                  role: user.role,
                 },
               }
             : undefined
@@ -41,6 +47,6 @@ export function LayoutProviders({ children, session }: LayoutProvidersProps) {
         {children}
       </AdminShell>
       <Toaster />
-    </>
+    </PermissionsProvider>
   )
 }

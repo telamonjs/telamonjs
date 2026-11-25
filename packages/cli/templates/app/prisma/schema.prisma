@@ -11,15 +11,6 @@ datasource db {
 }
 
 // ============================================================================
-// ENUMS
-// ============================================================================
-
-enum RoleName {
-  ADMIN
-  USER
-}
-
-// ============================================================================
 // AUTHENTICATION MODELS (NextAuth v5)
 // ============================================================================
 
@@ -30,10 +21,16 @@ model User {
   emailVerified DateTime?
   password      String
   image         String?
-  role          RoleName  @default(USER)
-  ativo         Boolean   @default(true)
+  active        Boolean   @default(true)
+  // Session freshness (`sessionState` of @telamonjs/auth): a token whose
+  // claims predate `accessChangedAt` is refreshed, one that logged in before
+  // `sessionsRevokedAt` is signed out.
+  accessChangedAt   DateTime?
+  sessionsRevokedAt DateTime?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+
+  roles UserRole[]
 
   // NextAuth relations
   accounts Account[]
@@ -79,4 +76,62 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// ============================================================================
+// RBAC: the core fragment of @telamonjs/permissions. The permission catalog
+// is defined in code (src/rbac.ts) and synced by `pnpm db:seed`.
+// ============================================================================
+
+model Role {
+  id          String  @id @default(cuid())
+  name        String
+  code        String  @unique // "admin", "editor", ...
+  description String?
+  system      Boolean @default(false) // built-in role: not editable, not deletable
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  code        String  @unique // "module.action", e.g. "users.read"
+  module      String // "users"
+  // The suffix of `code` ("read", "write", ...). A String, not an enum, so a
+  // new action needs no migration.
+  action      String
+  category    String? // groups the permission matrix
+  description String?
+
+  roles RolePermission[]
+
+  @@index([module, action])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+  @@map("user_roles")
 }

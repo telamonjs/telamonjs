@@ -34,12 +34,14 @@ export interface MonorepoCreateOptions {
 }
 
 // Paths removed from the copied apps/web tree (single-package template) —
-// they move to packages/shared (prisma) or apps/api (the usuarios CRUD
-// route handlers), or are simply redundant with the root's own file.
+// they move to packages/shared (prisma, src/rbac.ts — moved below) or
+// apps/api (the usuarios/roles route handlers), or are simply redundant with
+// the root's own file.
 const WEB_PATHS_TO_REMOVE = [
   'prisma',
   'src/lib/prisma.ts',
   'src/app/api/usuarios',
+  'src/app/api/roles',
   'docker-compose.yml',
   'docker-compose.prod.yml',
   '.env.example',
@@ -123,6 +125,10 @@ export async function createMonorepoApp(
   const sharedPath = path.join(projectPath, 'packages/shared')
   await fs.copy(path.join(monorepoTemplate, 'packages/shared'), sharedPath)
   await fs.copy(path.join(appTemplate, 'prisma'), path.join(sharedPath, 'prisma'))
+  // The RBAC catalog + loadAccess serve apps/web (sign-in), apps/api (guard)
+  // and the seed: `{{scope}}/shared/rbac`. Same relative path for the seed
+  // (`../src/rbac`) in both layouts.
+  await fs.move(path.join(webPath, 'src/rbac.ts'), path.join(sharedPath, 'src/rbac.ts'))
 
   // apps/api and apps/jobs — no equivalent in the single-package template.
   await fs.copy(path.join(monorepoTemplate, 'apps/api'), path.join(projectPath, 'apps/api'))

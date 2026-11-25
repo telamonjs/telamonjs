@@ -105,9 +105,16 @@ describe('createMonorepoApp', () => {
         'prisma',
         'src/lib/prisma.ts',
         'src/app/api/usuarios',
+        'src/app/api/roles',
+        'src/rbac.ts',
       ]) {
         expect(existsSync(join(root, 'apps/web', gone)), `apps/web/${gone}`).toBe(false)
       }
+      // The RBAC module serves web, api and the seed from packages/shared
+      expect(read('packages/shared/src/rbac.ts')).toContain('export async function loadAccess')
+      expect(json('packages/shared/package.json').exports['./rbac']).toBe('./dist/rbac.js')
+      expect(read('packages/shared/prisma/seed.ts')).toContain("from '../src/rbac'")
+      expect(read('apps/web/src/auth.ts')).toContain("from '@my-shop/shared/rbac'")
       // ...while the overlay replaced the single-package files
       expect(read('apps/web/package.json')).toContain('"@my-shop/shared": "workspace:*"')
       expect(existsSync(join(root, 'README.md'))).toBe(true)

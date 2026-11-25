@@ -14,8 +14,9 @@ framework's own monorepo. Two rules before anything else:
    package's `README.md` sits next to them). If you can't find it there, it
    does not exist — ask before inventing it.
 2. **This app has its own module of reference.** `src/app/admin/usuarios/`
-   is a complete, working CRUD module built with every pattern below. When
-   in doubt, read it before asking or guessing.
+   is a complete, working CRUD module built with every pattern below, and
+   `src/app/admin/papeis/` is the roles module (CRUD + permission matrix in
+   tabs). When in doubt, read them before asking or guessing.
 
 ---
 
@@ -55,7 +56,9 @@ export const menuConfig: MenuItem[] = [
     title: 'Administration',
     icon: 'Settings',
     children: [
-      { id: 'users', type: 'single', title: 'Users', href: '/admin/users', icon: 'Users' },
+      // `permission` hides the item from users without it (UX only — the
+      // Route Handlers check the same code)
+      { id: 'users', type: 'single', title: 'Users', href: '/admin/users', icon: 'Users', permission: 'users.read' },
     ],
   },
 ]
@@ -75,13 +78,18 @@ registry.
 'use client'
 import { useRouter } from 'next/navigation'
 import type { Session } from 'next-auth'
-import { AdminShell, Toaster } from '@telamonjs/ui'
+import { useCallback } from 'react'
+import { AdminShell, PermissionsProvider, Toaster } from '@telamonjs/ui'
 import { menuConfig } from '@/config/menu'
+import { can } from '@/lib/permissions'
 
 export function LayoutProviders({ children, session }: { children: React.ReactNode; session: Session | null }) {
   const router = useRouter()
+  const user = session?.user
+  // One checker for the menu and every CrudConfig `permissions`
+  const check = useCallback((permission: string) => can(user, permission), [user])
   return (
-    <>
+    <PermissionsProvider can={check}>
       <AdminShell
         menuConfig={menuConfig}
         session={session?.user ? { user: { name: session.user.name ?? undefined, email: session.user.email ?? undefined } } : undefined}
@@ -93,7 +101,7 @@ export function LayoutProviders({ children, session }: { children: React.ReactNo
         {children}
       </AdminShell>
       <Toaster />
-    </>
+    </PermissionsProvider>
   )
 }
 ```
@@ -184,11 +192,14 @@ import UserDetail from './_components/UserDetail'
 const headerConfig: DialogHeaderConfig<User> = {
   icon: 'User', iconColor: 'blue', title: u => u.name, subtitle: u => u.email,
   gradient: 'from-blue-50 to-indigo-50',
-  badge: { field: 'ativo', variants: { true: 'default', false: 'secondary' }, labels: { true: 'Ativo', false: 'Inativo' } },
+  badge: { field: 'active', variants: { true: 'default', false: 'secondary' }, labels: { true: 'Active', false: 'Inactive' } },
 }
 
 export const usersConfig: CrudConfig<User, UserFormData> = {
   module: { name: 'users', title: 'Users', description: '...', route: '/admin/users' },
+  // the permission each operation needs — a denied one loses its button,
+  // row action and dialog (checked by the PermissionsProvider)
+  permissions: { view: 'users.read', create: 'users.write', edit: 'users.write', delete: 'users.write' },
   list: {
     title: '',            // the shell breadcrumb already names the page
     description: '',
@@ -512,7 +523,7 @@ This app ships multi-locale from birth (`pt-BR` | `en` | `es`, default
    field `label/placeholder/description`, `dialogs.*.title/description`,
    `headerConfig.title`, `badge.labels`, action `tooltip`,
    `confirmDialog.description/confirmText/cancelText`). Text rendered inside a
-   `cell`/JSX callback uses `<Msg k="usuarios.roleAdmin" />` instead (a real
+   `cell`/JSX callback uses `<Msg k="usuarios.statusActive" />` instead (a real
    component, so it can call the underlying hook). Per-row functions (a
    `headerConfig.title: u => u.name`, a `confirmDialog.title: row => …`) return
    data, not chrome text. See `src/app/admin/usuarios/config.tsx` for the
@@ -544,7 +555,7 @@ pnpm build            # production build
 pnpm type-check       # TypeScript check
 pnpm lint:telamonjs     # telamonjs lint src/app/admin (conventions above)
 pnpm telamonjs generate crud <module> --model <Model>  # new module in this same pattern, from prisma/schema.prisma
-pnpm db:seed          # seed: admin@example.com / 12345
+pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345 (idempotent)
 pnpm telamonjs link   # @telamonjs/ui from a local checkout (../telamonjs); `pnpm telamonjs unlink` before committing
 docker compose up -d  # database only, for pnpm dev
 docker compose -f docker-compose.prod.yml up --build  # database + app (production build)
@@ -553,19 +564,51 @@ docker compose -f docker-compose.prod.yml up --build  # database + app (producti
 ## Authentication
 
 - Config: `src/auth.ts` — the app's own `authorize()` plus
-  `createAuthCallbacks()` from `@telamonjs/auth/next` (the session contract:
-  `session.user.role` is a `RoleInfo` `{ id, name, code }`, so role checks read
-  `role.code`; `permissions` is a `string[]`). Compose over those callbacks
-  instead of replacing them; the package README covers session revocation
-  and stale-role refresh
+  `createAuthCallbacks()` from `@telamonjs/auth/next`. The session contract:
+  `session.user.roles` (`{ id, code, name }[]`), `role` (the first one, absent
+  for a user without roles) and `permissions` (`string[]`, the union of the
+  roles' permission codes). Compose over those callbacks instead of replacing
+  them
 - Layout guard: `src/app/admin/layout.tsx` (calls `auth()`, redirects unless
   `session?.user` exists — check the user, never just `session`: on an auth
   error `auth()` returns a truthy error body)
 - Client hook: `src/hooks/use-session.ts`
 - Middleware: `src/middleware.ts` (Node runtime) protects `/admin/*`; `/api/*` is not matched —
-  each Route Handler does its own `getCurrentUser()` / role check (see
-  `src/app/api/usuarios/route.ts`)
-- Seed user: `admin@example.com` / `12345` / role `ADMIN`
+  each Route Handler checks its own permission (`requirePermission`, below)
+- Seed user: `admin@example.com` / `12345`, with the built-in `admin` role
+
+## Roles and permissions (RBAC)
+
+Permissions live in the database and are **materialized into the JWT** at
+sign-in, so every check is a lookup in `session.user.permissions` — no query.
+
+| Piece | File |
+| --- | --- |
+| Tables `Role`, `Permission`, `RolePermission`, `UserRole` (the `@telamonjs/permissions` fragment); `User.active`, `accessChangedAt`, `sessionsRevokedAt` | `prisma/schema.prisma` |
+| The permission catalog (`PERMISSIONS`), `loadAccess()`, `markRoleHoldersStale()` | `src/rbac.ts` |
+| Syncs the catalog (`diffPermissionCatalog`), the built-in `admin` role (every permission, `system: true`) and the admin user | `prisma/seed.ts` |
+| The client-safe checker (`can`, `canAny`; no bypass role) | `src/lib/permissions.ts` |
+| `requirePermission(...codes)` for Route Handlers (401/403 response, else the user) | `src/lib/auth.ts` |
+| Roles CRUD + `PermissionMatrix` tab; user ↔ roles (`roleIds` multiselect), activate/deactivate | `src/app/admin/papeis/`, `src/app/admin/usuarios/` |
+
+**Adding a permission:** append it to `PERMISSIONS` in `src/rbac.ts` (code
+`module.action`), enforce it in the Route Handler (`const user = await
+requirePermission('orders.write'); if (user instanceof NextResponse) return user`),
+hide what it gates (`permission` on the menu item, `permissions` in the
+CrudConfig), then `pnpm db:seed` — it creates the row and grants it to `admin`.
+Hiding is UX; the Route Handler check is the access control.
+
+**Freshness.** `src/auth.ts` runs `sessionState()` (from `@telamonjs/auth`) on
+every token renewal: a deleted, deactivated or revoked user (`sessionsRevokedAt`
+newer than the login) is signed out; a token older than `accessChangedAt` gets
+its roles/permissions recomputed (only `accessAt` moves, never `authTime`). So
+every write that changes what a token says must stamp it: a user's roles
+(`accessChangedAt` on that user), a role's permissions, name, code or deletion
+(`markRoleHoldersStale(prisma, roleId)`), deactivation (`sessionsRevokedAt`).
+The Route Handlers in `src/app/api/{usuarios,roles}` already do.
+
+Built-in roles (`system: true`) are read-only in the API and locked in the
+matrix; the seed keeps `admin` complete.
 
 ---
 

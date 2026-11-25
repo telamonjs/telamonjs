@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
 import bcrypt from 'bcryptjs'
-import type { User } from '@prisma/client'
+import type { Prisma } from '@prisma/client'
 import { PrismaService } from '../../common/prisma/prisma.service'
 import { CreateUsuarioDto } from './dto/create-usuario.dto'
 import { UpdateUsuarioDto } from './dto/update-usuario.dto'
@@ -13,10 +13,12 @@ interface ListQuery {
   sortOrder?: string
 }
 
-const SORTABLE_FIELDS = new Set(['name', 'email', 'role', 'ativo', 'createdAt', 'updatedAt'])
+const SORTABLE_FIELDS = new Set(['name', 'email', 'active', 'createdAt', 'updatedAt'])
 
-function serialize({ password: _password, ...rest }: User) {
-  return rest
+const include = { roles: { select: { role: { select: { id: true, code: true, name: true } } } } }
+
+function serialize({ password: _password, roles, ...rest }: Prisma.UserGetPayload<{ include: typeof include }>) {
+  return { ...rest, roles: roles.map(({ role }) => role) }
 }
 
 @Injectable()
@@ -43,6 +45,7 @@ export class UsuariosService {
     const [data, total] = await Promise.all([
       client.user.findMany({
         where,
+        include,
         orderBy: { [sortBy]: sortOrder },
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -60,50 +63,57 @@ export class UsuariosService {
   }
 
   async getById(id: string) {
-    const usuario = await this.prisma.client.user.findUnique({ where: { id } })
-    if (!usuario) throw new NotFoundException('Usuário não encontrado')
+    const usuario = await this.prisma.client.user.findUnique({ where: { id }, include })
+    if (!usuario) throw new NotFoundException('User not found')
     return serialize(usuario)
   }
 
   async create(dto: CreateUsuarioDto) {
     const client = this.prisma.client
     const existing = await client.user.findUnique({ where: { email: dto.email } })
-    if (existing) throw new ConflictException('Este email já está em uso')
+    if (existing) throw new ConflictException('This email is already in use')
 
+    const { roleIds = [], password, ...data } = dto
     const usuario = await client.user.create({
-      data: { ...dto, password: await bcrypt.hash(dto.password, 10) },
+      data: {
+        ...data,
+        password: await bcrypt.hash(password, 10),
+        roles: { create: roleIds.map((roleId) => ({ roleId })) },
+      },
+      include,
     })
     return serialize(usuario)
   }
 
   async update(id: string, dto: UpdateUsuarioDto, currentUserId: string) {
-    // A user can't deactivate themselves.
-    if (currentUserId === id && dto.ativo === false) {
-      throw new BadRequestException('Você não pode desativar seu próprio usuário')
+    if (currentUserId === id && dto.active === false) {
+      throw new BadRequestException("You can't deactivate yourself")
     }
 
     const client = this.prisma.client
     if (dto.email) {
       const existing = await client.user.findUnique({ where: { email: dto.email } })
       if (existing && existing.id !== id) {
-        throw new ConflictException('Este email já está em uso por outro usuário')
+        throw new ConflictException('This email is already in use by another user')
       }
     }
 
-    const { password, ...rest } = dto
+    const { password, roleIds, active, ...rest } = dto
+    const now = new Date()
     const usuario = await client.user.update({
       where: { id },
-      data: { ...rest, ...(password ? { password: await bcrypt.hash(password, 10) } : {}) },
+      data: {
+        ...rest,
+        ...(password ? { password: await bcrypt.hash(password, 10) } : {}),
+        // New roles: the user's token goes stale and is refreshed on the next request
+        ...(roleIds
+          ? { roles: { deleteMany: {}, create: roleIds.map((roleId) => ({ roleId })) }, accessChangedAt: now }
+          : {}),
+        // Deactivated: every open session ends
+        ...(active === undefined ? {} : { active, ...(active ? {} : { sessionsRevokedAt: now }) }),
+      },
+      include,
     })
     return serialize(usuario)
-  }
-
-  async remove(id: string, currentUserId: string) {
-    // A user can't deactivate themselves.
-    if (currentUserId === id) {
-      throw new BadRequestException('Você não pode desativar seu próprio usuário')
-    }
-    // Soft delete: deactivate instead of removing the row.
-    await this.prisma.client.user.update({ where: { id }, data: { ativo: false } })
   }
 }

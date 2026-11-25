@@ -11,6 +11,7 @@ import {
 import { msg, Msg } from '@telamonjs/ui/i18n'
 import { getIcon } from '@/lib/icons'
 import { usuariosApi, type Usuario } from '@/lib/api/usuarios-client'
+import { rolesApi } from '@/lib/api/roles-client'
 import { formatDate } from '@/lib/utils'
 import UsuarioDetail from './_components/UsuarioDetail'
 
@@ -18,20 +19,17 @@ import UsuarioDetail from './_components/UsuarioDetail'
 // 1. VALIDATION SCHEMA
 // ============================================================================
 export const validationSchema = z.object({
-  name: z.string().min(1, 'Nome é obrigatório'),
-  email: z.string().email('Email inválido'),
+  name: z.string().min(1),
+  email: z.string().email(),
   // Required on create, optional on edit (blank keeps the current password) --
   // enforced server-side in the API route, not here.
-  password: z
-    .string()
-    .min(5, 'Senha deve ter no mínimo 5 caracteres')
-    .optional()
-    .or(z.literal('')),
-  role: z.enum(['ADMIN', 'USER']).default('USER'),
+  password: z.string().min(5).optional().or(z.literal('')),
+  // Multi-role: the user holds the union of the roles' permissions
+  roleIds: z.array(z.string()).default([]),
   // AdminForm's FormData submit path serializes booleans as the literal
   // strings 'true'/'false' -- z.coerce.boolean() would treat ANY non-empty
   // string (including 'false') as true, so coerce explicitly instead.
-  ativo: z.preprocess((v) => (typeof v === 'string' ? v === 'true' : v), z.boolean()).default(true),
+  active: z.preprocess((v) => (typeof v === 'string' ? v === 'true' : v), z.boolean()).default(true),
 })
 
 export type UsuarioFormData = z.infer<typeof validationSchema>
@@ -46,7 +44,7 @@ const headerConfig: DialogHeaderConfig<Usuario> = {
   subtitle: (u) => u.email,
   gradient: 'from-blue-50 to-indigo-50',
   badge: {
-    field: 'ativo',
+    field: 'active',
     variants: { true: 'default', false: 'secondary' },
     labels: { true: msg('usuarios.statusActive'), false: msg('usuarios.statusInactive') },
   },
@@ -68,27 +66,32 @@ export const columns: CrudColumnDef<Usuario>[] = [
     ),
   },
   {
-    header: msg('usuarios.columns.role'),
-    accessorKey: 'role',
-    cell: ({ row }) => (
-      <Badge variant={row.original.role === 'ADMIN' ? 'default' : 'secondary'}>
-        <Msg k={row.original.role === 'ADMIN' ? 'usuarios.roleAdmin' : 'usuarios.roleUser'} />
-      </Badge>
-    ),
+    header: msg('usuarios.columns.roles'),
+    id: 'roles',
+    enableSorting: false,
+    cell: ({ row }) =>
+      row.original.roles.length ? (
+        <div className='flex flex-wrap gap-1'>
+          {row.original.roles.map((role) => (
+            <Badge key={role.id} variant='outline'>
+              {role.name}
+            </Badge>
+          ))}
+        </div>
+      ) : (
+        <span className='text-sm text-muted-foreground'>
+          <Msg k='usuarios.noRoles' />
+        </span>
+      ),
   },
   {
     header: msg('usuarios.columns.status'),
-    accessorKey: 'ativo',
-    cell: ({ row }) =>
-      row.original.ativo ? (
-        <Badge variant='default' className='bg-green-600'>
-          <Msg k='usuarios.statusActive' />
-        </Badge>
-      ) : (
-        <Badge variant='secondary'>
-          <Msg k='usuarios.statusInactive' />
-        </Badge>
-      ),
+    accessorKey: 'active',
+    cell: ({ row }) => (
+      <Badge variant={row.original.active ? 'default' : 'secondary'}>
+        <Msg k={row.original.active ? 'usuarios.statusActive' : 'usuarios.statusInactive'} />
+      </Badge>
+    ),
   },
   {
     header: msg('usuarios.columns.createdAt'),
@@ -138,22 +141,21 @@ export const formSections: FormSection[] = [
         description: msg('usuarios.fields.passwordDescription'),
       },
       {
-        name: 'role',
-        label: msg('usuarios.fields.role'),
-        type: 'relationship',
-        required: true,
-        // loadField options are domain values, not chrome text -- I18nText resolution
-        // doesn't reach `loadField` (it runs outside the config-resolution boundary).
-        loadField: async () => [
-          { value: 'USER', label: 'Usuário' },
-          { value: 'ADMIN', label: 'Administrador' },
-        ],
+        name: 'roleIds',
+        label: msg('usuarios.fields.roles'),
+        type: 'multiselect',
+        description: msg('usuarios.fields.rolesDescription'),
+        // Options are domain data (role names), not chrome text.
+        loadField: async () => {
+          const { data } = await rolesApi.list({ page: 1, pageSize: 100 })
+          return data.map((role) => ({ value: role.id, label: role.name }))
+        },
       },
       {
-        name: 'ativo',
-        label: msg('usuarios.fields.ativo'),
+        name: 'active',
+        label: msg('usuarios.fields.active'),
         type: 'boolean',
-        description: msg('usuarios.fields.ativoDescription'),
+        description: msg('usuarios.fields.activeDescription'),
         // span = section grid -> full width (className 'w-full' is a no-op: CSS Grid)
         span: '2',
       },
@@ -172,6 +174,15 @@ export const usuariosConfig: CrudConfig<Usuario, UsuarioFormData> = {
     route: '/admin/usuarios',
   },
 
+  // Checked with the PermissionsProvider's `can` (LayoutProviders): a denied
+  // operation loses its button, row action and dialog deep link. The Route
+  // Handlers enforce the same codes.
+  permissions: {
+    view: 'users.read',
+    create: 'users.write',
+    edit: 'users.write',
+  },
+
   list: {
     // Empty: the shell breadcrumb already names the page; the list is content, not a header.
     title: '',
@@ -183,9 +194,8 @@ export const usuariosConfig: CrudConfig<Usuario, UsuarioFormData> = {
     serverSidePagination: true,
     infiniteScroll: true,
     defaultPageSize: 100,
-    toolbar: {
-      counterLabel: (count: number) => (count === 1 ? 'usuário' : 'usuários'),
-    },
+    // ICU plural: the message takes `{count}` (messages/*.json)
+    toolbar: { counterLabel: msg('usuarios.counter') },
   },
 
   form: { sections: formSections, validation: validationSchema },
@@ -207,16 +217,16 @@ export const usuariosConfig: CrudConfig<Usuario, UsuarioFormData> = {
       },
       invalidates: [['usuarios']],
     },
-    delete: {
-      mutationFn: async ({ id }) => {
-        await usuariosApi.delete(id)
-        return { success: true }
-      },
-      invalidates: [['usuarios']],
-    },
+    // No delete: users are deactivated (row action below), never removed.
     getForEdit: async (id) => {
       const u = await usuariosApi.getById(id)
-      return { name: u.name ?? '', email: u.email, password: '', role: u.role, ativo: u.ativo }
+      return {
+        name: u.name ?? '',
+        email: u.email,
+        password: '',
+        roleIds: u.roles.map((role) => role.id),
+        active: u.active,
+      }
     },
     getForView: usuariosApi.getById,
   },
@@ -225,19 +235,35 @@ export const usuariosConfig: CrudConfig<Usuario, UsuarioFormData> = {
     standard: {
       view: { icon: getIcon('Eye'), tooltip: msg('usuarios.actions.view') },
       edit: { icon: getIcon('Pencil'), tooltip: msg('usuarios.actions.edit') },
-      delete: {
-        icon: getIcon('Trash2'),
-        tooltip: msg('usuarios.actions.delete'),
+    },
+    // The list refetches after a custom handler succeeds.
+    custom: [
+      {
+        id: 'deactivate',
+        icon: getIcon('UserX'),
+        tooltip: msg('usuarios.actions.deactivate'),
+        permission: 'users.write',
+        visible: (row) => row.active,
+        handler: (row) => usuariosApi.update(row.id, { active: false }),
+        successMessage: msg('usuarios.actions.deactivated'),
         confirmDialog: {
-          // Per-row title: the function form returns I18nText, so msg() takes the row values
-          title: (row) => msg('usuarios.confirmDelete.title', { name: row.name ?? row.email }),
-          description: msg('usuarios.confirmDelete.description'),
-          confirmText: msg('usuarios.confirmDelete.confirmText'),
-          cancelText: msg('usuarios.confirmDelete.cancelText'),
+          title: (row) => msg('usuarios.confirmDeactivate.title', { name: row.name ?? row.email }),
+          description: msg('usuarios.confirmDeactivate.description'),
+          confirmText: msg('usuarios.confirmDeactivate.confirmText'),
+          cancelText: msg('usuarios.confirmDeactivate.cancelText'),
           variant: 'destructive',
         },
       },
-    },
+      {
+        id: 'activate',
+        icon: getIcon('UserCheck'),
+        tooltip: msg('usuarios.actions.activate'),
+        permission: 'users.write',
+        visible: (row) => !row.active,
+        handler: (row) => usuariosApi.update(row.id, { active: true }),
+        successMessage: msg('usuarios.actions.activated'),
+      },
+    ],
   },
 
   dialogs: {
@@ -263,7 +289,7 @@ export const usuariosConfig: CrudConfig<Usuario, UsuarioFormData> = {
         subtitle: undefined,
         badge: undefined,
       },
-      defaultValues: { ativo: true, role: 'USER' },
+      defaultValues: { active: true, roleIds: [] },
     },
   },
 }
