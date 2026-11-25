@@ -105,9 +105,10 @@ export class FlowProducer {
   }
 
   /**
-   * Same precedence as QueueManager.add(): manager defaults < the job
-   * class's own options < the flow node's options. A string job uses the
-   * registered class, when there is one.
+   * Same precedence and validation as QueueManager.add(): manager defaults <
+   * the job class's own options < the flow node's options, and invalid options
+   * throw InvalidJobOptionsError while the tree is built, before anything is
+   * added. A string job uses the registered class, when there is one.
    */
   private getOptions(
     job: JobConstructor | string | undefined,
@@ -119,11 +120,13 @@ export class FlowProducer {
         : job
           ? this.queueManager['registry'].get(job)?.options
           : undefined
-    return {
+    const merged = {
       ...this.queueManager['config'].defaultJobOptions,
       ...classOptions,
       ...options,
     }
+    this.queueManager['assertValidJobOptions'](this.getQueueName(job), merged)
+    return merged
   }
 
   /**

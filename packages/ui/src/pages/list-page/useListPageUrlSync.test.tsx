@@ -15,6 +15,7 @@
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { useSyncExternalStore } from 'react'
 import { renderHook, act } from '@testing-library/react'
 import { useListPageUrlSync } from './useListPageUrlSync'
 
@@ -27,11 +28,22 @@ const mockReplace = vi.fn()
 
 // Mutable ref so each test can override `searchParams` content
 let currentSearchParams = new URLSearchParams()
+// Subscribers re-render on `setUrl`, as a Next navigation does
+const listeners = new Set<() => void>()
+const subscribe = (fn: () => void) => {
+  listeners.add(fn)
+  return () => listeners.delete(fn)
+}
+/** What router.replace does in Next: a NEW searchParams object, same URL or not */
+const setUrl = (url: string) => {
+  currentSearchParams = new URLSearchParams(url.split('?')[1] ?? '')
+  listeners.forEach(fn => fn())
+}
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ push: mockPush, replace: mockReplace, refresh: vi.fn() }),
   usePathname: () => '/admin/entities',
-  useSearchParams: () => currentSearchParams,
+  useSearchParams: () => useSyncExternalStore(subscribe, () => currentSearchParams),
 }))
 
 // ---------------------------------------------------------------------------
@@ -41,6 +53,7 @@ vi.mock('next/navigation', () => ({
 describe('useListPageUrlSync', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockReplace.mockReset() // drop a `setUrl` implementation left by a test
     currentSearchParams = new URLSearchParams()
   })
 
@@ -413,4 +426,90 @@ describe('useListPageUrlSync', () => {
     })
   })
 
+  describe('Infinite scroll', () => {
+    it('keeps page and pageSize out of the URL, and drops them from a link', () => {
+      currentSearchParams = new URLSearchParams('page=2&pageSize=20&status=ATIVO')
+      renderHook(() =>
+        useListPageUrlSync({
+          urlSync: true,
+          urlFilters: { status: 'string' },
+          page: 1,
+          pageSize: 50,
+          search: 'ana',
+          sorting: [{ field: 'name', order: 'asc' }],
+          pagination: false,
+        })
+      )
+
+      const url = new URLSearchParams(String(mockReplace.mock.calls.at(-1)?.[0]).split('?')[1])
+      expect(url.has('page')).toBe(false)
+      expect(url.has('pageSize')).toBe(false)
+      expect(url.get('sortBy')).toBe('name')
+      expect(url.get('search')).toBe('ana')
+      expect(url.get('status')).toBe('ATIVO')
+    })
+  })
+
+  describe('No navigation loop (1.4.1)', () => {
+    it('settles after one replace when liveFilters is a new object every render', () => {
+      mockReplace.mockImplementation(setUrl)
+
+      renderHook(() =>
+        useListPageUrlSync({
+          urlSync: true,
+          // inline props: new identities on every render
+          urlFilters: { status: 'string' },
+          page: 1,
+          pageSize: 100,
+          search: '',
+          sorting: [{ field: 'ordem', order: 'asc' }],
+          liveFilters: { status: undefined },
+        })
+      )
+
+      expect(mockReplace).toHaveBeenCalledTimes(1)
+    })
+
+    it('writes the settled state when it matches the URL a pending replace is leaving', () => {
+      // Deep link already carrying the final state; the store starts on its
+      // defaults and applies the config one render later
+      currentSearchParams = new URLSearchParams(
+        'page=1&pageSize=50&sortBy=start&sortOrder=desc&status=ATIVO'
+      )
+      const props = {
+        urlSync: true,
+        urlFilters: { status: 'string' as const },
+        page: 1,
+        pageSize: 10,
+        search: '',
+        sorting: [] as Array<{ field: string; order: 'asc' | 'desc' }>,
+      }
+      const { rerender } = renderHook(p => useListPageUrlSync(p), { initialProps: props })
+      // the first replace has not landed yet: searchParams is still the deep link
+      rerender({ ...props, pageSize: 50, sorting: [{ field: 'start', order: 'desc' }] })
+
+      const last = new URLSearchParams(String(mockReplace.mock.calls.at(-1)?.[0]).split('?')[1])
+      expect(last.get('pageSize')).toBe('50')
+      expect(last.get('sortBy')).toBe('start')
+      expect(last.get('sortOrder')).toBe('desc')
+    })
+
+    it('does not navigate when the URL already matches the state', () => {
+      currentSearchParams = new URLSearchParams('page=1&pageSize=20')
+
+      renderHook(() =>
+        useListPageUrlSync({
+          urlSync: true,
+          urlFilters: {},
+          page: 1,
+          pageSize: 20,
+          search: '',
+          sorting: [],
+        })
+      )
+
+      expect(mockReplace).not.toHaveBeenCalled()
+      expect(mockPush).not.toHaveBeenCalled()
+    })
+  })
 })

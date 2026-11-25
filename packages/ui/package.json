@@ -1,6 +1,6 @@
 {
   "name": "@telamonjs/ui",
-  "version": "1.4.0",
+  "version": "1.4.5",
   "type": "module",
   "description": "Admin framework for Next.js + React: declarative CRUD (CrudConfig + TanStack Query), 36-type field system, rich dialogs, app shell, dashboards and charts",
   "main": "dist/index.js",
@@ -117,6 +117,7 @@
     "@react-input/mask": "^2.0.4",
     "@tanstack/react-table": "^8.21.3",
     "@tanstack/react-virtual": "^3.14.26",
+    "@telamonjs/data": "workspace:^",
     "@telamonjs/logger": "workspace:^",
     "@tiptap/core": "^3.35.0",
     "@tiptap/extension-image": "^3.35.0",

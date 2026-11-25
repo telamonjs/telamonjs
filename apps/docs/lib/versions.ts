@@ -8,6 +8,7 @@ import cli from '../../../packages/cli/package.json'
 import permissions from '../../../packages/permissions/package.json'
 import queue from '../../../packages/queue/package.json'
 import logger from '../../../packages/logger/package.json'
+import data from '../../../packages/data/package.json'
 
 interface Manifest {
   name: string
@@ -16,7 +17,7 @@ interface Manifest {
   peerDependenciesMeta?: Record<string, { optional?: boolean }>
 }
 
-const manifests = { ui, auth, cli, permissions, queue, logger } satisfies Record<string, Manifest>
+const manifests = { ui, data, auth, cli, permissions, queue, logger } satisfies Record<string, Manifest>
 
 export type PackageKey = keyof typeof manifests
 

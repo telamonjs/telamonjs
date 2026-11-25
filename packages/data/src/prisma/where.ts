@@ -1,32 +1,20 @@
 /**
- * Utility functions for pagination system
- * Handles query building, filtering, and data transformation
+ * Prisma `where`/`include` builders of the pagination service.
  *
- * @module server/pagination
+ * @module data/prisma
  */
 
-import { createTranslator } from 'next-intl'
-import {
-  buildPrismaOrderBy,
-  buildPrismaOrderByMulti,
-  resolveSortPath,
-} from '../prisma-helpers'
-import type { SortField } from '../../types/pagination'
 import type {
   FilterFieldConfig,
   FilterFieldType,
-  FilterValue,
-  SearchCondition,
-} from './types'
-import { DEFAULT_LOCALE, type TelamonjsLocale } from '../../i18n/locales'
-import { telamonjsMessages } from '../../i18n/messages'
-
-import type {
-  PrismaWhereClause,
+  FilterLabels,
   FilterOption,
-  PrismaIncludeClause,
+  FilterValue,
   PrismaClient,
-} from './types'
+  PrismaIncludeClause,
+  PrismaWhereClause,
+  SearchCondition,
+} from './types.js'
 
 /**
  * Build search conditions for global search
@@ -170,7 +158,10 @@ export function buildFilterConditions(
 }
 
 /**
- * Build complete where clause combining all conditions
+ * Combines search, filters, the endpoint's `baseWhere` and the user's
+ * visibility rule with `AND`. Each scope rule stays intact whatever keys the
+ * others use: spreading them into one object let a key overwrite another and
+ * leaked rows a scope rule should hide.
  */
 export function buildWhereClause(
   searchConditions: SearchCondition | undefined,
@@ -203,81 +194,6 @@ export function buildWhereClause(
   return parts.length === 1 ? parts[0] : { AND: parts }
 }
 
-const isSortOrder = (value: unknown): value is 'asc' | 'desc' =>
-  value === 'asc' || value === 'desc'
-
-/**
- * Sanitize a client-supplied sort: an invalid direction becomes the default
- * one, and with `sortableFields` set, fields outside it are dropped (an empty
- * result falls back to the default sort). A field passes when it is listed
- * as sent or, for a legacy TanStack id (`customer_name`), when its dotted
- * form (`customer.name`) is listed; the returned field is the listed form.
- */
-export function resolveSort(
-  sortBy: string | string[] | SortField[],
-  sortOrder: unknown,
-  defaults: {
-    defaultOrderBy: string | string[]
-    defaultOrderDirection: 'asc' | 'desc'
-    sortableFields?: string[]
-  }
-): { sortBy: string | string[] | SortField[]; sortOrder: 'asc' | 'desc' } {
-  const { defaultOrderBy, defaultOrderDirection, sortableFields } = defaults
-  const fallback = { sortBy: defaultOrderBy, sortOrder: defaultOrderDirection }
-  const resolve = (field: string) =>
-    sortableFields ? resolveSortPath(field, sortableFields) : field
-  const allowed = (field: string) =>
-    !sortableFields || sortableFields.includes(resolve(field))
-  const order = isSortOrder(sortOrder) ? sortOrder : defaultOrderDirection
-
-  // The configured default is trusted; everything else came from the client
-  if (sortBy === defaultOrderBy) return { sortBy, sortOrder: order }
-
-  if (typeof sortBy === 'string') {
-    return allowed(sortBy)
-      ? { sortBy: resolve(sortBy), sortOrder: order }
-      : fallback
-  }
-
-  const fields = (sortBy as unknown[])
-    .filter(
-      (s): s is SortField =>
-        !!s &&
-        typeof s === 'object' &&
-        typeof (s as SortField).field === 'string' &&
-        allowed((s as SortField).field)
-    )
-    .map(s => ({
-      field: resolve(s.field),
-      order: isSortOrder(s.order) ? s.order : defaultOrderDirection,
-    }))
-  return fields.length > 0 ? { sortBy: fields, sortOrder: order } : fallback
-}
-
-/**
- * Build orderBy clause from sortBy and sortOrder (`sortableFields`: see
- * `buildPrismaOrderBy`)
- */
-export function buildOrderByClause(
-  sortBy?: string | string[] | SortField[],
-  sortOrder?: string,
-  sortableFields?: readonly string[]
-): PrismaWhereClause | PrismaWhereClause[] | undefined {
-  if (!sortBy) {
-    return undefined
-  }
-
-  if (Array.isArray(sortBy)) {
-    return buildPrismaOrderByMulti(sortBy as SortField[], sortableFields)
-  }
-
-  return buildPrismaOrderBy(
-    sortBy as string,
-    (sortOrder || 'asc') as 'asc' | 'desc',
-    sortableFields
-  )
-}
-
 /**
  * Get unique values for filter options with counts
  * Requires prisma client to be passed as parameter
@@ -286,15 +202,10 @@ export async function getFilterOptionsForField(
   prismaClient: PrismaClient,
   modelName: string,
   field: string,
-  baseWhere?: PrismaWhereClause,
-  visibilityWhere?: PrismaWhereClause,
-  locale: TelamonjsLocale = DEFAULT_LOCALE
+  baseWhere: PrismaWhereClause | undefined,
+  visibilityWhere: PrismaWhereClause | undefined,
+  labels: Pick<FilterLabels, 'active' | 'inactive'>
 ): Promise<FilterOption[]> {
-  const t = createTranslator({
-    locale,
-    messages: telamonjsMessages[locale],
-    namespace: 'telamonjs.business.pagination',
-  })
   const model = prismaClient[modelName] as Record<string, unknown> | undefined
 
   if (!model || typeof model !== 'object') {
@@ -337,9 +248,9 @@ export async function getFilterOptionsForField(
       value,
       label:
         value === 'true'
-          ? t('active')
+          ? labels.active
           : value === 'false'
-            ? t('inactive')
+            ? labels.inactive
             : value,
       count,
     })
@@ -371,25 +282,4 @@ export function buildIncludeClause(
   }
 
   return Object.keys(includeClause).length > 0 ? includeClause : undefined
-}
-
-/**
- * Validate and sanitize page parameters
- */
-export function sanitizePaginationParams(params: {
-  page?: number
-  pageSize?: number
-  maxPageSize?: number
-  defaultPageSize?: number
-}) {
-  const {
-    page = 1,
-    pageSize = params.defaultPageSize || 10,
-    maxPageSize = 100,
-  } = params
-
-  return {
-    page: Math.max(1, Math.floor(page)),
-    pageSize: Math.min(maxPageSize, Math.max(1, Math.floor(pageSize))),
-  }
 }

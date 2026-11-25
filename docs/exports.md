@@ -856,6 +856,51 @@ Types:
 - `TelamonjsLocale` (type)
 - `TelamonjsMessages` (type)
 
+## @telamonjs/data
+
+### `@telamonjs/data`
+
+Runtime:
+
+- `createPaginatedResponse`
+- `resolveSort`
+- `resolveSortPath`
+- `sanitizePaginationParams`
+
+Types:
+
+- `PaginatedResponse` (type)
+- `PaginationParams` (type)
+- `SortField` (type)
+
+### `@telamonjs/data/prisma`
+
+Runtime:
+
+- `buildFilterConditions`
+- `buildPrismaOrderBy`
+- `buildPrismaOrderByMulti`
+- `buildSearchConditions`
+- `buildWhereClause`
+- `createPaginationContext`
+
+Types:
+
+- `AuthUser` (type)
+- `FilterFieldConfig` (type)
+- `FilterFieldType` (type)
+- `FilterLabels` (type)
+- `FilterOption` (type)
+- `FilterValue` (type)
+- `PaginatedService` (type)
+- `PaginatedServiceConfig` (type)
+- `PaginationContext` (type)
+- `PrismaClient` (type)
+- `PrismaIncludeClause` (type)
+- `PrismaOrderBy` (type)
+- `PrismaWhereClause` (type)
+- `SearchCondition` (type)
+
 ## @telamonjs/auth
 
 ### `@telamonjs/auth`

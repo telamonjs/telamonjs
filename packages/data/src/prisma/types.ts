@@ -1,12 +1,10 @@
 /**
- * Types and interfaces for the server-side pagination system
- * Provides type-safe pagination with minimal boilerplate
+ * Types of the Prisma pagination service (`createPaginationContext`).
  *
- * @module server/pagination
+ * @module data/prisma
  */
 
-import { PaginationParams } from '../../types/pagination'
-import type { TelamonjsLocale } from '../../i18n/locales'
+import type { PaginationParams } from '../contract.js'
 
 /**
  * Configuration for filter fields
@@ -134,8 +132,9 @@ export interface PaginatedService<T = Record<string, unknown>> {
   }>
 
   // Get filter options for dynamic filters
+  /** `locale` is handed to `PaginationContext.filterLabels` */
   getFilterOptions?: (
-    locale?: TelamonjsLocale
+    locale?: string
   ) => Promise<Record<string, FilterOption[]>>
 
   // Get raw config (for debugging/extension)
@@ -185,6 +184,15 @@ export interface PaginationContext {
   auth: () => Promise<{ user: AuthUser } | null>
 
   /**
+   * Labels of boolean filter options, per locale (the `locale` passed to
+   * `getFilterOptions`). Default: English (`Yes`/`No`, `Active`/`Inactive`).
+   */
+  filterLabels?: (locale: string | undefined) => FilterLabels
+
+  /** Receives configuration warnings. Default: `console.warn`. */
+  onWarning?: (message: string) => void
+
+  /**
    * Optional cache utilities
    */
   cache?: {
@@ -195,4 +203,14 @@ export interface PaginationContext {
       fetcher: () => Promise<T>
     ) => Promise<T>
   }
+}
+
+/** Labels of boolean filter options (see `PaginationContext.filterLabels`). */
+export interface FilterLabels {
+  /** A `transform`ed boolean filter's options */
+  yes: string
+  no: string
+  /** Values `true`/`false` found in the column */
+  active: string
+  inactive: string
 }

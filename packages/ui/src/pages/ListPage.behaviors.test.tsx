@@ -807,6 +807,61 @@ describe('ListPage behaviors (characterization)', () => {
       })
     })
 
+    it('starts from the page, page size, sort and search of the URL', async () => {
+      urlParams = { page: '3', pageSize: '50', sortBy: 'name', sortOrder: 'desc', search: 'ana' }
+      const { config, queryFn } = makeConfig()
+      renderListPage(config, { urlSync: true })
+      await waitForInitialLoad(queryFn)
+
+      await waitFor(() => {
+        expect(setParamsSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            page: 3,
+            pageSize: 50,
+            sortBy: 'name',
+            sortOrder: 'desc',
+            search: 'ana',
+          }),
+          { replace: true }
+        )
+      })
+    })
+
+    it('ignores page and pageSize of the link with infinite scroll', async () => {
+      urlParams = { page: '3', pageSize: '20', sortBy: 'name', sortOrder: 'desc' }
+      const { config, queryFn } = makeConfig()
+      config.list.infiniteScroll = true
+      renderListPage(config, { urlSync: true })
+      await waitForInitialLoad(queryFn)
+
+      await waitFor(() => {
+        expect(setParamsSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            page: undefined,
+            pageSize: undefined,
+            sortBy: 'name',
+            sortOrder: 'desc',
+          }),
+          { replace: true }
+        )
+      })
+      expect(queryFn).not.toHaveBeenCalledWith(expect.objectContaining({ pageSize: 20 }))
+    })
+
+    it('ignores invalid pagination values in the URL', async () => {
+      urlParams = { page: '0', pageSize: 'abc', sortOrder: 'sideways' }
+      const { config, queryFn } = makeConfig()
+      renderListPage(config, { urlSync: true })
+      await waitForInitialLoad(queryFn)
+
+      await waitFor(() => {
+        expect(setParamsSpy).toHaveBeenLastCalledWith(
+          expect.objectContaining({ page: 1, pageSize: 10, sortBy: undefined }),
+          { replace: true }
+        )
+      })
+    })
+
     it('does not touch the URL when urlSync is disabled (default)', async () => {
       const { config, queryFn } = makeConfig()
       renderListPage(config)

@@ -1,5 +1,50 @@
 # Changelog
 
+## 1.4.5
+
+### Patch Changes
+
+- 9696a07: `@telamonjs/ui/server` and the pagination types re-export `@telamonjs/data`, the new
+  dependency-free package for the server half of a list, so a Next.js app and its backend share one
+  definition. Nothing to change in apps: every name and behavior stays, and `getFilterOptions` still
+  labels boolean options in the library's locale (pt-BR by default).
+- 4f4ca89: With infinite scroll (the default), `ListPage`'s `urlSync` keeps `page` and `pageSize` out of the
+  URL and ignores them in a link: every load starts at page 1 with batches of the config's size, so
+  `pageSize=20` in the URL showed 50 rows. Sort, search and filters still sync.
+
+## 1.4.4
+
+### Patch Changes
+
+- 21fdf84: `ListPage` with `urlSync` opens a link in the state it carries: `page`, `pageSize`, `sortBy`/
+  `sortOrder` and `search` from the URL win over the config defaults on mount. Before, they were
+  only written, so a shared or reloaded link fell back to the defaults. Invalid values are ignored.
+
+## 1.4.3
+
+### Patch Changes
+
+- 899da7a: `ListPage` with `urlSync` keeps `pageSize` and the sort in the URL when a deep link already
+  carries them: 1.4.1 skipped the second write of the mount (back to the URL being opened) while
+  the first one, with the store's defaults, was still in flight, so the URL ended on the defaults.
+  `useUrlSync` now compares a write against its own pending navigation.
+
+## 1.4.2
+
+### Patch Changes
+
+- 548bb65: Exports drop a known extension (`.csv`, `.xls`, `.xlsx`, `.pdf`) from `exportFilename` before
+  adding the date and the format's own extension: `'report.csv'` exported as Excel used to save
+  `report.csv_<date>.xlsx`.
+
+## 1.4.1
+
+### Patch Changes
+
+- `ListPage` with `urlSync` no longer loops on `router.replace` when `urlFilters` is passed inline
+  (or omitted): the URL sync effect keys the toolbar filters by content, and `useUrlSync` skips a
+  navigation that would not change the query.
+
 ## 1.4.0
 
 ### Minor Changes

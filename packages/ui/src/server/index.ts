@@ -1,6 +1,10 @@
 /**
  * Server-side utilities for TelamonJS
  *
+ * The pagination and Prisma helpers come from `@telamonjs/data`, the package a
+ * backend without React installs directly; they are re-exported here for
+ * Next.js server code.
+ *
  * @module server
  */
 
@@ -9,19 +13,12 @@ export { revalidatePathAction } from './cache'
 
 // Prisma/pagination helpers safe for 'use server'
 // (the main entry has 'use client' — services must NOT import from there)
-export {
-  buildPrismaOrderBy,
-  buildPrismaOrderByMulti,
-} from './prisma-helpers'
-export { createPaginatedResponse } from '../types/pagination'
-export type {
-  PaginationParams,
-  PaginatedResponse,
-  SortField,
-} from '../types/pagination'
+export { buildPrismaOrderBy, buildPrismaOrderByMulti } from '@telamonjs/data/prisma'
+export { createPaginatedResponse } from '@telamonjs/data'
+export type { PaginationParams, PaginatedResponse, SortField } from '@telamonjs/data'
 
-// createPaginationContext + the config/return types needed to call it
-export { createPaginationContext } from './pagination/factory'
+// createPaginationContext (with the library's labels) + the config/return types
+export { createPaginationContext } from './pagination'
 export type {
   FilterFieldType,
   FilterFieldConfig,
@@ -30,4 +27,4 @@ export type {
   FilterValue,
   SearchCondition,
   PaginationContext,
-} from './pagination/types'
+} from '@telamonjs/data/prisma'

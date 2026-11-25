@@ -42,8 +42,13 @@ export interface PDFExportOptions extends ExportOptions {
   subtitle?: string
 }
 
-/** `name_YYYY-MM-DD.ext`, with the date added at most once. */
-function buildFilename(name: string, ext: string, appendDate = true): string {
+/**
+ * `name_YYYY-MM-DD.ext`, with the date added at most once. A known export
+ * extension already in `name` is dropped (`'report.csv'` exported as Excel
+ * gave `report.csv_<date>.xlsx`).
+ */
+function buildFilename(rawName: string, ext: string, appendDate = true): string {
+  const name = rawName.replace(/\.(csv|xlsx?|pdf)$/i, '')
   const dated = appendDate && !/\d{4}-\d{2}-\d{2}$/.test(name)
   // Local calendar day: toISOString() is UTC and after 21:00 in Brazil
   // stamped tomorrow's date on the file.

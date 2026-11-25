@@ -7,12 +7,12 @@ const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 
 // Auto-detect telamonjs-ui link mode via package.json (file: or link: = linked,
-// see `telamonjs link`)
+// see `telamonjs link`; workspace: = the example app inside the telamonjs repo)
 const pkg = JSON.parse(
   readFileSync(path.resolve(__dirname, 'package.json'), 'utf-8')
 )
 const isTelamonjsLinked =
-  /^(file|link):/.test(pkg.dependencies?.['@telamonjs/ui'] ?? '')
+  /^(file|link|workspace):/.test(pkg.dependencies?.['@telamonjs/ui'] ?? '')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {

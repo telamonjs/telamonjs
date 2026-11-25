@@ -2,6 +2,7 @@ import { peers, versions, type PackageKey } from './versions'
 
 const LABELS: Record<PackageKey, string> = {
   ui: '@telamonjs/ui',
+  data: '@telamonjs/data',
   auth: '@telamonjs/auth',
   cli: '@telamonjs/cli',
   permissions: '@telamonjs/permissions',

@@ -1,5 +1,48 @@
 # Changelog
 
+## queue 1.3.2 (2026-11-25)
+
+`@telamonjs/queue`:
+- `FlowProducer.add()` validates every node's merged options, like `add()` and `addBulk()`.
+  Invalid options throw `InvalidJobOptionsError` before any job of the flow is added.
+
+## ui 1.4.5 (2026-11-25)
+
+`@telamonjs/ui`:
+- `@telamonjs/ui/server` and the pagination types now re-export `@telamonjs/data`. Names and
+  behavior are unchanged.
+- With infinite scroll, `urlSync` keeps `page` and `pageSize` out of the URL. A link with
+  `pageSize=20` used to keep 20 in the URL while the list loaded 50.
+
+## data 1.0.0
+
+New package `@telamonjs/data`: the server half of a list, with no dependencies. It has the
+`ListPage` wire contract, the sort and paging sanitizers (`resolveSort` reads both sort wire
+formats), and a Prisma adapter at `@telamonjs/data/prisma` (`orderBy`, scope-safe `where`,
+`createPaginationContext`). NestJS and plain Node APIs can use it without installing React.
+
+## ui 1.4.4 (2026-11-24)
+
+`@telamonjs/ui`: a `ListPage` with `urlSync` opens a link in the state it carries. `page`,
+`pageSize`, the sort and `search` in the URL now win over the config defaults; before, they were
+only written, so a reloaded or shared link fell back to the defaults.
+
+## ui 1.4.3 (2026-11-24)
+
+`@telamonjs/ui`: a `ListPage` with `urlSync` opened from a link that already carries `pageSize`
+and the sort keeps them in the URL. 1.4.1 rewrote them to the defaults.
+
+## ui 1.4.2 (2026-11-24)
+
+`@telamonjs/ui`: exports drop a known extension (`.csv`, `.xls`, `.xlsx`, `.pdf`) from
+`exportFilename`, so `'report.csv'` exported as Excel saves `report_<date>.xlsx`.
+
+## ui 1.4.1 (2026-11-24)
+
+`@telamonjs/ui`: a `ListPage` with `urlSync` no longer calls `router.replace` in a loop when
+`urlFilters` is passed inline or omitted. `useUrlSync` also skips any navigation that would not
+change the query.
+
 ## queue 1.3.1 (2026-11-24)
 
 `@telamonjs/queue`: `GetActorFn` accepts a callback typed with the app's own Express 4 or 5

@@ -24,7 +24,11 @@ export interface ListPageProps<TData> {
   /** Unique table ID for Zustand store. Defaults to config.module.route if not provided. */
   tableId?: string
 
-  /** Enable URL synchronization. When true, pagination state is synced with query params. */
+  /**
+   * Enable URL synchronization: page, page size, sort and search are kept in
+   * the query params, and a link carrying them opens the list in that state.
+   * With infinite scroll (the default), page and page size are left out.
+   */
   urlSync?: boolean
 
   /**

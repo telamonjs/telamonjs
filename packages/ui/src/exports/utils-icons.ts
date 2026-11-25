@@ -6,7 +6,7 @@
 export {
   buildPrismaOrderBy,
   buildPrismaOrderByMulti,
-} from '../server/prisma-helpers'
+} from '@telamonjs/data/prisma'
 
 // ============================================================================
 // LIB UTILITIES

@@ -30,6 +30,7 @@
     "---Hooks---",
     "...hooks",
     "---Backend Packages---",
+    "packages/data",
     "packages/auth",
     "packages/permissions",
     "packages/logger",

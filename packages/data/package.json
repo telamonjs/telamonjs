@@ -1,0 +1,79 @@
+{
+  "name": "@telamonjs/data",
+  "version": "1.0.0",
+  "description": "The server half of a TelamonJS list: the ListPage wire contract, sort and paging sanitizers, and a Prisma adapter (orderBy, scope-safe where, paginated services). Zero dependencies",
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    },
+    "./prisma": {
+      "types": "./dist/prisma/index.d.ts",
+      "import": "./dist/prisma/index.js",
+      "require": "./dist/prisma/index.js"
+    }
+  },
+  "typesVersions": {
+    "*": {
+      "prisma": [
+        "./dist/prisma/index.d.ts"
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
+    "format": "prettier --write src",
+    "type-check": "tsc --noEmit",
+    "verify": "pnpm lint && pnpm type-check && pnpm test && pnpm build"
+  },
+  "keywords": [
+    "pagination",
+    "sorting",
+    "prisma",
+    "orderby",
+    "data-provider",
+    "admin",
+    "telamonjs",
+    "typescript"
+  ],
+  "author": "Marcos Tullyo (https://github.com/mtullyoc)",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "eslint": "^9.37.0",
+    "prettier": "^3.10.1",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/telamonjs/telamonjs.git",
+    "directory": "packages/data"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "sideEffects": false,
+  "engines": {
+    "node": ">=22.12"
+  },
+  "homepage": "https://github.com/telamonjs/telamonjs/tree/main/packages/data#readme",
+  "bugs": "https://github.com/telamonjs/telamonjs/issues"
+}

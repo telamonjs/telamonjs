@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
-import { createPaginationContext } from './factory'
-import type { PaginatedServiceConfig } from './types'
-import type { PaginationParams } from '../../types/pagination'
+import { createPaginationContext } from './pagination.js'
+import type { PaginatedServiceConfig } from './types.js'
+import type { PaginationParams } from '../contract.js'
 
 function setup(config: Partial<PaginatedServiceConfig> = {}) {
   const findMany = vi.fn().mockResolvedValue([])
@@ -118,5 +118,54 @@ describe('createPaginatedService sorting', () => {
         created_at: 'asc',
       })
     })
+  })
+})
+
+describe('getFilterOptions labels', () => {
+  function withRecords(records: Record<string, unknown>[], context: object = {}) {
+    const { createPaginatedService } = createPaginationContext({
+      prisma: { user: { findMany: vi.fn().mockResolvedValue(records), count: vi.fn() } },
+      auth: async () => null,
+      ...context,
+    })
+    return createPaginatedService({
+      model: 'user',
+      filters: {
+        active: 'boolean',
+        hasOrders: { type: 'boolean', transform: v => (v === 'true' ? { some: {} } : { none: {} }) },
+      },
+    })
+  }
+
+  it('labels boolean values in English by default', async () => {
+    const options = await withRecords([{ active: true }, { active: false }]).getFilterOptions!()
+    expect(options.active.map(o => o.label)).toEqual(['Active', 'Inactive'])
+    expect(options.hasOrders.map(o => o.label)).toEqual(['Yes', 'No'])
+  })
+
+  it('takes the labels of the locale from filterLabels', async () => {
+    const filterLabels = vi.fn((locale?: string) =>
+      locale === 'pt-BR'
+        ? { yes: 'Sim', no: 'Não', active: 'Ativo', inactive: 'Inativo' }
+        : { yes: 'Y', no: 'N', active: 'A', inactive: 'I' }
+    )
+    const options = await withRecords([{ active: true }], { filterLabels }).getFilterOptions!('pt-BR')
+    expect(filterLabels).toHaveBeenCalledWith('pt-BR')
+    expect(options.active).toEqual([{ value: 'true', label: 'Ativo', count: 1 }])
+    expect(options.hasOrders.map(o => o.label)).toEqual(['Sim', 'Não'])
+  })
+})
+
+describe('createCachedPaginatedService without cache', () => {
+  it('reports through onWarning and returns the plain service', () => {
+    const onWarning = vi.fn()
+    const { createCachedPaginatedService } = createPaginationContext({
+      prisma: { user: { findMany: vi.fn(), count: vi.fn() } },
+      auth: async () => null,
+      onWarning,
+    })
+    const service = createCachedPaginatedService({ model: 'user' })
+    expect(onWarning).toHaveBeenCalledWith(expect.stringContaining('Cache not configured'))
+    expect(typeof service.list).toBe('function')
   })
 })

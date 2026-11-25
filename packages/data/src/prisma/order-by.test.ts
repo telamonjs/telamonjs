@@ -5,8 +5,8 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { buildPrismaOrderBy, buildPrismaOrderByMulti } from './prisma-helpers'
-import type { SortField } from '../types/pagination'
+import { buildPrismaOrderBy, buildPrismaOrderByMulti } from './order-by.js'
+import type { SortField } from '../contract.js'
 
 describe('prisma-helpers', () => {
   describe('buildPrismaOrderBy', () => {

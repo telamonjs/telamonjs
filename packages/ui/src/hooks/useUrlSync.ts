@@ -1,7 +1,7 @@
 'use client'
 
 import { useSearchParams, useRouter, usePathname } from 'next/navigation'
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 
 /**
  * Hook to sync state with URL query params
@@ -11,6 +11,37 @@ export function useUrlSync() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const pathname = usePathname()
+
+  // The last query this hook asked for, and the searchParams it saw then.
+  // Until searchParams changes, that request is still in flight.
+  const pending = useRef<{ from: URLSearchParams; query: string } | null>(null)
+
+  /**
+   * Navigates to `params`, or does nothing when the query would not change.
+   * A same-URL navigation still updates `searchParams`, which re-renders the
+   * caller; an effect that writes the URL on render would then loop forever.
+   * "Would not change" counts a request still in flight: a write back to the
+   * current URL right after another write must still go out, or the earlier
+   * one wins.
+   */
+  const navigate = useCallback(
+    (params: URLSearchParams, options?: { replace?: boolean }) => {
+      const query = params.toString()
+      const current =
+        pending.current?.from === searchParams
+          ? pending.current.query
+          : searchParams.toString()
+      if (query === current) return
+      pending.current = { from: searchParams, query }
+      const newUrl = query ? `${pathname}?${query}` : pathname
+      if (options?.replace) {
+        router.replace(newUrl, { scroll: false })
+      } else {
+        router.push(newUrl, { scroll: false })
+      }
+    },
+    [searchParams, pathname, router]
+  )
 
   /**
    * Get the value of a query param
@@ -65,16 +96,9 @@ export function useUrlSync() {
         params.set(key, String(value))
       }
 
-      const newUrl = params.toString()
-        ? `${pathname}?${params.toString()}`
-        : pathname
-      if (options?.replace) {
-        router.replace(newUrl, { scroll: false })
-      } else {
-        router.push(newUrl, { scroll: false })
-      }
+      navigate(params, options)
     },
-    [searchParams, pathname, router]
+    [searchParams, navigate]
   )
 
   /**
@@ -100,16 +124,9 @@ export function useUrlSync() {
         }
       })
 
-      const newUrl = params.toString()
-        ? `${pathname}?${params.toString()}`
-        : pathname
-      if (options?.replace) {
-        router.replace(newUrl, { scroll: false })
-      } else {
-        router.push(newUrl, { scroll: false })
-      }
+      navigate(params, options)
     },
-    [searchParams, pathname, router]
+    [searchParams, navigate]
   )
 
   /**
@@ -119,21 +136,17 @@ export function useUrlSync() {
     (key: string) => {
       const params = new URLSearchParams(searchParams.toString())
       params.delete(key)
-
-      const newUrl = params.toString()
-        ? `${pathname}?${params.toString()}`
-        : pathname
-      router.push(newUrl, { scroll: false })
+      navigate(params)
     },
-    [searchParams, pathname, router]
+    [searchParams, navigate]
   )
 
   /**
    * Remove all query params
    */
   const clearAllParams = useCallback(() => {
-    router.push(pathname, { scroll: false })
-  }, [pathname, router])
+    navigate(new URLSearchParams())
+  }, [navigate])
 
   /**
    * Get all query params as an object

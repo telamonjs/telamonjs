@@ -15,7 +15,7 @@ import { fileURLToPath } from 'node:url'
 
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..')
 // Reading order everywhere (exports index, llms.txt, READMEs).
-export const PACKAGES = ['ui', 'auth', 'permissions', 'logger', 'queue', 'cli']
+export const PACKAGES = ['ui', 'data', 'auth', 'permissions', 'logger', 'queue', 'cli']
 export const LIBRARY_PACKAGES = PACKAGES.filter(p => p !== 'cli')
 
 export const readJson = file => JSON.parse(readFileSync(file, 'utf8'))

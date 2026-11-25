@@ -1,32 +1,46 @@
 /**
- * Main pagination factory
- * Creates paginated services with minimal configuration
+ * The Prisma pagination service: one `list` (and `getFilterOptions`) per
+ * model, from a declarative config.
  *
- * @module server/pagination
+ * @module data/prisma
  */
 
-import { createTranslator } from 'next-intl'
-import { createPaginatedResponse } from '../../types/pagination'
-import type { PaginationParams } from '../../types/pagination'
-import { DEFAULT_LOCALE, type TelamonjsLocale } from '../../i18n/locales'
-import { telamonjsMessages } from '../../i18n/messages'
+import { createPaginatedResponse, sanitizePaginationParams } from '../contract.js'
+import type { PaginationParams, SortField } from '../contract.js'
+import { resolveSort } from '../sort.js'
+import { buildPrismaOrderBy, buildPrismaOrderByMulti, type PrismaOrderBy } from './order-by.js'
 import type {
+  FilterLabels,
+  FilterOption,
   PaginatedService,
   PaginatedServiceConfig,
   PaginationContext,
-} from './types'
+} from './types.js'
 import {
   buildFilterConditions,
   buildIncludeClause,
-  buildOrderByClause,
   buildSearchConditions,
   buildWhereClause,
   getFilterOptionsForField,
-  resolveSort,
-  sanitizePaginationParams,
-} from './utils'
-import type { FilterOption } from './types'
-import { logger } from '../../utils/logger'
+} from './where.js'
+
+const ENGLISH_LABELS: FilterLabels = {
+  yes: 'Yes',
+  no: 'No',
+  active: 'Active',
+  inactive: 'Inactive',
+}
+
+function buildOrderByClause(
+  sortBy: string | string[] | SortField[],
+  sortOrder: 'asc' | 'desc',
+  sortableFields?: readonly string[]
+): PrismaOrderBy | PrismaOrderBy[] | undefined {
+  if (!sortBy || sortBy.length === 0) return undefined
+  return Array.isArray(sortBy)
+    ? buildPrismaOrderByMulti(sortBy as SortField[], sortableFields)
+    : buildPrismaOrderBy(sortBy, sortOrder, sortableFields)
+}
 
 /**
  * Create pagination context with dependency injection
@@ -35,7 +49,7 @@ import { logger } from '../../utils/logger'
  * @example
  * ```typescript
  * // In your project's lib/pagination.ts
- * import { createPaginationContext } from '@telamonjs/ui/server'
+ * import { createPaginationContext } from '@telamonjs/data/prisma'
  * import { auth } from '@/auth'
  * import { prisma } from '@/lib/prisma'
  *
@@ -46,7 +60,13 @@ import { logger } from '../../utils/logger'
  * ```
  */
 export function createPaginationContext(context: PaginationContext) {
-  const { prisma, auth, cache } = context
+  const {
+    prisma,
+    auth,
+    cache,
+    filterLabels = () => ENGLISH_LABELS,
+    onWarning = (message: string) => console.warn(message),
+  } = context
 
   /**
    * Create a paginated service with minimal configuration
@@ -226,7 +246,7 @@ export function createPaginationContext(context: PaginationContext) {
 
     // Get filter options function
     async function getFilterOptions(
-      locale: TelamonjsLocale = DEFAULT_LOCALE
+      locale?: string
     ): Promise<
       Record<
         string,
@@ -241,11 +261,7 @@ export function createPaginationContext(context: PaginationContext) {
         return {}
       }
 
-      const t = createTranslator({
-        locale,
-        messages: telamonjsMessages[locale],
-        namespace: 'telamonjs.common',
-      })
+      const labels = filterLabels(locale)
 
       // Get authenticated user if visibility rules are defined
       let visibilityWhere: Record<string, unknown> | undefined = undefined
@@ -282,8 +298,8 @@ export function createPaginationContext(context: PaginationContext) {
             // return fixed boolean options
             if (configObj.transform && configObj.type === 'boolean') {
               filterOptions[filterKey] = [
-                { value: 'true', label: t('yes'), count: 0 },
-                { value: 'false', label: t('no'), count: 0 },
+                { value: 'true', label: labels.yes, count: 0 },
+                { value: 'false', label: labels.no, count: 0 },
               ]
             } else {
               // Use default filter options builder with actual field name
@@ -293,7 +309,7 @@ export function createPaginationContext(context: PaginationContext) {
                 configObj.field,
                 baseWhere,
                 visibilityWhere,
-                locale
+                labels
               )
             }
           }
@@ -322,7 +338,7 @@ export function createPaginationContext(context: PaginationContext) {
     const { model } = config
 
     if (!cache) {
-      logger.warn(
+      onWarning(
         'Cache not configured in PaginationContext, returning non-cached service'
       )
       return service
@@ -338,12 +354,12 @@ export function createPaginationContext(context: PaginationContext) {
 
     // Wrap getFilterOptions with caching
     const originalGetFilterOptions = service.getFilterOptions
-    async function cachedGetFilterOptions(locale: TelamonjsLocale = DEFAULT_LOCALE) {
+    async function cachedGetFilterOptions(locale?: string) {
       if (!originalGetFilterOptions) {
         return {}
       }
 
-      const cacheKey = `${model}_filter_options_${locale}`
+      const cacheKey = `${model}_filter_options_${locale ?? ''}`
 
       return cache!.cacheEntity(model, cacheKey, () =>
         originalGetFilterOptions(locale)
