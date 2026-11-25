@@ -153,9 +153,9 @@ export class JwtAuthGuard extends createJwtAuthGuard({ validateUserCacheTtlMs: 3
 ```
 
 `true` passes; `false` or a reason string is a 401 with a generic message, the
-reason going to the Nest `Logger`. A thrown error is a 401 too (logged), unlike
-`resolveUser`, whose errors propagate. The cache is in memory, per process,
-bounded to 1000 tokens, and never keeps a thrown error.
+reason going to the Nest `Logger`. A thrown error propagates (a 5xx), like
+`resolveUser`'s, so a database outage doesn't sign users out. The cache is in
+memory, per process, bounded to 1000 tokens, and never keeps a thrown error.
 
 ## Core (isomorphic)
 

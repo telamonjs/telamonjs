@@ -140,7 +140,8 @@ export class JwtAuthGuardBase<TUser> implements CanActivate {
    * (only when it returned a user). Return `true` to pass, or `false` / a
    * reason string to reject with a 401 'Session is no longer valid': the
    * reason is logged (Nest `Logger`), never sent to the client. A thrown error
-   * is a 401 too (logged), not a 500.
+   * propagates (a 5xx, never cached), like `resolveUser`'s: a database outage
+   * must not look like an expired session and sign every user out.
    *
    * Unlike `resolveUser`, its verdict can be cached:
    * `validateUserCacheTtlMs` keeps it per session token. With the cache on,
@@ -257,22 +258,14 @@ export function createJwtAuthGuard<TUser = AuthUser>(
             if (user == null) {
               throw unauthorized('Session is no longer valid')
             }
-            let verdict: boolean | string
-            try {
-              verdict = await this.cachedVerdict(
-                candidate.token,
-                user,
-                payload,
-                context
-              )
-            } catch (error) {
-              logger.error(
-                `validateUser threw for user ${payload.id}: ${
-                  error instanceof Error ? error.message : String(error)
-                }`
-              )
-              throw unauthorized('Session is no longer valid')
-            }
+            // A thrown error propagates (5xx), like resolveUser's: an outage
+            // must not look like an expired session and sign every user out
+            const verdict = await this.cachedVerdict(
+              candidate.token,
+              user,
+              payload,
+              context
+            )
             if (verdict !== true) {
               logger.warn(
                 `validateUser rejected user ${payload.id}: ${verdict || 'returned false'}`

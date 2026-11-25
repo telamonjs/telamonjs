@@ -731,25 +731,18 @@ describe('createJwtAuthGuard — validateUser', () => {
     expect(String(warn.mock.calls[0]?.[0])).toMatch(/account suspended/)
   })
 
-  it('a thrown error → 401 (not a 500), logged with its message', async () => {
-    const error = vi
-      .spyOn(Logger.prototype, 'error')
-      .mockImplementation(() => undefined)
+  it('a thrown error propagates unchanged (an outage is a 5xx, not a 401)', async () => {
+    const boom = new Error('db down')
     const { g } = checked(() => {
-      throw new Error('db down')
+      throw boom
     })
-    const rejected = g.canActivate(ctx((await bearer())()))
-    await expect(rejected).rejects.toBeInstanceOf(UnauthorizedException)
-    await expect(rejected).rejects.toThrow('Session is no longer valid')
-    expect(String(error.mock.calls[0]?.[0])).toMatch(/db down/)
+    await expect(g.canActivate(ctx((await bearer())()))).rejects.toBe(boom)
   })
 
-  it('a rejected promise → 401 too', async () => {
-    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
-    const { g } = checked(() => Promise.reject(new Error('timeout')))
-    await expect(g.canActivate(ctx((await bearer())()))).rejects.toBeInstanceOf(
-      UnauthorizedException
-    )
+  it('a rejected promise propagates too', async () => {
+    const boom = new Error('timeout')
+    const { g } = checked(() => Promise.reject(boom))
+    await expect(g.canActivate(ctx((await bearer())()))).rejects.toBe(boom)
   })
 
   it('runs after resolveUser: gets its user, and is skipped when it returns null', async () => {
@@ -844,7 +837,6 @@ describe('createJwtAuthGuard — validateUser', () => {
     })
 
     it('never caches a thrown error', async () => {
-      vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
       let calls = 0
       const { g } = checked(
         () => {
@@ -855,9 +847,7 @@ describe('createJwtAuthGuard — validateUser', () => {
         { validateUserCacheTtlMs: 30_000 }
       )
       const request = await bearer()
-      await expect(g.canActivate(ctx(request()))).rejects.toThrow(
-        UnauthorizedException
-      )
+      await expect(g.canActivate(ctx(request()))).rejects.toThrow('db down')
       expect(await g.canActivate(ctx(request()))).toBe(true)
       expect(calls).toBe(2)
     })

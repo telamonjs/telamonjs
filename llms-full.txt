@@ -20782,10 +20782,10 @@ export class JwtAuthGuard extends createJwtAuthGuard({ validateUserCacheTtlMs: 3
   `(user, payload, context)`.
 - `true` passes. `false` or a reason string is a 401 with the generic
   'Session is no longer valid'; the reason goes to the guard's Nest `Logger`,
-  never to the client. A thrown error is a 401 too, logged as an error. That
-  is the opposite of `resolveUser`, whose errors propagate: when an outage
-  must be a 5xx, or the client must see a specific error, keep that check in
-  `resolveUser`.
+  never to the client. A thrown error propagates (a 5xx), like `resolveUser`'s:
+  a database outage must not look like an expired session and sign every user
+  out. When the client must see a specific error (e.g. a suspended account),
+  throw it from `resolveUser`.
 - The cache is in memory, per process, keyed by the session token (a new
   login does not inherit an old `false`) and bounded to 1000 tokens. A thrown
   error is never cached. A database change takes up to the TTL to apply, so
