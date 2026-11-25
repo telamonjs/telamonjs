@@ -315,7 +315,7 @@ ship silently broken:
 | `title` on a field  | `label`                                            |
 | `helperText`        | `description`                                      |
 | `options` on `relationship`/`multiselect` | `loadField: async () => IOption[]` — `options` does not exist |
-| array return from `queryFn` | `PaginatedResponse<T>` (`page`, `totalPages`, `total`) |
+| array return from `queryFn` | `PaginatedResponse<T>` (`page`, `totalPages`, `total`); an endpoint that answers a plain array: `queryFn: arrayQueryFn(fetchAll)` |
 | `as any` / `asQueryFn` on `queryFn` (client typed `sortBy?: string`) | `queryFn: api.list` — it receives `ListQueryParams`, `sortBy` is a string |
 | raw entity from mutations | `{ success: boolean, data? }` |
 | `as any` on a `mutationFn` whose `data` is `{ id }` | `CrudConfig<T, TFormData, { id: string }>` (or `unknown`) |

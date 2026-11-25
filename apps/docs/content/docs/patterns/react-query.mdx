@@ -107,6 +107,36 @@ query: { queryKey: ['orders'], queryFn: ordersApi.list },
 `asQueryFn` (an unchecked cast) is only left for a client that still does not fit, such as one
 whose result is typed differently from `PaginatedResponse<T>`.
 
+### An endpoint that answers a plain array
+
+For a short list whose endpoint does not page (sub-lists, queues, lookups), wrap the fetch in
+`arrayQueryFn` instead of hand-building a one-page `PaginatedResponse`. It fetches the array and
+does the search, filters, sort and paging in memory:
+
+```ts
+import { arrayQueryFn } from '@telamonjs/ui'
+
+query: {
+  queryKey: ['members', teamId],
+  queryFn: arrayQueryFn(() => teamsApi.members(teamId), {
+    searchFields: ['name', 'email'], // default: the row's top-level string/number values
+  }),
+},
+```
+
+- **Search**: case- and accent-insensitive substring over `searchFields` (dotted paths work).
+- **Filters**: equality per key, compared as strings (toolbar values are strings, so `'true'`
+  matches `true`); empty values are skipped, and the toolbar's "all" choice never reaches a
+  `queryFn`. A key that `fetchAll` consumes itself (a parent id in `filters`) and the rows do not
+  carry: list the keys that should filter in `filterFields` (`[]` for none).
+- **Sort**: by `sortBy` — numbers, dates and booleans by value, text with `localeCompare`, empty
+  values last. A nested column needs `list.sortParam: 'path'` so `sortBy` is the dotted path.
+- `fetchAll` receives the `ListQueryParams`, so it can still forward a scope or a search the
+  endpoint understands.
+
+There is no cache: every page request calls `fetchAll` again. With the infinite list's default
+page size most such lists load in one request; a list that outgrows that wants server paging.
+
 ### What `sortBy` carries
 
 `list.sortParam` picks what a column's sort looks like on the wire. It applies everywhere the list

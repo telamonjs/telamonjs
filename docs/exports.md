@@ -284,6 +284,7 @@ Runtime:
 - `WheelSlider`
 - `ZustandForm`
 - `ZustandFormServer`
+- `arrayQueryFn`
 - `asQueryFn`
 - `buildPrismaOrderBy`
 - `buildPrismaOrderByMulti`
@@ -379,6 +380,7 @@ Types:
 - `AppShellProps` (type)
 - `AppStoreProviderProps` (type)
 - `AreaChartProps` (type)
+- `ArrayQueryFnOptions` (type)
 - `AsyncCheckFn` (type)
 - `BadgeVariant` (type)
 - `BarChartProps` (type)

@@ -13,6 +13,8 @@ export type {
   ListQueryParams,
 } from '../types/pagination'
 export { createPaginatedResponse, asQueryFn } from '../types/pagination'
+export { arrayQueryFn } from '../data/array-query-fn'
+export type { ArrayQueryFnOptions } from '../data/array-query-fn'
 
 // Filter Types
 export type { FilterOption, ColumnFilterConfig } from '../types/filters'
