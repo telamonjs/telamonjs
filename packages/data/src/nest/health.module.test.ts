@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { Global, Injectable, Module, SetMetadata, type INestApplication, type Type } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import request from 'supertest'
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger'
 import { HealthModule, type HealthModuleOptions } from './health.module.js'
 
 /** Stand-in for the app's PrismaService: anything the checks factory gets injected. */
@@ -69,6 +70,19 @@ describe('HealthModule', () => {
       const res = await request(nest.getHttpServer()).get('/health')
       expect(res.status).toBe(200)
       expect(res.body).toMatchObject({ status: 'error', database: 'disconnected' })
+    })
+
+    // Regression: @nestjs/swagger 7 reads each route's design:paramtypes and
+    // crashed at boot when the published controller had none (a Nest 10 app)
+    it('declares the route param types (Swagger reads them)', () => {
+      const [controller] = HealthModule.forRoot(prismaChecks).controllers ?? []
+      expect(Reflect.getMetadata('design:paramtypes', (controller as Type).prototype, 'check')).toEqual([Object])
+    })
+
+    it('builds a Swagger document with the health controller mounted', async () => {
+      const nest = await boot(prismaChecks)
+      const document = SwaggerModule.createDocument(nest, new DocumentBuilder().build())
+      expect(document.paths['/health']).toBeDefined()
     })
 
     it('a check resolving false is down; any other value is up', async () => {

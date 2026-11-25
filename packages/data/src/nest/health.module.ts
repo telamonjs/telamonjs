@@ -100,6 +100,13 @@ export class HealthModule {
         }
       }
     }
+    // Route param types for tools that read them (@nestjs/swagger 7 crashes at
+    // boot without them). Set by hand: neither tsc here nor an app's bundler
+    // (esbuild, swc) is guaranteed to emit decorator metadata.
+    const reflect = Reflect as unknown as {
+      defineMetadata?: (key: string, value: unknown, target: object, property: string) => void
+    }
+    reflect.defineMetadata?.('design:paramtypes', [Object], HealthController.prototype, 'check')
     for (const decorate of options.decorators ?? []) decorate(HealthController)
 
     return {
