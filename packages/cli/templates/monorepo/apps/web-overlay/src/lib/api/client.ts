@@ -7,9 +7,11 @@ async function parse<T>(res: Response, errorMessage: string): Promise<T> {
   const text = await res.text()
   const body = text ? (JSON.parse(text) as unknown) : null
   if (!res.ok) {
-    // Errors go through the global exception filter (plain JSON, no
-    // SuperJSON) — `{ message }`.
-    throw new Error((body as { message?: string } | null)?.message ?? errorMessage)
+    // The superjson middleware wraps error bodies too (`{ json: { message } }`);
+    // class-validator sends `message` as a list.
+    const payload = (body as { json?: unknown } | null)?.json ?? body
+    const message = (payload as { message?: string | string[] } | null)?.message
+    throw new Error((Array.isArray(message) ? message.join(', ') : message) ?? errorMessage)
   }
   return body === null ? (undefined as T) : (superjson.deserialize(body as never) as T)
 }
