@@ -8,6 +8,7 @@ import {
   useTablePage,
   useTablePageSize,
   useDataTableActions,
+  useDataTableStore,
 } from '../stores/datatable-store'
 import { withComponent } from '../utils/logger'
 import { ErrorBoundary } from '../components/utilities/ErrorBoundary'
@@ -128,24 +129,20 @@ export function ListPage<TData>({
   const tableId = providedTableId || module.route
 
   // Get actions from Zustand store
-  const {
-    initTable,
-    setGlobalFilter: setStoreGlobalFilter,
-    setPage: setStorePage,
-  } = useDataTableActions(tableId)
+  const { setGlobalFilter: setStoreGlobalFilter, setPage: setStorePage } =
+    useDataTableActions(tableId)
 
-  // With urlSync, a link's page/pageSize/sort/search win over the config
-  // defaults. Read once at mount, like the urlFilters.
   const urlSeed = useUrlSync()
-  const [urlTableState] = useState(() =>
-    urlSync
-      ? tableStateFromUrl(urlSeed.getParam, list.infiniteScroll === false)
-      : {}
-  )
 
-  // Initialize table with defaultPageSize and defaultSortBy from config
-  useEffect(() => {
-    initTable({
+  // The table starts from the config defaults; with urlSync, a link's
+  // page/pageSize/sort/search win over them. Seeded during render, before the
+  // children mount: DataTable calls `initTable` in its own effect, and child
+  // effects run before the parent's, so a ListPage effect found the table
+  // already created with the store defaults (pageSize 10, no sort).
+  const [seededFor, setSeededFor] = useState<string>()
+  if (seededFor !== tableId) {
+    setSeededFor(tableId)
+    useDataTableStore.getState().initTable(tableId, {
       pageSize: list.defaultPageSize || 10,
       ...(list.defaultSortBy
         ? {
@@ -157,15 +154,11 @@ export function ListPage<TData>({
             ],
           }
         : {}),
-      ...urlTableState,
+      ...(urlSync
+        ? tableStateFromUrl(urlSeed.getParam, list.infiniteScroll === false)
+        : {}),
     })
-  }, [
-    initTable,
-    list.defaultPageSize,
-    list.defaultSortBy,
-    list.defaultSortOrder,
-    urlTableState,
-  ])
+  }
 
   // Get state from Zustand store
   const columnFilters = useTableColumnFilters(tableId)
