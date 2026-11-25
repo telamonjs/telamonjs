@@ -1,7 +1,7 @@
 {
   "name": "@telamonjs/data",
   "version": "1.1.0",
-  "description": "The server half of a TelamonJS list: the ListPage wire contract, sort and paging sanitizers, a Prisma adapter (orderBy, scope-safe where, paginated services) and NestJS plumbing (Prisma exception filter, health module). Zero dependencies",
+  "description": "The server half of a TelamonJS list: the ListPage wire contract, sort and paging sanitizers, a Prisma adapter (orderBy, scope-safe where, paginated services) and NestJS plumbing (Prisma exception filter, health module, audit interceptor) and audit helpers. Zero dependencies",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -58,10 +58,14 @@
   "author": "Marcos Tullyo (https://github.com/mtullyoc)",
   "license": "MIT",
   "peerDependencies": {
-    "@nestjs/common": "^10.0.0 || ^11.0.0"
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "rxjs": "^7.1.0"
   },
   "peerDependenciesMeta": {
     "@nestjs/common": {
+      "optional": true
+    },
+    "rxjs": {
       "optional": true
     }
   },
@@ -77,6 +81,7 @@
     "eslint": "^9.37.0",
     "prettier": "^3.10.1",
     "reflect-metadata": "^0.2.2",
+    "rxjs": "^7.8.1",
     "supertest": "^7.3.2",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -908,13 +908,18 @@ Types:
 
 Runtime:
 
+- `DEFAULT_REDACT_KEYS`
+- `computeDiff`
 - `createPaginatedResponse`
+- `redactPayload`
 - `resolveSort`
 - `resolveSortPath`
 - `sanitizePaginationParams`
 
 Types:
 
+- `ComputeDiffOptions` (type)
+- `FieldChange` (type)
 - `PaginatedResponse` (type)
 - `PaginationParams` (type)
 - `SortField` (type)
@@ -953,11 +958,15 @@ Runtime:
 
 - `HealthModule`
 - `PrismaExceptionFilter`
+- `SkipAudit`
+- `createAuditInterceptor`
 - `isPrismaKnownRequestError`
 - `isPrismaValidationError`
 
 Types:
 
+- `AuditEntry` (type)
+- `AuditInterceptorOptions` (type)
 - `HealthCheck` (type)
 - `HealthChecks` (type)
 - `HealthModuleOptions` (type)

@@ -20570,8 +20570,8 @@ Source: apps/docs/content/docs/packages/data.mdx
 `@telamonjs/data` (current version: <PkgVersion pkg='data' />) is what an endpoint runs on what a
 [`ListPage`](/docs/patterns/listpage-pattern) sends: page, page size, search, sort and filters.
 It has no dependencies and imports neither React, Next nor Prisma, so a NestJS or plain Node API
-installs it alone. A NestJS API also gets the [Prisma exception filter and health
-endpoint](#nestjs) every API repeats.
+installs it alone. A NestJS API also gets the [Prisma exception filter, health
+endpoint and audit interceptor](#nestjs) every API repeats.
 
 ```bash
 pnpm add @telamonjs/data
@@ -20579,9 +20579,9 @@ pnpm add @telamonjs/data
 
 | Entry | What it has | Needs an ORM? |
 | --- | --- | --- |
-| `@telamonjs/data` | The wire contract (`PaginationParams`, `PaginatedResponse`, `SortField`, `createPaginatedResponse`), `sanitizePaginationParams`, `resolveSort`, `resolveSortPath` | No |
+| `@telamonjs/data` | The wire contract (`PaginationParams`, `PaginatedResponse`, `SortField`, `createPaginatedResponse`), `sanitizePaginationParams`, `resolveSort`, `resolveSortPath`; the audit helpers `computeDiff`, `redactPayload`, `DEFAULT_REDACT_KEYS` | No |
 | `@telamonjs/data/prisma` | `buildPrismaOrderBy`, `buildPrismaOrderByMulti`, `buildSearchConditions`, `buildFilterConditions`, `buildWhereClause`, `createPaginationContext` | Builds Prisma's object shape; never imports `@prisma/client` |
-| `@telamonjs/data/nest` | `PrismaExceptionFilter`, `HealthModule`, `isPrismaKnownRequestError`, `isPrismaValidationError` | Needs `@nestjs/common` (optional peer); never imports `@prisma/client` |
+| `@telamonjs/data/nest` | `PrismaExceptionFilter`, `HealthModule`, `createAuditInterceptor`, `SkipAudit`, `isPrismaKnownRequestError`, `isPrismaValidationError` | Needs `@nestjs/common` and `rxjs` (optional peers); never imports `@prisma/client` |
 
 ## Sort
 
@@ -20663,7 +20663,8 @@ boolean filter options; without it they are in English. Configuration warnings g
 
 ## NestJS
 
-`@telamonjs/data/nest` needs `@nestjs/common`, an optional peer that only this entry imports:
+`@telamonjs/data/nest` needs `@nestjs/common` and `rxjs`, optional peers that only this entry
+imports (every Nest app already has both):
 
 <PeerDeps pkg='data' />
 
@@ -20731,6 +20732,97 @@ A check is down when it throws, rejects or resolves `false`. `path` changes the 
 `'health'`); `imports` brings in the modules of the `inject` tokens when they are not global.
 The package imports no auth: pass the auth package's [`@Public()`](/docs/packages/auth#nestjs-setup)
 in `decorators` when a global guard protects every route.
+
+### Audit trail
+
+`createAuditInterceptor()` returns an interceptor class that turns every successful,
+authenticated `POST`/`PUT`/`PATCH`/`DELETE` into an `AuditEntry` and hands it to your `write`.
+The package owns no table: you persist the entry wherever you keep audit rows.
+
+```ts
+import { APP_INTERCEPTOR } from '@nestjs/core'
+import { createAuditInterceptor } from '@telamonjs/data/nest'
+
+export const AuditInterceptor = createAuditInterceptor({
+  inject: [PrismaService],
+  write: (entry, _context, prisma: PrismaService) => prisma.auditLog.create({ data: entry }),
+})
+
+// app.module.ts
+providers: [{ provide: APP_INTERCEPTOR, useClass: AuditInterceptor }]
+```
+
+A Prisma model that takes the entry as it is:
+
+```prisma
+model AuditLog {
+  id             String   @id @default(cuid())
+  userId         String
+  impersonatedBy String?
+  action         String   // CREATE | UPDATE | DELETE
+  entityType     String
+  entityId       String?
+  changes        Json?
+  ipAddress      String?
+  userAgent      String?
+  method         String
+  path           String
+  statusCode     Int
+  createdAt      DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+}
+```
+
+| Entry field | Comes from |
+| --- | --- |
+| `userId`, `impersonatedBy` | `request.user.id` and `request.user.originalUser.id`, the `@telamonjs/auth` user (`user` option to read another shape) |
+| `action` | `POST` → `CREATE`, `PUT`/`PATCH` → `UPDATE`, `DELETE` → `DELETE`; any other audited method as is |
+| `entityType`, `entityId` | The first path segment that is not `api` or a version (`/v1/orders/42` → `orders`), and the `:id` param or the response body's `id` (`resolveEntity` option to change both) |
+| `changes` | The request body through `redactPayload`; absent when the body is empty |
+| `ipAddress`, `userAgent` | `request.ip` (set Express's `trust proxy` behind a proxy) and the `User-Agent` header |
+| `method`, `path`, `statusCode` | The request, without the query string, and the status Nest answered with |
+
+Nothing is written when the handler throws, when there is no user (logins, public sign-ups) or
+outside HTTP. The response does not wait for `write` (`await: true` makes it wait), and a
+`write` that throws or rejects goes to `onError` (default: Nest's `Logger`) and never fails the
+request.
+
+```ts
+createAuditInterceptor({
+  write,
+  methods: ['POST', 'PUT', 'PATCH', 'DELETE'],     // the default
+  ignore: (ctx) => ctx.switchToHttp().getRequest().path.startsWith('/v1/webhooks'),
+  redact: ['ssn'],                                 // added to DEFAULT_REDACT_KEYS
+  resolveEntity: (ctx, body) => ({ type: ctx.getClass().name, id: (body as { id?: string })?.id }),
+  onError: (error, entry) => logger.warn({ error, entry }, 'audit write failed'),
+})
+```
+
+`@SkipAudit()` on a handler or a controller skips it, the same as `ignore`.
+
+### Audit helpers
+
+The root entry has the two pure helpers the interceptor and hand-written audit calls share.
+`redactPayload(value, keys = DEFAULT_REDACT_KEYS)` returns a deep copy with the value of every
+secret key replaced by `'[REDACTED]'`. A key is secret when, lowercased and without `-`/`_`, it
+contains one of `keys`: `password` catches `newPassword`, `token` catches `REFRESH_TOKEN`, `apikey`
+catches `api-key`. Spread `DEFAULT_REDACT_KEYS` to add your own.
+
+`computeDiff(before, after)` returns the fields of `after` that changed, as `{ key: { old, new } }`.
+It reads only the keys of `after`, so a partial DTO works; `null` equals `undefined`, dates compare
+by instant, a Decimal or numeric string compares as a number, and nested objects and arrays compare
+as JSON. `createdAt` and `updatedAt` are skipped (`{ ignore }` replaces that list). Use it where you
+already load the record, for an `UPDATE` row with before and after:
+
+```ts
+import { computeDiff } from '@telamonjs/data'
+
+const before = await prisma.order.findUniqueOrThrow({ where: { id } })
+await prisma.order.update({ where: { id }, data: dto })
+const changes = computeDiff(before, dto)   // { status: { old: 'OPEN', new: 'PAID' } }; {} when nothing changed
+```
 
 ---
 
