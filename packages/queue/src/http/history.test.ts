@@ -34,6 +34,31 @@ describe('handleGetHistory', () => {
   })
 })
 
+describe('history query validation', () => {
+  const queues = () => makeQueueSource({ q1: makeQueue() })
+
+  it.each([
+    ['limit=0', { limit: 0 }],
+    ['a NaN limit', { limit: Number.NaN }],
+    ['a limit above the cap', { limit: 501 }],
+  ])('handleGetHistory rejects %s with 400', async (_label, extra) => {
+    await expect(
+      handleGetHistory(makeDeps({ queues: queues() }), { queueName: 'q1', ...extra })
+    ).rejects.toMatchObject({ status: 400 })
+  })
+
+  it.each([
+    ['a negative offset', { offset: -10 }],
+    ['limit=0', { limit: 0 }],
+    ['an unknown status', { statuses: 'completed,bogus' }],
+    ['a non-history status', { statuses: 'waiting' }],
+  ])('handleGetHistoryAll rejects %s with 400', async (_label, extra) => {
+    await expect(
+      handleGetHistoryAll(makeDeps({ queues: queues() }), extra)
+    ).rejects.toMatchObject({ status: 400 })
+  })
+})
+
 describe('handleGetHistoryAll', () => {
   it('rejects an invalid startDate/endDate', async () => {
     await expect(

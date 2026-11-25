@@ -26,6 +26,7 @@ describe('Redis Utilities', () => {
       const health = await checkRedisHealth(mockRedis)
 
       expect(health.connected).toBe(false)
+      expect(health.error).toBe('Connection failed')
     })
 
     it('ignores an extra logger-shaped argument', async () => {

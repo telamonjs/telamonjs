@@ -5,6 +5,9 @@ import {
   getCountForState,
   getQueueOrThrow,
   matchJobSearch,
+  MAX_PER_QUEUE_FETCH,
+  parseJobState,
+  parseListQuery,
 } from './helpers.js'
 import {
   QueueHttpError,
@@ -14,19 +17,10 @@ import {
   type GetJobsParams,
   type JobIdBody,
   type JobInfo,
-  type JobState,
   type JobsAllResponse,
   type JobsResponse,
   type QueueHttpDeps,
 } from './types.js'
-
-/**
- * ponytail: BullMQ has no cross-queue pagination — every queue is fetched up
- * to this cap before the in-memory merge/sort/paginate in
- * `handleGetJobsAll`/`handleGetHistoryAll`. Don't raise without measuring
- * (it's O(queues × cap) per request).
- */
-const MAX_PER_QUEUE_FETCH = 500
 
 /** `GET /v1/queue/jobs?queueName=...&state=...&limit=...` */
 export async function handleGetJobs(
@@ -38,8 +32,8 @@ export async function handleGetJobs(
     throw new QueueHttpError('Missing required query parameter: queueName', 400)
   }
 
-  const state = params.state ?? 'waiting'
-  const limit = params.limit ?? 50
+  const state = parseJobState(params.state, 'waiting')
+  const { limit } = parseListQuery(params, 50)
   const queue = getQueueOrThrow(deps, queueName)
 
   const jobs = await fetchJobsByState(deps, queue, queueName, state, 0, limit - 1)
@@ -51,9 +45,8 @@ export async function handleGetJobsAll(
   deps: QueueHttpDeps,
   params: GetJobsAllParams
 ): Promise<JobsAllResponse> {
-  const state: JobState = params.status ?? 'waiting'
-  const limit = params.limit ?? 100
-  const offset = params.offset ?? 0
+  const state = parseJobState(params.status, 'waiting')
+  const { limit, offset } = parseListQuery(params, 100)
   const search = params.search
   const hasSearch = Boolean(search && search.trim())
 

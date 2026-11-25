@@ -42,6 +42,14 @@ import { QUEUE_HTTP_DEPS, QUEUE_HTTP_GET_ACTOR } from './constants.js'
 import type { GetActorFn } from './types.js'
 
 /**
+ * Query string → number for the handlers' paging checks (`parseListQuery`).
+ * `Number()`, not `parseInt()`: `'10abc'` must become NaN (→ 400), not 10.
+ */
+function queryNumber(value?: string): number | undefined {
+  return value === undefined || value === '' ? undefined : Number(value)
+}
+
+/**
  * Route handlers only — deliberately no `@Controller()`/`@UseGuards()`
  * here. `QueueHttpModule.forRoot()` dynamically subclasses this with both
  * applied per-call (guards are a `forRoot()`-time config, not static).
@@ -148,7 +156,7 @@ export abstract class QueueControllerBase {
     try {
       return await handleGetHistory(this.deps, {
         queueName,
-        limit: limit ? parseInt(limit, 10) : undefined,
+        limit: queryNumber(limit),
       })
     } catch (err) {
       mapQueueHttpError(err)
@@ -172,8 +180,8 @@ export abstract class QueueControllerBase {
         search,
         startDate,
         endDate,
-        limit: limit ? parseInt(limit, 10) : undefined,
-        offset: offset ? parseInt(offset, 10) : undefined,
+        limit: queryNumber(limit),
+        offset: queryNumber(offset),
       })
     } catch (err) {
       mapQueueHttpError(err)
@@ -190,7 +198,7 @@ export abstract class QueueControllerBase {
       return await handleGetJobs(this.deps, {
         queueName,
         state,
-        limit: limit ? parseInt(limit, 10) : undefined,
+        limit: queryNumber(limit),
       })
     } catch (err) {
       mapQueueHttpError(err)
@@ -210,8 +218,8 @@ export abstract class QueueControllerBase {
         status,
         queue,
         search,
-        limit: limit ? parseInt(limit, 10) : undefined,
-        offset: offset ? parseInt(offset, 10) : undefined,
+        limit: queryNumber(limit),
+        offset: queryNumber(offset),
       })
     } catch (err) {
       mapQueueHttpError(err)
@@ -288,11 +296,11 @@ export abstract class QueueControllerBase {
   @Post('config/:jobName/toggle')
   async toggleJobConfig(
     @Param('jobName') jobName: string,
-    @Body() body: { enabled: boolean },
+    @Body() body: { enabled: boolean } | undefined,
     @Req() req: Request
   ) {
     try {
-      return await handleToggleJobConfig(this.deps, jobName, body.enabled, this.getActor(req))
+      return await handleToggleJobConfig(this.deps, jobName, body?.enabled, this.getActor(req))
     } catch (err) {
       mapQueueHttpError(err)
     }
@@ -301,14 +309,14 @@ export abstract class QueueControllerBase {
   @Post('config/modules/:module/toggle')
   async toggleModuleJobConfigs(
     @Param('module') moduleName: string,
-    @Body() body: { enabled: boolean },
+    @Body() body: { enabled: boolean } | undefined,
     @Req() req: Request
   ) {
     try {
       return await handleToggleModuleJobConfigs(
         this.deps,
         moduleName,
-        body.enabled,
+        body?.enabled,
         this.getActor(req)
       )
     } catch (err) {
@@ -325,7 +333,7 @@ export abstract class QueueControllerBase {
       return await handleGetJobConfigHistory(
         this.deps,
         jobName,
-        limit ? parseInt(limit, 10) : undefined
+        queryNumber(limit)
       )
     } catch (err) {
       mapQueueHttpError(err)

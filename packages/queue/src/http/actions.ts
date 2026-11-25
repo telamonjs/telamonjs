@@ -64,17 +64,26 @@ export async function handlePerformAction(
       const failedJobs = await queue.getJobs(['failed'], 0, RETRY_ALL_LIMIT - 1)
       const validJobs = failedJobs.filter(j => j && j.id)
       let retried = 0
+      const errors: string[] = []
       for (const job of validJobs) {
         try {
           await job.retry()
           retried++
-        } catch {
-          // Job may have been removed or already retried — skip.
+        } catch (err) {
+          // Usually removed or already retried meanwhile — skip, but report it.
+          errors.push(`${job.id}: ${err instanceof Error ? err.message : String(err)}`)
         }
+      }
+      if (errors.length > 0) {
+        deps.logger?.warn(`Queue ${queueName}: some failed jobs could not be retried`, {
+          failed: errors.length,
+          errors,
+        })
       }
       return {
         success: true,
         message: `Queue ${queueName}: ${retried}/${validJobs.length} failed jobs retried`,
+        ...(errors.length > 0 && { errors }),
       }
     }
 

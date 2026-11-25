@@ -1,9 +1,11 @@
+import type { Server } from 'node:http'
 import express, { type Express } from 'express'
 import { createBullBoard } from '@bull-board/api'
 import { BullMQAdapter } from '@bull-board/api/bullMQAdapter'
 import { ExpressAdapter } from '@bull-board/express'
 import basicAuth from 'express-basic-auth'
 import type { QueueManager } from '../core/QueueManager.js'
+import { ConfigurationError } from '../utils/errors.js'
 
 export interface DashboardConfig {
   /**
@@ -18,7 +20,9 @@ export interface DashboardConfig {
   queueManager: QueueManager
 
   /**
-   * Authentication config
+   * HTTP basic auth for the board. With `enabled: true`, both `username`
+   * and `password` must be non-empty, or the dashboard throws a
+   * `ConfigurationError` at startup.
    */
   auth?: {
     enabled?: boolean
@@ -50,15 +54,48 @@ export interface DashboardConfig {
 }
 
 /**
+ * Mounts `express-basic-auth` on `basePath` when `auth.enabled`. Enabled
+ * without both credentials is a misconfiguration: it throws instead of
+ * silently serving the board unprotected.
+ */
+function applyAuth(
+  app: Express,
+  basePath: string,
+  auth: DashboardConfig['auth']
+): void {
+  if (!auth?.enabled) return
+  if (!auth.username || !auth.password) {
+    throw new ConfigurationError(
+      'Dashboard auth.enabled is true but auth.username or auth.password is missing or empty'
+    )
+  }
+  app.use(
+    basePath,
+    basicAuth({
+      users: { [auth.username]: auth.password },
+      challenge: true,
+      realm: 'TelamonJS Queue Dashboard',
+    })
+  )
+}
+
+/**
  * Start Bull Board dashboard server
  *
- * Provides a web UI for monitoring queues, jobs, and workers
+ * Provides a web UI for monitoring queues, jobs, and workers.
+ *
+ * Returns the Express app (as before) with the listening `server` attached.
+ * The app owns shutdown: this function installs no signal handlers, so call
+ * `dashboard.server.close()` from your own SIGTERM/shutdown sequence.
+ *
+ * @throws {ConfigurationError} when `auth.enabled` is true without a
+ * non-empty `username` and `password`.
  *
  * @example
  * ```ts
  * import { startDashboard } from '@telamonjs/queue/dashboard'
  *
- * startDashboard({
+ * const dashboard = startDashboard({
  *   port: 3005,
  *   queueManager,
  *   auth: {
@@ -67,13 +104,17 @@ export interface DashboardConfig {
  *     password: process.env.DASHBOARD_PASSWORD!
  *   }
  * })
+ *
+ * process.on('SIGTERM', () => dashboard.server.close())
  * ```
  */
-export function startDashboard(config: DashboardConfig): Express {
+export function startDashboard(
+  config: DashboardConfig
+): Express & { server: Server } {
   const {
     port = 3005,
     queueManager,
-    auth = { enabled: false },
+    auth,
     title = 'TelamonJS Queue Dashboard',
     basePath = '/',
     logo,
@@ -81,6 +122,7 @@ export function startDashboard(config: DashboardConfig): Express {
   } = config
 
   const app = express()
+  applyAuth(app, basePath, auth)
 
   // Setup Bull Board
   const serverAdapter = new ExpressAdapter()
@@ -108,19 +150,6 @@ export function startDashboard(config: DashboardConfig): Express {
     },
   })
 
-  // Apply authentication if enabled
-  if (auth.enabled && auth.username && auth.password) {
-    app.use(
-      basePath,
-      basicAuth({
-        users: { [auth.username]: auth.password },
-        challenge: true,
-        realm: 'TelamonJS Queue Dashboard',
-      })
-    )
-    console.log('🔒 Dashboard authentication enabled')
-  }
-
   // Mount Bull Board routes
   app.use(basePath, serverAdapter.getRouter())
 
@@ -133,42 +162,41 @@ export function startDashboard(config: DashboardConfig): Express {
     })
   })
 
-  // Start server
   const server = app.listen(port, () => {
     console.log(`🎛️  Dashboard running at http://localhost:${port}${basePath}`)
-    if (auth.enabled) {
-      console.log(`   Username: ${auth.username}`)
-    }
+    if (auth?.enabled) console.log('🔒 Dashboard authentication enabled')
   })
 
-  // Graceful shutdown
-  process.on('SIGTERM', () => {
-    console.log('🛑 Shutting down dashboard server...')
-    server.close(() => {
-      console.log('✅ Dashboard server closed')
-      process.exit(0)
-    })
-  })
-
-  return app
+  return Object.assign(app, { server })
 }
 
 /**
  * Create dashboard without starting server (for integration)
  *
+ * Honors `auth` exactly like `startDashboard`: with `auth.enabled`, every
+ * request under `basePath` needs HTTP basic credentials.
+ *
+ * @throws {ConfigurationError} when `auth.enabled` is true without a
+ * non-empty `username` and `password`.
+ *
  * @example
  * ```ts
  * const app = express()
- * const dashboardRouter = createDashboardRouter({ queueManager })
+ * const dashboardRouter = createDashboardRouter({
+ *   queueManager,
+ *   auth: { enabled: true, username: 'admin', password: process.env.DASHBOARD_PASSWORD! },
+ * })
  * app.use('/admin/queue', dashboardRouter)
  * ```
  */
 export function createDashboardRouter(
   config: Omit<DashboardConfig, 'port'>
 ): Express {
-  const { queueManager, basePath = '/', title = 'Queue Dashboard' } = config
+  const { queueManager, basePath = '/', title = 'Queue Dashboard', auth } = config
 
   const app = express()
+  applyAuth(app, basePath, auth)
+
   const serverAdapter = new ExpressAdapter()
   serverAdapter.setBasePath(basePath)
 

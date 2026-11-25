@@ -62,6 +62,54 @@ describe('handleUpdateJobConfig', () => {
     )
     expect(result.priority).toBe(9)
   })
+
+  it('throws 404 for an unknown job instead of creating a config', async () => {
+    const set = vi.fn()
+    const jobConfigStore = makeJobConfigStore({ set })
+
+    await expect(
+      handleUpdateJobConfig(makeDeps({ jobConfigStore }), 'ghost', { priority: 3 }, 'actor@x.com')
+    ).rejects.toMatchObject({ status: 404 })
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['an invalid cronPattern', { cronPattern: 'not a cron' }],
+    ['a priority below 1', { priority: 0 }],
+    ['a priority above 10', { priority: 11 }],
+    ['a string priority', { priority: '5' }],
+    ['a fractional priority', { priority: 2.5 }],
+    ['a zero concurrency', { concurrency: 0 }],
+    ['a negative timeout', { timeout: -1 }],
+    ['a NaN timeout', { timeout: Number.NaN }],
+    ['a non-string description', { description: 42 }],
+  ])('throws 400 for %s without writing', async (_label, body) => {
+    const set = vi.fn()
+    const jobConfigStore = makeJobConfigStore({ set, get: vi.fn().mockResolvedValue(baseConfig) })
+
+    await expect(
+      handleUpdateJobConfig(makeDeps({ jobConfigStore }), 'send-email', body as never, 'actor@x.com')
+    ).rejects.toMatchObject({ status: 400 })
+    expect(set).not.toHaveBeenCalled()
+  })
+
+  it('accepts a valid cronPattern and nulls that clear a field', async () => {
+    const set = vi.fn().mockResolvedValue(undefined)
+    const jobConfigStore = makeJobConfigStore({ set, get: vi.fn().mockResolvedValue(baseConfig) })
+
+    await handleUpdateJobConfig(
+      makeDeps({ jobConfigStore }),
+      'send-email',
+      { cronPattern: '0 9 * * *', concurrency: null, timeout: 30000 },
+      'actor@x.com'
+    )
+
+    expect(set).toHaveBeenCalledWith(
+      'send-email',
+      { cronPattern: '0 9 * * *', concurrency: undefined, timeout: 30000 },
+      'actor@x.com'
+    )
+  })
 })
 
 describe('handleToggleJobConfig', () => {
@@ -80,6 +128,31 @@ describe('handleToggleJobConfig', () => {
     expect(toggleEnabled).toHaveBeenCalledWith('send-email', false, 'actor@x.com')
     expect(result.enabled).toBe(false)
   })
+
+  it('throws 404 for an unknown job', async () => {
+    const toggleEnabled = vi.fn()
+    await expect(
+      handleToggleJobConfig(
+        makeDeps({ jobConfigStore: makeJobConfigStore({ toggleEnabled }) }),
+        'ghost',
+        true,
+        'actor@x.com'
+      )
+    ).rejects.toMatchObject({ status: 404 })
+    expect(toggleEnabled).not.toHaveBeenCalled()
+  })
+
+  it.each([undefined, 'true', 1, null])('throws 400 when enabled is %j', async enabled => {
+    const toggleEnabled = vi.fn()
+    const jobConfigStore = makeJobConfigStore({
+      toggleEnabled,
+      get: vi.fn().mockResolvedValue(baseConfig),
+    })
+    await expect(
+      handleToggleJobConfig(makeDeps({ jobConfigStore }), 'send-email', enabled as never, 'a@x.com')
+    ).rejects.toMatchObject({ status: 400 })
+    expect(toggleEnabled).not.toHaveBeenCalled()
+  })
 })
 
 describe('handleToggleModuleJobConfigs', () => {
@@ -94,6 +167,27 @@ describe('handleToggleModuleJobConfigs', () => {
       'actor@x.com'
     )
     expect(result).toEqual({ updated: 2 })
+  })
+
+  it('throws 400 when enabled is not a boolean', async () => {
+    const toggleModuleJobConfigs = vi.fn()
+    await expect(
+      handleToggleModuleJobConfigs(
+        makeDeps({ jobConfigStore: makeJobConfigStore({ toggleModuleJobConfigs }) }),
+        'notifications',
+        undefined as never,
+        'actor@x.com'
+      )
+    ).rejects.toMatchObject({ status: 400 })
+    expect(toggleModuleJobConfigs).not.toHaveBeenCalled()
+  })
+})
+
+describe('handleGetJobConfigHistory limit', () => {
+  it.each([0, -1, Number.NaN, 501])('throws 400 for limit %s', async limit => {
+    await expect(
+      handleGetJobConfigHistory(makeDeps(), 'send-email', limit)
+    ).rejects.toMatchObject({ status: 400 })
   })
 })
 

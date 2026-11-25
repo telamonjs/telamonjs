@@ -109,6 +109,39 @@ describe('QueueHttpModule e2e (Nest DI/guards/params binding)', () => {
     )
   })
 
+  it.each([
+    '/queue/jobs?queueName=send-email&limit=abc',
+    '/queue/jobs?queueName=send-email&limit=10abc',
+    '/queue/jobs?queueName=send-email&limit=0',
+    '/queue/jobs?queueName=send-email&state=bogus',
+    '/queue/jobs/all?offset=-5',
+    '/queue/history?queueName=send-email&limit=1e9',
+    '/queue/history/all?statuses=bogus',
+    '/queue/config/send-email/history?limit=abc',
+  ])('answers 400 (not 500) for bad list input: %s', async url => {
+    await request(app.getHttpServer()).get(url).set('x-test-guard', 'allow').expect(400)
+  })
+
+  it('answers 400 for a toggle without a boolean enabled', async () => {
+    await request(app.getHttpServer())
+      .post('/queue/config/send-email/toggle')
+      .set('x-test-guard', 'allow')
+      .expect(400)
+    await request(app.getHttpServer())
+      .post('/queue/config/modules/notifications/toggle')
+      .set('x-test-guard', 'allow')
+      .send({ enabled: 'true' })
+      .expect(400)
+  })
+
+  it('answers 404 for a PATCH on an unknown job config', async () => {
+    await request(app.getHttpServer())
+      .patch('/queue/config/ghost')
+      .set('x-test-guard', 'allow')
+      .send({ priority: 3 })
+      .expect(404)
+  })
+
   it('streams SSE headers and registers a client with the injected eventBroadcaster', async () => {
     const { port } = app.getHttpServer().address() as AddressInfo
 

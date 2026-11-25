@@ -75,6 +75,72 @@ describe('handleGetJobs', () => {
 
     expect(getRanges).not.toHaveBeenCalled()
   })
+
+  it('logs a failed orphan prune at warn instead of swallowing it', async () => {
+    const logger = { warn: vi.fn() }
+    const queue = makeQueue({
+      getJobs: vi.fn().mockResolvedValue([]),
+      getFailedCount: vi.fn().mockRejectedValue(new Error('redis down')),
+    })
+    const queues = makeQueueSource({ q1: queue })
+
+    await handleGetJobs(makeDeps({ queues, logger: logger as never }), {
+      queueName: 'q1',
+      state: 'failed',
+    })
+
+    await vi.waitFor(() =>
+      expect(logger.warn).toHaveBeenCalledWith(
+        expect.stringContaining('q1:failed'),
+        { error: 'redis down' }
+      )
+    )
+  })
+})
+
+describe('list query validation', () => {
+  const queues = () => makeQueueSource({ q1: makeQueue() })
+
+  it.each([
+    ['limit=0', { limit: 0 }],
+    ['a negative limit', { limit: -5 }],
+    ['a NaN limit', { limit: Number.NaN }],
+    ['a fractional limit', { limit: 1.5 }],
+    ['a limit above the cap', { limit: 501 }],
+  ])('handleGetJobs rejects %s with 400', async (_label, extra) => {
+    await expect(
+      handleGetJobs(makeDeps({ queues: queues() }), { queueName: 'q1', ...extra })
+    ).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('handleGetJobs rejects an unknown state with 400 instead of a TypeError', async () => {
+    await expect(
+      handleGetJobs(makeDeps({ queues: queues() }), {
+        queueName: 'q1',
+        state: 'bogus' as never,
+      })
+    ).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('handleGetJobs accepts the cap itself', async () => {
+    const queue = makeQueue()
+    await handleGetJobs(makeDeps({ queues: makeQueueSource({ q1: queue }) }), {
+      queueName: 'q1',
+      limit: 500,
+    })
+    expect(queue.getJobs).toHaveBeenCalledWith(['waiting'], 0, 499)
+  })
+
+  it.each([
+    ['a negative offset', { offset: -1 }],
+    ['a NaN offset', { offset: Number.NaN }],
+    ['limit=0', { limit: 0 }],
+    ['an unknown status', { status: 'bogus' as never }],
+  ])('handleGetJobsAll rejects %s with 400', async (_label, extra) => {
+    await expect(
+      handleGetJobsAll(makeDeps({ queues: queues() }), extra)
+    ).rejects.toMatchObject({ status: 400 })
+  })
 })
 
 describe('handleGetJobsAll', () => {

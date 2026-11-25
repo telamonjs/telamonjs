@@ -3,11 +3,12 @@ import type { ILogger } from '@telamonjs/logger'
 import { NoOpLogger } from '@telamonjs/logger'
 
 /**
- * Check Redis health
+ * Check Redis health. On failure, `error` carries the ping error message.
  */
 export async function checkRedisHealth(redis: Redis): Promise<{
   connected: boolean
   latency?: number
+  error?: string
 }> {
   try {
     const start = Date.now()
@@ -18,9 +19,10 @@ export async function checkRedisHealth(redis: Redis): Promise<{
       connected: true,
       latency,
     }
-  } catch {
+  } catch (error) {
     return {
       connected: false,
+      error: error instanceof Error ? error.message : String(error),
     }
   }
 }

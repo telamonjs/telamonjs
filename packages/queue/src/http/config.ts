@@ -1,4 +1,6 @@
-import { parseUpdatedByUser } from './helpers.js'
+import { z } from 'zod'
+import { isValidCronPattern } from '../core/scheduling.js'
+import { parseListQuery, parseUpdatedByUser } from './helpers.js'
 import type { JobConfig } from '../job-config/types.js'
 import {
   QueueHttpError,
@@ -25,6 +27,44 @@ export async function handleGetJobConfig(
   return { ...config, updatedByUser: parseUpdatedByUser(config.updatedBy) }
 }
 
+/** `null` clears a field; unknown keys are stripped. Bounds match `JobOptionsSchema`. */
+const positiveInt = z.number().int().positive()
+const jobConfigUpdateSchema = z.object({
+  description: z.string().nullable().optional(),
+  cronPattern: z
+    .string()
+    .refine(isValidCronPattern, 'must be a valid cron pattern')
+    .nullable()
+    .optional(),
+  priority: z.number().int().min(1).max(10).optional(),
+  concurrency: positiveInt.nullable().optional(),
+  timeout: positiveInt.nullable().optional(),
+})
+
+function parseUpdateBody(body: unknown): JobConfigUpdateInput {
+  const result = jobConfigUpdateSchema.safeParse(body ?? {})
+  if (!result.success) {
+    const detail = result.error.issues
+      .map(issue => `${issue.path.join('.') || 'body'}: ${issue.message}`)
+      .join('; ')
+    throw new QueueHttpError(`Invalid job config: ${detail}`, 400)
+  }
+  return result.data
+}
+
+function assertEnabledFlag(enabled: unknown): asserts enabled is boolean {
+  if (typeof enabled !== 'boolean') {
+    throw new QueueHttpError('Invalid body: enabled must be a boolean', 400)
+  }
+}
+
+/** 404 instead of letting a write create (and index) a config for a job that doesn't exist. */
+async function assertJobConfigExists(deps: QueueHttpDeps, jobName: string): Promise<void> {
+  if (!(await deps.jobConfigStore.get(jobName))) {
+    throw new QueueHttpError(`Job config not found: ${jobName}`, 404)
+  }
+}
+
 function toPartialConfig(input: JobConfigUpdateInput): Partial<JobConfig> {
   const patch: Partial<JobConfig> = {}
   if (input.description !== undefined) patch.description = input.description ?? undefined
@@ -35,24 +75,28 @@ function toPartialConfig(input: JobConfigUpdateInput): Partial<JobConfig> {
   return patch
 }
 
-/** `PATCH /v1/queue/config/:jobName` */
+/** `PATCH /v1/queue/config/:jobName` — 404 for an unknown job, 400 for an invalid field. */
 export async function handleUpdateJobConfig(
   deps: QueueHttpDeps,
   jobName: string,
   body: JobConfigUpdateInput,
   actor: string
 ): Promise<JobConfigWithUser> {
-  await deps.jobConfigStore.set(jobName, toPartialConfig(body), actor)
+  const input = parseUpdateBody(body)
+  await assertJobConfigExists(deps, jobName)
+  await deps.jobConfigStore.set(jobName, toPartialConfig(input), actor)
   return handleGetJobConfig(deps, jobName)
 }
 
-/** `POST /v1/queue/config/:jobName/toggle` */
+/** `POST /v1/queue/config/:jobName/toggle` — `enabled` must be a boolean; 404 for an unknown job. */
 export async function handleToggleJobConfig(
   deps: QueueHttpDeps,
   jobName: string,
-  enabled: boolean,
+  enabled: unknown,
   actor: string
 ): Promise<JobConfigWithUser> {
+  assertEnabledFlag(enabled)
+  await assertJobConfigExists(deps, jobName)
   await deps.jobConfigStore.toggleEnabled(jobName, enabled, actor)
   return handleGetJobConfig(deps, jobName)
 }
@@ -61,9 +105,10 @@ export async function handleToggleJobConfig(
 export async function handleToggleModuleJobConfigs(
   deps: QueueHttpDeps,
   moduleName: string,
-  enabled: boolean,
+  enabled: unknown,
   actor: string
 ): Promise<{ updated: number }> {
+  assertEnabledFlag(enabled)
   const changed = await deps.jobConfigStore.toggleModuleJobConfigs(moduleName, enabled, actor)
   return { updated: changed.length }
 }
@@ -72,9 +117,12 @@ export async function handleToggleModuleJobConfigs(
 export async function handleGetJobConfigHistory(
   deps: QueueHttpDeps,
   jobName: string,
-  limit = 50
+  limit?: number
 ): Promise<JobHistoryEntry[]> {
-  const entries = await deps.jobConfigStore.getHistory(jobName, limit)
+  const entries = await deps.jobConfigStore.getHistory(
+    jobName,
+    parseListQuery({ limit }, 50).limit
+  )
 
   return entries.map((entry, index) => ({
     id: `${jobName}-${index}`,

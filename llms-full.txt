@@ -22868,6 +22868,14 @@ types):
 - `queueName: '*'` (all queues) is only accepted with `type: 'clean'` — any other
   action targeting `'*'` returns 400.
 - `startDate`/`endDate` are ISO 8601 strings; unparseable dates return 400.
+- `limit` must be an integer from 1 to 500 and `offset` an integer `>= 0`;
+  `state`/`status` must be a known job state (`statuses` on `history/all`:
+  `completed`/`failed`). Anything else returns 400.
+- `PATCH /config/:jobName` and `POST /config/:jobName/toggle` return 404 for a job
+  with no stored config. The PATCH body is validated (`cronPattern` a valid cron
+  pattern, `priority` an integer from 1 to 10, `concurrency`/`timeout` positive
+  integers, `null` clears a field) and the toggles require a boolean `enabled`;
+  invalid input returns 400.
 - History/jobs responses may set `approximate: true` when `total` is a
   post-filter count (active search/date filters).
 - The SSE endpoint requires the `jobs.execute` permission in the reference
@@ -22948,7 +22956,7 @@ ships an embeddable **Bull Board** UI for low-level queue inspection:
 import { startDashboard } from '@telamonjs/queue/dashboard'
 
 // Standalone Express server (default port 3005)
-startDashboard({
+const dashboard = startDashboard({
   port: 3005,
   queueManager,
   auth: {
@@ -22957,7 +22965,13 @@ startDashboard({
     password: process.env.DASHBOARD_PASSWORD!,
   },
 })
+
+// The app owns shutdown: startDashboard installs no signal handlers
+process.on('SIGTERM', () => dashboard.server.close())
 ```
+
+`startDashboard` returns the Express app with the listening HTTP `server`
+attached, and also exposes a `/health` endpoint listing registered queues.
 
 Or mount it into an existing Express app:
 
@@ -22965,15 +22979,22 @@ Or mount it into an existing Express app:
 import { createDashboardRouter } from '@telamonjs/queue/dashboard'
 
 const app = express()
-app.use('/admin/queue', createDashboardRouter({ queueManager }))
+app.use(
+  '/admin/queue',
+  createDashboardRouter({
+    queueManager,
+    auth: { enabled: true, username: 'admin', password: process.env.DASHBOARD_PASSWORD! },
+  })
+)
 ```
 
 Express 4 and 5 are both supported, so the router mounts into a Nest 11 app's
 Express 5 as well.
 
-`startDashboard` also exposes a `/health` endpoint listing registered queues and
-handles SIGTERM shutdown. Basic-auth protection is opt-in via the `auth` config —
-always enable it outside local development.
+Basic-auth protection is opt-in via the `auth` config, and both functions honor
+it — always enable it outside local development. `auth.enabled: true` with a
+missing or empty `username` or `password` throws a `ConfigurationError` at
+startup instead of serving the board unprotected.
 
 ## Related
 

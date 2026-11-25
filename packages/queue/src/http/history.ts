@@ -1,4 +1,11 @@
-import { fetchJobsByState, getAllQueueNames, matchJobSearch } from './helpers.js'
+import {
+  fetchJobsByState,
+  getAllQueueNames,
+  matchJobSearch,
+  MAX_PER_QUEUE_FETCH,
+  parseJobState,
+  parseListQuery,
+} from './helpers.js'
 import {
   QueueHttpError,
   type GetHistoryAllParams,
@@ -10,8 +17,7 @@ import {
   type QueueHttpDeps,
 } from './types.js'
 
-/** ponytail: see jobs.ts MAX_PER_QUEUE_FETCH — same per-queue fetch cap rationale. */
-const MAX_PER_QUEUE_FETCH = 500
+const HISTORY_STATES = ['completed', 'failed'] as const
 
 /** `GET /v1/queue/history?queueName=...&limit=...` — one queue's completed+failed jobs. */
 export async function handleGetHistory(
@@ -22,7 +28,7 @@ export async function handleGetHistory(
   if (!queueName) {
     throw new QueueHttpError('Missing required query parameter: queueName', 400)
   }
-  const limit = params.limit ?? 50
+  const { limit } = parseListQuery(params, 50)
   const queue = deps.queues.getQueue(queueName)
   if (!queue) throw new QueueHttpError(`Unknown queue: ${queueName}`, 404)
 
@@ -58,9 +64,8 @@ export async function handleGetHistoryAll(
 
   const statusList = (params.statuses ?? 'completed,failed')
     .split(',')
-    .map(s => s.trim()) as Array<'completed' | 'failed'>
-  const limit = params.limit ?? 100
-  const offset = params.offset ?? 0
+    .map(s => parseJobState(s.trim(), 'completed', HISTORY_STATES))
+  const { limit, offset } = parseListQuery(params, 100)
   const search = params.search
   const hasSearch = Boolean(search && search.trim())
   const hasDateFilter = Boolean(params.startDate || params.endDate)

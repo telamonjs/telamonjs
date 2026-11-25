@@ -87,14 +87,22 @@ takes the same options as its fourth constructor argument.
 ## Bull Board and metrics
 
 ```ts
-import { startDashboard } from '@telamonjs/queue/dashboard'
+import { createDashboardRouter, startDashboard } from '@telamonjs/queue/dashboard'
 
-startDashboard({
-  port: 3005,
-  queueManager: manager,
-  auth: { enabled: true, username: 'admin', password: process.env.DASHBOARD_PASSWORD! },
-})
+const auth = { enabled: true, username: 'admin', password: process.env.DASHBOARD_PASSWORD! }
+
+// Standalone server: the Express app, with the listening `server` attached
+const dashboard = startDashboard({ port: 3005, queueManager: manager, auth })
+process.on('SIGTERM', () => dashboard.server.close()) // shutdown is yours
+
+// Or mounted into your own Express app — `auth` is enforced the same way
+app.use('/admin/queue', createDashboardRouter({ queueManager: manager, auth }))
 ```
+
+Both functions put HTTP basic auth in front of the board when `auth.enabled`, and
+throw a `ConfigurationError` at startup if `username` or `password` is missing or
+empty. `startDashboard` installs no signal handlers: close `dashboard.server` from
+your own shutdown sequence.
 
 `@telamonjs/queue/monitoring` exposes Prometheus collectors (`prom-client`) and
 `getRedisConnectionMetrics(redis)`, a pure function for a Redis pool panel.

@@ -72,6 +72,36 @@ describe('handlePerformAction', () => {
     expect(result.message).toContain('1/2')
   })
 
+  it('reports and logs the per-job retry failures instead of dropping them', async () => {
+    const ok = makeBullJob({ id: 'j1', retry: vi.fn().mockResolvedValue(undefined) })
+    const bad = makeBullJob({ id: 'j2', retry: vi.fn().mockRejectedValue(new Error('gone')) })
+    const queue = makeQueue({ getJobs: vi.fn().mockResolvedValue([ok, bad]) })
+    const logger = { warn: vi.fn() }
+
+    const result = await handlePerformAction(
+      makeDeps({ queues: makeQueueSource({ q1: queue }), logger: logger as never }),
+      { queueName: 'q1', action: 'retry-all' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.errors).toEqual(['j2: gone'])
+    expect(logger.warn).toHaveBeenCalledWith(
+      expect.stringContaining('q1'),
+      expect.objectContaining({ failed: 1 })
+    )
+  })
+
+  it('omits errors when every retry succeeds', async () => {
+    const queue = makeQueue({ getJobs: vi.fn().mockResolvedValue([makeBullJob({ id: 'j1' })]) })
+
+    const result = await handlePerformAction(
+      makeDeps({ queues: makeQueueSource({ q1: queue }) }),
+      { queueName: 'q1', action: 'retry-all' }
+    )
+
+    expect(result).not.toHaveProperty('errors')
+  })
+
   it('drains only waiting jobs (keeps delayed, which hold cron iterations)', async () => {
     const queue = makeQueue({ drain: vi.fn().mockResolvedValue(undefined), getWaitingCount: vi.fn().mockResolvedValue(3) })
     const queues = makeQueueSource({ q1: queue })

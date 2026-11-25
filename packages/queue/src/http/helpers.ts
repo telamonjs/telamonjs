@@ -18,6 +18,54 @@ export function contractDisplayName(
   return contract?.label || contract?.description || name
 }
 
+/**
+ * ponytail: BullMQ has no cross-queue pagination — `jobs/all`/`history/all`
+ * fetch every queue up to this cap before the in-memory merge/sort/paginate.
+ * Also the largest `limit` any list route accepts. Don't raise without
+ * measuring (it's O(queues × cap) per request).
+ */
+export const MAX_PER_QUEUE_FETCH = 500
+
+const JOB_STATES: readonly JobState[] = ['waiting', 'active', 'delayed', 'completed', 'failed']
+
+/**
+ * The one gate for list-route paging: `limit` an integer in
+ * `[1, MAX_PER_QUEUE_FETCH]`, `offset` an integer `>= 0`. Absent values take
+ * the defaults; anything else (0, negatives, NaN from a bad query string,
+ * fractions) is a 400 — `limit=0` would otherwise become `getJobs(.., 0, -1)`,
+ * the whole set.
+ */
+export function parseListQuery(
+  raw: { limit?: unknown; offset?: unknown },
+  defaultLimit: number
+): { limit: number; offset: number } {
+  const limit = raw.limit ?? defaultLimit
+  const offset = raw.offset ?? 0
+  if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1 || limit > MAX_PER_QUEUE_FETCH) {
+    throw new QueueHttpError(
+      `Invalid limit: must be an integer between 1 and ${MAX_PER_QUEUE_FETCH}`,
+      400
+    )
+  }
+  if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) {
+    throw new QueueHttpError('Invalid offset: must be an integer >= 0', 400)
+  }
+  return { limit, offset }
+}
+
+/** A job state from the request, restricted to `allowed`; 400 otherwise. */
+export function parseJobState<S extends JobState>(
+  raw: unknown,
+  fallback: S,
+  allowed: readonly S[] = JOB_STATES as readonly S[]
+): S {
+  if (raw === undefined) return fallback
+  if (!allowed.includes(raw as S)) {
+    throw new QueueHttpError(`Invalid state: ${String(raw)} (expected ${allowed.join(', ')})`, 400)
+  }
+  return raw as S
+}
+
 export function getQueueOrThrow(deps: QueueHttpDeps, queueName: string): BullQueue {
   const queue = deps.queues.getQueue(queueName)
   if (!queue) {
@@ -77,10 +125,7 @@ export function toJobInfo(
  * the UI ends up with "44 failed" and an empty list. A short page is the only
  * visible symptom, so that's when we pay for the id diff.
  *
- * ponytail: BullMQ has no cross-queue pagination — every caller of this
- * (jobs/all, history/all) fetches a per-queue window capped at
- * `MAX_PER_QUEUE_FETCH` and merges/sorts/paginates in memory. Don't raise
- * the cap without measuring; it's O(queues × cap) per request.
+ * Callers validate `start`/`end` through `parseListQuery` first.
  */
 export async function fetchJobsByState(
   deps: QueueHttpDeps,
@@ -94,7 +139,11 @@ export async function fetchJobsByState(
   const validJobs = rawJobs.filter(isValidJob)
 
   if (validJobs.length < end - start + 1 && ZSET_STATES.has(state)) {
-    pruneOrphans(deps, queue, queueName, state, start, end, validJobs).catch(() => {})
+    pruneOrphans(deps, queue, queueName, state, start, end, validJobs).catch(err => {
+      deps.logger?.warn(`${queueName}:${state} orphan prune failed`, {
+        error: err instanceof Error ? err.message : String(err),
+      })
+    })
   }
 
   return validJobs.map(job => toJobInfo(job, queueName, state))
