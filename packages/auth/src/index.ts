@@ -34,4 +34,6 @@ export {
   type SessionTimes,
 } from './session'
 
+export { generateApiKey, hashApiKey } from './api-key'
+
 export type { RoleInfo, AuthUser, MfJwtPayload, JwtPayload } from './types'

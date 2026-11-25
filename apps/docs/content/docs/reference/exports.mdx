@@ -103,15 +103,15 @@ File `./tailwind-preset.js`, no named exports.
 
 ### `@telamonjs/auth`
 
-**Runtime:** `DEFAULT_IMPERSONATION_MAX_AGE` · `DEFAULT_MAX_AGE` · `DEFAULT_SALT` · `createImpersonationToken` · `decodeSessionToken` · `encodeSessionToken` · `payloadToAuthUser` · `resolveTokenConfig` · `sessionState` · `stampSessionTimes`
+**Runtime:** `DEFAULT_IMPERSONATION_MAX_AGE` · `DEFAULT_MAX_AGE` · `DEFAULT_SALT` · `createImpersonationToken` · `decodeSessionToken` · `encodeSessionToken` · `generateApiKey` · `hashApiKey` · `payloadToAuthUser` · `resolveTokenConfig` · `sessionState` · `stampSessionTimes`
 
 **Types:** `AuthUser` · `CreateImpersonationTokenInput` · `ImpersonationParty` · `JwtPayload` · `MfJwtPayload` · `RoleInfo` · `SessionMarks` · `SessionState` · `SessionTimes` · `TokenConfig`
 
 ### `@telamonjs/auth/nest`
 
-**Runtime:** `IS_PUBLIC_KEY` · `JwtAuthGuardBase` · `Public` · `createJwtAuthGuard`
+**Runtime:** `ALLOW_SERVICE_TOKEN_KEY` · `AllowServiceToken` · `IS_PUBLIC_KEY` · `JwtAuthGuardBase` · `Public` · `createApiKeyGuard` · `createJwtAuthGuard` · `staticApiKey`
 
-**Types:** `AuthUser` · `JwtAuthGuardClass` · `JwtAuthGuardOptions` · `JwtPayload` · `MfJwtPayload` · `RequestLike` · `RoleInfo`
+**Types:** `ApiKeyGuardOptions` · `ApiKeyOptions` · `ApiKeyVerifier` · `AuthUser` · `JwtAuthGuardClass` · `JwtAuthGuardOptions` · `JwtPayload` · `MfJwtPayload` · `RequestLike` · `RoleInfo` · `ServicePrincipal`
 
 ### `@telamonjs/auth/next`
 

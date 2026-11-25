@@ -8,6 +8,8 @@ import {
 import { Injectable, Logger } from '@nestjs/common'
 import type { Reflector } from '@nestjs/core'
 import { createJwtAuthGuard } from './jwt-auth.guard'
+import { staticApiKey } from './api-key.guard'
+import { ALLOW_SERVICE_TOKEN_KEY } from './allow-service-token.decorator'
 import { createJwtAuthGuard as createFromBarrel, type RequestLike } from './index'
 import { encodeSessionToken, payloadToAuthUser } from '../jwt'
 import { createImpersonationToken } from '../impersonation'
@@ -863,5 +865,90 @@ describe('createJwtAuthGuard — validateUser', () => {
       await g.canActivate(ctx(first()))
       expect(spy).toHaveBeenCalledTimes(1002)
     })
+  })
+})
+
+describe('createJwtAuthGuard — apiKey option (@AllowServiceToken)', () => {
+  const KEY = 'k-0123456789abcdef'
+  const apiKey = { verify: staticApiKey(KEY) }
+
+  /** Reflector that answers per metadata key, like the real one. */
+  function keyedGuard(
+    options: Parameters<typeof createJwtAuthGuard>[0],
+    metadata: Record<string, boolean>
+  ) {
+    const Guard = createJwtAuthGuard(options)
+    const reflector = {
+      getAllAndOverride: (key: string) => metadata[key],
+    } as unknown as Reflector
+    return new Guard(reflector)
+  }
+  const marked = { [ALLOW_SERVICE_TOKEN_KEY]: true }
+
+  it('marked route + valid key → passes, attaches servicePrincipal, no request.user', async () => {
+    const request: FakeRequest & { servicePrincipal?: unknown } = {
+      headers: { 'x-api-key': KEY },
+    }
+    const g = keyedGuard({ secret: SECRET, apiKey }, marked)
+    expect(await g.canActivate(ctx(request))).toBe(true)
+    expect(request.servicePrincipal).toEqual({ name: 'service' })
+    expect(request.user).toBeUndefined()
+  })
+
+  it('marked route + valid session (no key) → the JWT flow still authenticates', async () => {
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: FakeRequest = {
+      headers: { authorization: `Bearer ${token}` },
+    }
+    const g = keyedGuard({ secret: SECRET, apiKey }, marked)
+    expect(await g.canActivate(ctx(request))).toBe(true)
+    expect(request.user?.id).toBe('u1')
+  })
+
+  it('bearer: true + session JWE as Bearer → the key misses, the session authenticates', async () => {
+    const token = await encodeSessionToken(payload, { secret: SECRET })
+    const request: FakeRequest = {
+      headers: { authorization: `Bearer ${token}` },
+    }
+    const g = keyedGuard(
+      { secret: SECRET, apiKey: { ...apiKey, bearer: true } },
+      marked
+    )
+    expect(await g.canActivate(ctx(request))).toBe(true)
+    expect(request.user?.id).toBe('u1')
+  })
+
+  it('marked route + wrong key and no session → 401', async () => {
+    const g = keyedGuard({ secret: SECRET, apiKey }, marked)
+    await expect(
+      g.canActivate(ctx({ headers: { 'x-api-key': 'wrong' } }))
+    ).rejects.toThrow(UnauthorizedException)
+  })
+
+  it('unmarked route ignores a valid key (opt-in per route)', async () => {
+    const verify = vi.fn(staticApiKey(KEY))
+    const g = keyedGuard({ secret: SECRET, apiKey: { verify } }, {})
+    await expect(
+      g.canActivate(ctx({ headers: { 'x-api-key': KEY } }))
+    ).rejects.toThrow(UnauthorizedException)
+    expect(verify).not.toHaveBeenCalled()
+  })
+
+  it('marked route without the apiKey option → session only', async () => {
+    const g = keyedGuard({ secret: SECRET }, marked)
+    await expect(
+      g.canActivate(ctx({ headers: { 'x-api-key': KEY } }))
+    ).rejects.toThrow(UnauthorizedException)
+  })
+
+  it('a thrown verifier error propagates (5xx), it does not fall back to the session', async () => {
+    const outage = new Error('db down')
+    const g = keyedGuard(
+      { secret: SECRET, apiKey: { verify: () => Promise.reject(outage) } },
+      marked
+    )
+    await expect(
+      g.canActivate(ctx({ headers: { 'x-api-key': KEY } }))
+    ).rejects.toBe(outage)
   })
 })

@@ -14,6 +14,8 @@ import {
 } from '../jwt'
 import type { AuthUser, MfJwtPayload } from '../types'
 import { IS_PUBLIC_KEY } from './public.decorator'
+import { ALLOW_SERVICE_TOKEN_KEY } from './allow-service-token.decorator'
+import { verifyApiKey, type ApiKeyOptions } from './api-key.guard'
 
 /** Minimal request shape (Express/Fastify) — avoids depending on @types/express */
 export interface RequestLike {
@@ -21,6 +23,8 @@ export interface RequestLike {
   query?: Record<string, unknown>
   cookies?: Record<string, string | undefined>
   user?: unknown
+  /** Set by an accepted API key (`createApiKeyGuard`, `apiKey` option). */
+  servicePrincipal?: unknown
   path?: string
   url?: string
 }
@@ -95,6 +99,20 @@ export interface JwtAuthGuardOptions extends Omit<TokenConfig, 'secret'> {
    * apply — keep it short (e.g. `30_000`).
    */
   validateUserCacheTtlMs?: number
+  /**
+   * Lets routes marked `@AllowServiceToken()` take an API key instead of a
+   * session. On those routes a valid key passes and attaches the verifier's
+   * principal to `request.servicePrincipal` (no `request.user`); no key or a
+   * rejected one falls through to the session check. Other routes never read
+   * the key. A thrown verifier error propagates.
+   *
+   * ```ts
+   * createJwtAuthGuard({
+   *   apiKey: { verify: staticApiKey(() => process.env.INTERNAL_API_KEY) },
+   * })
+   * ```
+   */
+  apiKey?: ApiKeyOptions<unknown>
 }
 
 /** Most tokens the `validateUser` cache keeps; past it, the oldest goes first. */
@@ -230,6 +248,21 @@ export function createJwtAuthGuard<TUser = AuthUser>(
       if (isPublic) return true
 
       const request = context.switchToHttp().getRequest<RequestLike>()
+
+      if (
+        options?.apiKey &&
+        this.reflector.getAllAndOverride<boolean>(ALLOW_SERVICE_TOKEN_KEY, [
+          context.getHandler(),
+          context.getClass(),
+        ])
+      ) {
+        const principal = await verifyApiKey(request, options.apiKey)
+        if (principal != null) {
+          request.servicePrincipal = principal
+          return true
+        }
+      }
+
       // Resolved here, per request: a function reads values loaded after import
       const secret =
         typeof options?.secret === 'function'

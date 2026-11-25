@@ -949,6 +949,8 @@ Runtime:
 - `createImpersonationToken`
 - `decodeSessionToken`
 - `encodeSessionToken`
+- `generateApiKey`
+- `hashApiKey`
 - `payloadToAuthUser`
 - `resolveTokenConfig`
 - `sessionState`
@@ -971,13 +973,20 @@ Types:
 
 Runtime:
 
+- `ALLOW_SERVICE_TOKEN_KEY`
+- `AllowServiceToken`
 - `IS_PUBLIC_KEY`
 - `JwtAuthGuardBase`
 - `Public`
+- `createApiKeyGuard`
 - `createJwtAuthGuard`
+- `staticApiKey`
 
 Types:
 
+- `ApiKeyGuardOptions` (type)
+- `ApiKeyOptions` (type)
+- `ApiKeyVerifier` (type)
 - `AuthUser` (type)
 - `JwtAuthGuardClass` (type)
 - `JwtAuthGuardOptions` (type)
@@ -985,6 +994,7 @@ Types:
 - `MfJwtPayload` (type)
 - `RequestLike` (type)
 - `RoleInfo` (type)
+- `ServicePrincipal` (type)
 
 ### `@telamonjs/auth/next`
 

@@ -157,12 +157,59 @@ reason going to the Nest `Logger`. A thrown error propagates (a 5xx), like
 `resolveUser`'s, so a database outage doesn't sign users out. The cache is in
 memory, per process, bounded to 1000 tokens, and never keeps a thrown error.
 
+## Service-to-service (API keys)
+
+Jobs, CI and other APIs call with a key instead of a session. A route that
+only takes a key:
+
+```ts
+import { createApiKeyGuard, staticApiKey, Public } from '@telamonjs/auth/nest'
+
+export const InternalKeyGuard = createApiKeyGuard({
+  header: 'x-internal-token', // default 'x-api-key'
+  bearer: true,               // also read Authorization: Bearer <key>
+  verify: staticApiKey(() => process.env.INTERNAL_API_TOKEN, 'jobs'),
+})
+
+@Public() @UseGuards(InternalKeyGuard) @Post('emit') emit() {}
+```
+
+`verify(key, request)` returns a principal or `null` (sync or async, so a
+database lookup fits too). The principal goes to `request.servicePrincipal`;
+`request.user` is left alone. Anything else is a generic 401 (`createException`
+applies); the guard logs nothing, and a thrown verifier error propagates.
+`staticApiKey` compares sha256 digests with `timingSafeEqual` and rejects
+everything while the expected key is unset.
+
+A route that takes a session **or** a key: give the session guard `apiKey` and
+mark the route.
+
+```ts
+import { AllowServiceToken } from '@telamonjs/auth/nest'
+
+export const JwtAuthGuard = createJwtAuthGuard({
+  apiKey: { verify: staticApiKey(() => process.env.INTERNAL_API_KEY) },
+})
+
+@AllowServiceToken() @Post('send') send() {}
+```
+
+A valid key passes; anything else falls through to the session check.
+Unmarked routes never read the key.
+
+Keys stored in the database: `generateApiKey(prefix?)` (32 random bytes,
+base64url) and `await hashApiKey(key)` (hex sha256) from the core entry. Store
+the hash, show the key once, look it up by `hashApiKey(key)` in `verify`.
+Scopes, rotation and audit logging stay in your app.
+
 ## Core (isomorphic)
 
 ```ts
 encodeSessionToken(payload, config?)   // JwtPayload → JWE string
 decodeSessionToken(token, config?)     // → JwtPayload | null (invalid or expired)
 payloadToAuthUser(payload)             // claims → typed AuthUser
+generateApiKey(prefix?)                // random URL-safe API key
+hashApiKey(key)                        // → Promise<hex sha256>, to store
 ```
 
 `TokenConfig` is `{ secret?, salt?, maxAge? }`. Defaults: salt

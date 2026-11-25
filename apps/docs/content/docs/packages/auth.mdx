@@ -16,10 +16,11 @@ The package owns the **token contract**, not the login flow:
 - **Isomorphic core** — the `JwtPayload` / `AuthUser` types plus
   `encodeSessionToken` / `decodeSessionToken` / `payloadToAuthUser`,
   `createImpersonationToken` and the session-freshness helpers
-  `stampSessionTimes` / `sessionState`
+  `stampSessionTimes` / `sessionState`, and `generateApiKey` / `hashApiKey`
 - **`/next` subpath** — `createAuthCallbacks()` with the canonical claim-copy
   for the NextAuth `jwt`/`session` callbacks
-- **`/nest` subpath** — `createJwtAuthGuard()` and the `@Public()` decorator
+- **`/nest` subpath** — `createJwtAuthGuard()`, the `@Public()` decorator and
+  the API-key guard for [service-to-service calls](#service-to-service-api-keys)
 
 ```bash
 pnpm add @telamonjs/auth
@@ -478,6 +479,127 @@ export class JwtAuthGuard extends createJwtAuthGuard({ validateUserCacheTtlMs: 3
   error is never cached. A database change takes up to the TTL to apply, so
   keep it short; with the cache on, the verdict must not depend on the
   request. Without `validateUserCacheTtlMs`, it runs on every request.
+
+---
+
+## Service-to-service (API keys)
+
+Jobs, CI pipelines, other APIs and external integrations call the API with a
+key instead of a session. The `/nest` subpath checks the key; the core
+generates and hashes it.
+
+### A route that only takes a key
+
+`createApiKeyGuard(options)` builds a guard class. `verify(key, request)`
+returns the principal the key belongs to, or `null` to reject; sync or async,
+so a shared env secret and a database lookup both fit:
+
+```ts title="src/common/guards/internal-key.guard.ts"
+import { createApiKeyGuard, staticApiKey } from '@telamonjs/auth/nest'
+
+export const InternalKeyGuard = createApiKeyGuard({
+  header: 'x-internal-token', // default 'x-api-key'
+  bearer: true,               // also read Authorization: Bearer <key>
+  verify: staticApiKey(() => process.env.INTERNAL_API_TOKEN, 'jobs'),
+})
+```
+
+```ts
+@Public()                    // skip the global session guard...
+@UseGuards(InternalKeyGuard) // ...the key guard protects the route
+@Post('emit')
+emit(@Req() req: { servicePrincipal: ServicePrincipal }) {}
+```
+
+- The key is read from `header` (any case; `false` reads none), then from
+  `Authorization: Bearer` when `bearer: true`. A repeated header is not a key.
+- A valid key attaches the principal to `request.servicePrincipal`;
+  `request.user` is left untouched, so code that expects a user never mistakes
+  a service for one.
+- Anything else is a 401 'Invalid or missing API key', built by
+  `createException` when you pass it (same option as `createJwtAuthGuard`).
+  The guard logs nothing, so no key reaches the logs.
+- A thrown verifier error propagates as-is: a database outage is not an
+  invalid key. To send a specific 401/403 body (e.g. a suspended client),
+  throw your own exception from `verify`.
+- The guard does not read `@Public()`; that is how it composes with a global
+  session guard.
+
+`staticApiKey(expected, name = 'service')` checks one shared secret: it
+hashes both sides with sha256 and compares them with `timingSafeEqual`, so
+neither the content nor the length leaks through timing, and it resolves to
+`{ name }` (`ServicePrincipal`). An unset or empty expected key rejects every
+request, never "open when unconfigured". Pass a function: the guard is built
+at import, before your env loads, and the function is called per request.
+
+### A route that takes a session or a key
+
+Give the session guard an `apiKey` option and mark the route
+`@AllowServiceToken()`:
+
+```ts title="src/common/guards/jwt-auth.guard.ts"
+import { createJwtAuthGuard, staticApiKey } from '@telamonjs/auth/nest'
+
+export const JwtAuthGuard = createJwtAuthGuard({
+  apiKey: { verify: staticApiKey(() => process.env.INTERNAL_API_KEY) },
+})
+```
+
+```ts
+import { AllowServiceToken } from '@telamonjs/auth/nest'
+
+@AllowServiceToken() // a valid key passes; otherwise the normal session check
+@Post('send')
+send() {}
+```
+
+On a marked route, a valid key passes and sets `request.servicePrincipal`; no
+key or a rejected one falls through to the session check, so the route is
+never open (unlike `@Public()`). Unmarked routes never read the key. With
+`bearer: true`, a session JWE sent as Bearer simply misses the key check and
+authenticates as a session.
+
+The option lives on the session guard rather than in a second guard because a
+global guard is the one that has to let the key through: a second guard after
+it would never run for a request without a session.
+
+A service request has no `request.user`, so a `PermissionsGuard` after the
+session guard answers 401 on a route with `@Permissions`. When a route takes
+both, decide in your own guard what a service may do (e.g. skip the
+permission check when `request.servicePrincipal` is set).
+
+### Keys stored in the database
+
+For many keys (one per client integration), store only a hash:
+
+```ts
+import { generateApiKey, hashApiKey } from '@telamonjs/auth'
+
+const key = generateApiKey('svc_')  // 32 random bytes, base64url, after the prefix
+await prisma.integration.create({
+  data: { keyHash: await hashApiKey(key), keyStart: key.slice(0, 12) },
+})
+// show `key` once; it cannot be recovered
+```
+
+```ts
+export const IntegrationKeyGuard = createApiKeyGuard({
+  verify: async key => {
+    const row = await prisma.integration.findUnique({
+      where: { keyHash: await hashApiKey(key) },
+    })
+    return row?.active ? { clientId: row.clientId } : null
+  },
+})
+```
+
+`hashApiKey` is the hex sha256 of the key, the same digest as
+`createHash('sha256').update(key).digest('hex')`, so hashes stored that way
+keep working. A random 32-byte key needs no salt or slow hash. Both helpers use
+Web Crypto, so the core entry stays isomorphic.
+
+Scopes, rotation (several valid keys at once), rate limits and audit logging
+stay in your app: put them in `verify` or in the principal it returns.
 
 ---
 
