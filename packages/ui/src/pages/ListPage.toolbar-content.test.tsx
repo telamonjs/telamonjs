@@ -144,7 +144,8 @@ describe('ListPage - toolbarContent receives the list query', () => {
       expect(screen.getByTestId('export')).toHaveTextContent('none')
       const first: ListQueryState = seen.mock.calls.at(-1)?.[0]
       expect(first.search).toBe('')
-      expect(first.params.sortBy).toEqual(first.sorting)
+      // params as queryFn gets them: the first sort column, as a string
+      expect(first.params).toMatchObject({ sortBy: 'name', sortOrder: 'desc' })
 
       await user.click(screen.getByTestId('filter-button-ACTIVE'))
 

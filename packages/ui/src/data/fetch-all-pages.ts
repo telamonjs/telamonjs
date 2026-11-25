@@ -1,8 +1,13 @@
-import type { PaginatedResponse, PaginationParams } from '../types/pagination'
+import {
+  toListQueryParams,
+  type ListQueryParams,
+  type PaginatedResponse,
+  type PaginationParams,
+} from '../types/pagination'
 
 export interface FetchAllPagesOptions<T> {
   /** The list's own `query.queryFn` */
-  queryFn: (params: PaginationParams) => Promise<PaginatedResponse<T>>
+  queryFn: (params: ListQueryParams) => Promise<PaginatedResponse<T>>
   /** The list's current query (search, filters, sort); `page`/`pageSize` are replaced */
   params: PaginationParams
   /** Rows per request */
@@ -39,12 +44,7 @@ export async function fetchAllPages<T>({
   onProgress,
 }: FetchAllPagesOptions<T>): Promise<{ rows: T[]; total: number }> {
   // Same serialization as the list's own queries (useCrudQuery/useInfiniteListQuery)
-  const sort = Array.isArray(params.sortBy) ? params.sortBy[0] : undefined
-  const query: PaginationParams = {
-    ...params,
-    sortBy: Array.isArray(params.sortBy) ? sort?.field : params.sortBy,
-    sortOrder: Array.isArray(params.sortBy) ? sort?.order : params.sortOrder,
-  }
+  const query = toListQueryParams(params)
 
   const rows: T[] = []
   const seen = new Set<string>()

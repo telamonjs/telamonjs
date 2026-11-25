@@ -32,6 +32,7 @@ import { ListPageDialogs } from './list-page/ListPageDialogs'
 import { useListPageExport } from './list-page/useListPageExport'
 import { applyCrudPermissions } from './list-page/apply-crud-permissions'
 import { toSortParam } from '../data/datatable/sort-field'
+import { toListQueryParams } from '../types/pagination'
 
 const logger = withComponent('ListPage')
 
@@ -324,7 +325,12 @@ export function ListPage<TData>({
   // `toolbarContent` as a function gets the list's current query (export
   // buttons that must fetch exactly what the list shows)
   const listQuery = useMemo<ListQueryState>(
-    () => ({ search, filters: allFilters, sorting, params: paginationParams }),
+    () => ({
+      search,
+      filters: allFilters,
+      sorting,
+      params: toListQueryParams(paginationParams),
+    }),
     [search, allFilters, sorting, paginationParams]
   )
   const resolvedToolbarContent =

@@ -5,10 +5,15 @@
  */
 import { describe, expect, it } from 'vitest'
 import type { ColumnDef } from '@tanstack/react-table'
-import type { CrudConfig, MutationsConfig } from './crud'
+import type {
+  CrudConfig,
+  CrudConfigWithAnyForm,
+  ListQueryState,
+  MutationsConfig,
+} from './crud'
 import type { DialogHeaderConfig } from './dialog-header'
 import type { FormField } from './forms/admin-form'
-import type { PaginatedResponse } from './pagination'
+import type { ListQueryParams, PaginatedResponse, SortField } from './pagination'
 import { asQueryFn } from './pagination'
 
 // What an API returns: nullable columns, relations, a status enum
@@ -48,6 +53,19 @@ const productsApi = {
     category: null,
   }),
 }
+// What many apps' create/update actions resolve: an envelope whose `data` is
+// not the entity (an id, or nothing in particular)
+interface ActionResponse<D = unknown> {
+  success: boolean
+  message: string
+  data?: D
+}
+const created = async (_input: ProductFormData): Promise<ActionResponse<{ id: string }>> => ({
+  success: true,
+  message: '',
+  data: { id: '1' },
+})
+const saved = async (_input: ProductFormData): Promise<ActionResponse> => ({ success: true, message: '' })
 const base: Omit<CrudConfig<Product, ProductFormData>, 'mutations'> = {
   module: { name: 'products', title: 'Products', description: '', route: '/admin/products' },
   list: { title: 'Products', description: '', columns: [] },
@@ -121,6 +139,95 @@ describe('CrudConfig types', () => {
     expect(field.listFields).toHaveLength(2)
   })
 
+  it('query.queryFn takes the client list function directly', () => {
+    const config: CrudConfig<Product, ProductFormData> = {
+      ...base,
+      query: { queryKey: ['products'], queryFn: productsApi.list },
+      mutations: {},
+    }
+    // a client that takes any record of params
+    const loose = async (_p: Record<string, unknown>) => page
+    const looseConfig: CrudConfig<Product, ProductFormData> = {
+      ...base,
+      query: { queryKey: ['products'], queryFn: loose },
+      mutations: {},
+    }
+    // the params as ListPage passes them: one sort column, a string
+    const inline: CrudConfig<Product, ProductFormData> = {
+      ...base,
+      query: {
+        queryKey: ['products'],
+        queryFn: async p => {
+          const sortBy: string | undefined = p.sortBy
+          // @ts-expect-error sortBy is a string here, never a SortField[]
+          p.sortBy?.map(s => s)
+          return { ...page, page: p.page, pageSize: p.pageSize, data: sortBy ? [] : [] }
+        },
+      },
+      mutations: {},
+    }
+    const multiSort: CrudConfig<Product, ProductFormData> = {
+      ...base,
+      // @ts-expect-error a client that wants a SortField[] would not get one
+      query: { queryKey: ['products'], queryFn: async (_p: { sortBy?: SortField[] }) => page },
+      mutations: {},
+    }
+    // list.onExport hands the same params the queryFn gets
+    const onExport = ({ params }: ListQueryState) => productsApi.list({ ...params, page: 1 })
+    const params: ListQueryParams = { page: 1, pageSize: 10, sortBy: 'name', sortOrder: 'asc' }
+    expect([config, looseConfig, inline, multiSort, onExport, params]).toHaveLength(6)
+  })
+
+  it('create/update may resolve a data that is not the entity', () => {
+    const idOnly: CrudConfig<Product, ProductFormData, { id: string }> = {
+      ...base,
+      mutations: {
+        create: {
+          mutationFn: created,
+          invalidates: [['products']],
+          onSuccess: result => {
+            const id: string | undefined = result.data?.id
+            expect(id).toBeDefined()
+          },
+        },
+        update: { mutationFn: ({ data }) => created(data as ProductFormData), invalidates: [] },
+      },
+    }
+    const anything: CrudConfig<Product, ProductFormData, unknown> = {
+      ...base,
+      mutations: { create: { mutationFn: saved, invalidates: [] } },
+    }
+    // ListPage takes them as any other config
+    const forList: CrudConfigWithAnyForm<Product>[] = [idOnly, anything]
+    const entityByDefault: CrudConfig<Product, ProductFormData> = {
+      ...base,
+      mutations: {
+        // @ts-expect-error by default `data` is the entity: an id-only result is caught
+        create: { mutationFn: created, invalidates: [] },
+      },
+    }
+    expect([forList, entityByDefault]).toHaveLength(2)
+  })
+
+  it('an app that returns the entity keeps a typed onSuccess', () => {
+    const config: CrudConfig<Product, ProductFormData> = {
+      ...base,
+      mutations: {
+        create: {
+          mutationFn: async () => ({ success: true, data: await productsApi.getById('1') }),
+          invalidates: [],
+          onSuccess: result => {
+            const name: string | null | undefined = result.data?.name
+            // @ts-expect-error data is the entity, not unknown/any
+            void result.data?.missing
+            expect(name).toBeNull()
+          },
+        },
+      },
+    }
+    expect(config.mutations.create).toBeDefined()
+  })
+
   // Pinned: these already compile — a regression here is a breaking change
   it('keeps accepting the shapes that already compiled', () => {
     const plain: ColumnDef<Product>[] = [{ accessorKey: 'name', header: 'Name' }]
@@ -130,7 +237,7 @@ describe('CrudConfig types', () => {
         ...base.list,
         columns: plain,
       },
-      // asQueryFn bridges a client whose params are narrower than PaginationParams
+      // asQueryFn (an unchecked cast) keeps compiling
       query: { queryKey: ['products'], queryFn: asQueryFn<Product>(productsApi.list) },
       // read-only module: no create/update/delete stubs
       mutations: { getForView: productsApi.getById },

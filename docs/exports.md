@@ -510,6 +510,7 @@ Types:
 - `KanbanColumn` (type)
 - `LineChartProps` (type)
 - `ListConfig` (type)
+- `ListQueryParams` (type)
 - `ListQueryState` (type)
 - `LoadingSkeletonProps` (type)
 - `LocaleSwitcherProps` (type)

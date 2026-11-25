@@ -316,8 +316,9 @@ ship silently broken:
 | `helperText`        | `description`                                      |
 | `options` on `relationship`/`multiselect` | `loadField: async () => IOption[]` — `options` does not exist |
 | array return from `queryFn` | `PaginatedResponse<T>` (`page`, `totalPages`, `total`) |
-| `as any` on `queryFn` (client typed `sortBy?: string`) | `queryFn: asQueryFn(api.list)` from `@telamonjs/ui` |
+| `as any` / `asQueryFn` on `queryFn` (client typed `sortBy?: string`) | `queryFn: api.list` — it receives `ListQueryParams`, `sortBy` is a string |
 | raw entity from mutations | `{ success: boolean, data? }` |
+| `as any` on a `mutationFn` whose `data` is `{ id }` | `CrudConfig<T, TFormData, { id: string }>` (or `unknown`) |
 | no `'use client'` in `config.tsx` | required — React Query hooks need it |
 | `className: 'w-full'` on a field | ignored — BaseForm is CSS Grid, use `span` (must match the section's `grid`, default `'2'`) |
 

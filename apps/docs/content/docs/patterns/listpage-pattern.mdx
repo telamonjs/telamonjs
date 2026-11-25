@@ -48,7 +48,7 @@ export const usersApi = {
 }
 ```
 
-Error messages, `asQueryFn` and the server-side helpers are in
+Error messages and the server-side helpers are in
 [Data Layer (React Query)](/docs/patterns/react-query). By default `sortBy` is the column id
 (`customer_name` for `accessorKey: 'customer.name'`); `list.sortParam: 'path'` sends the data path
 instead — see [what `sortBy` carries](/docs/patterns/react-query#what-sortby-carries).
@@ -203,9 +203,9 @@ interface PaginatedResponse<T> {
 }
 ```
 
-`createPaginatedResponse(data, total, page, pageSize)` builds the response when you page a
-local array, and `asQueryFn(fn)` adapts a client function whose signature is narrower than
-`queryFn`'s.
+`queryFn` receives `ListQueryParams`: the same fields with `sortBy` already a single column
+(a string). `createPaginatedResponse(data, total, page, pageSize)` builds the response when you
+page a local array.
 
 Keep the paginated table when the backend cannot return `page`/`totalPages` (cursor
 pagination, for example), when users need "jump to page N", or for short lists.
@@ -425,7 +425,7 @@ const config = useMemo(
     query: {
       ...ordersConfig.query,
       queryKey: [...ordersConfig.query.queryKey, values],
-      queryFn: (params: PaginationParams) =>
+      queryFn: (params: ListQueryParams) =>
         ordersConfig.query.queryFn({ ...params, filters: { ...params.filters, ...values } }),
     },
   }),
@@ -501,7 +501,7 @@ what the list shows:
 | `search` | the search box value, as typed |
 | `filters` | every active filter: toolbar filters (resets dropped), column filters, `urlFilters` |
 | `sorting` | the current sort (`SortField[]`) |
-| `params` | the `PaginationParams` the list passes to `query.queryFn` (debounced search, current page) |
+| `params` | the `ListQueryParams` the list passes to `query.queryFn` (debounced search, current page, `sortBy` as the first sort column) |
 
 `toolbarContent` renders in the list toolbar: infinite scroll (the default) and `embedded`.
 

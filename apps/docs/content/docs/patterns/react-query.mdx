@@ -85,7 +85,7 @@ query: {
 | Key | Purpose |
 | --- | --- |
 | `queryKey` | Base key. `ListPage` appends the current page, search, sort and filters to it |
-| `queryFn` | Receives `PaginationParams` (`page`, `pageSize`, `search?`, `sortBy?`, `sortOrder?`, `filters?`) and resolves `PaginatedResponse<T>` |
+| `queryFn` | Receives `ListQueryParams` (`page`, `pageSize`, `search?`, `sortBy?`, `sortOrder?`, `filters?`) and resolves `PaginatedResponse<T>` |
 | `staleTime` | Milliseconds before a cached page is refetched. Default `5_000` |
 | `refetchInterval` | Polling interval, or `false`. Paginated table only |
 | `options` | Extra `useQuery` options. Paginated table only |
@@ -95,15 +95,17 @@ query: {
   set `list.infiniteScroll: false`, or invalidate the key yourself on an interval.
 </Callout>
 
-`ListPage` always sends `sortBy` as a single column name. If your client's own params type says
-`sortBy?: string` (narrower than `PaginationParams`), wrap it with `asQueryFn` instead of
-casting:
+`ListPage` always sends `sortBy` as a single column name (a string), so `ListQueryParams` is
+`PaginationParams` with `sortBy?: string`. A client whose own params type says
+`sortBy?: string`, `page?: number` or extra optional filter keys is a `queryFn` as is — no wrapper,
+no cast:
 
 ```ts
-import { asQueryFn } from '@telamonjs/ui'
-
-query: { queryKey: ['orders'], queryFn: asQueryFn<Order>(ordersApi.list) },
+query: { queryKey: ['orders'], queryFn: ordersApi.list },
 ```
+
+`asQueryFn` (an unchecked cast) is only left for a client that still does not fit, such as one
+whose result is typed differently from `PaginatedResponse<T>`.
 
 ### What `sortBy` carries
 
@@ -188,11 +190,27 @@ mutations: {
 
 | Key | Receives | Resolves |
 | --- | --- | --- |
-| `create.mutationFn` | the form values | `{ success, message?, data? }` |
-| `update.mutationFn` | `{ id, data }` | `{ success, message?, data? }` |
+| `create.mutationFn` | the form values | `{ success, message?, data? }`: `data` is the entity |
+| `update.mutationFn` | `{ id, data }` | `{ success, message?, data? }`: `data` is the entity |
 | `delete.mutationFn` | `{ id }` | `{ success, message? }` |
 | `getForEdit` | `id` | the record the edit form needs (nested relations included): the form data or the entity itself (`TFormData \| T`) |
 | `getForView` | `id` | the record the view dialog shows |
+
+When your actions answer something other than the entity in `data` (`{ id }`, or nothing in
+particular), say so once in the config's third type argument, and `onSuccess` gets that type:
+
+```ts
+export const ordersConfig: CrudConfig<Order, OrderFormData, { id: string }> = {
+  // ...
+  mutations: {
+    create: { mutationFn: ordersApi.create, invalidates: [['orders']] }, // resolves { success, data?: { id } }
+  },
+}
+```
+
+Use `unknown` when the actions return various shapes. A component or helper that takes any of
+your configs types it as `CrudConfigWithAnyForm<T>` (what `ListPage` takes), not `CrudConfig<T, F>`,
+which expects the entity in `data`.
 
 What the library does around each mutation:
 

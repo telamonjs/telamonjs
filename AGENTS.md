@@ -87,9 +87,11 @@ a type definition, a test. When there is no evidence, ask instead of guessing.
 5. **`config.tsx` must start with `'use client'`** — React Query hooks need it.
 6. **`queryFn` must resolve `PaginatedResponse<T>`** (`page`/`total`/`totalPages`),
    not a bare array: infinite scroll is the default and misbehaves silently.
-   A client whose params type `sortBy?: string` goes through `asQueryFn(api.list)`.
+   It receives `ListQueryParams` (`sortBy` is one column, a string), so a client
+   typed `sortBy?: string` is passed directly: `queryFn: api.list`.
 7. **`mutationFn` must resolve `{ success, data? }`** — adapt inside the
-   mutationFn, not in your REST client.
+   mutationFn, not in your REST client. `data` is the entity unless the config
+   says otherwise: `CrudConfig<T, TFormData, { id: string }>` (or `unknown`).
 8. **The app shell is `AdminShell`** — there is no `AdminLayout`, `CrudLayout`,
    `FormLayout`, `Sidebar` or `LayoutProvider`.
 9. **Menu icons are strings**, resolved through `setIconResolver()`; the icon

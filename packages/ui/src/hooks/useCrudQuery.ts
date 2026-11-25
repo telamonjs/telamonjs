@@ -17,7 +17,7 @@
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
 import type { CrudConfig } from '../types/crud'
-import type { PaginationParams } from '../types/pagination'
+import { toListQueryParams, type PaginationParams } from '../types/pagination'
 import { LIB_QUERY_META } from '../utils/query-meta'
 
 interface UseCrudQueryParams<T, TFormData = T> {
@@ -101,16 +101,8 @@ export function useCrudQuery<T>({
   const queryResult = useQuery({
     meta: LIB_QUERY_META,
     queryKey,
-    queryFn: () => {
-      // Serialize SortField[] to sortBy+sortOrder strings for API clients
-      const sortBy = Array.isArray(params.sortBy)
-        ? params.sortBy[0]?.field
-        : params.sortBy
-      const sortOrder = Array.isArray(params.sortBy)
-        ? params.sortBy[0]?.order
-        : params.sortOrder
-      return query.queryFn({ ...params, sortBy, sortOrder })
-    },
+    // SortField[] → one sortBy/sortOrder pair, what API clients take
+    queryFn: () => query.queryFn(toListQueryParams(params)),
     staleTime: query.staleTime ?? 5_000, // Default 5s
     refetchInterval: query.refetchInterval ?? false,
     enabled,

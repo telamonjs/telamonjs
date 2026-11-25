@@ -66,7 +66,7 @@ import type {
 } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import type { ActionConfig, DataTableActionsConfig } from './actions'
-import type { PaginationParams, PaginatedResponse, SortField } from './pagination'
+import type { ListQueryParams, PaginatedResponse, SortField } from './pagination'
 import type { ExportFormat } from '../data/ExportMenu'
 import type { FormSection } from './forms/admin-form'
 import type { DialogHeaderConfig } from './dialog-header'
@@ -208,10 +208,10 @@ export interface ListQueryState {
   /** Current sort */
   sorting: SortField[]
   /**
-   * The params the list passes to `query.queryFn` (debounced search). `page`/`pageSize` are the
-   * paginated view's; set your own when fetching everything for an export.
+   * The params the list passes to `query.queryFn` (debounced search, one sort column).
+   * `page`/`pageSize` are the paginated view's; set your own when fetching everything for an export.
    */
-  params: PaginationParams
+  params: ListQueryParams
 }
 
 /** Options of `list.exportAll` */
@@ -355,8 +355,11 @@ export interface FormConfig {
 export interface QueryConfig<T> {
   /** Query key for React Query */
   queryKey: QueryKey
-  /** Query function that returns paginated data */
-  queryFn: (params: PaginationParams) => Promise<PaginatedResponse<T>>
+  /**
+   * Fetches one page. Gets what the list sends (`ListQueryParams`: one sort column as
+   * a string), so an API client's list function fits as is: `queryFn: api.list`.
+   */
+  queryFn: (params: ListQueryParams) => Promise<PaginatedResponse<T>>
   /** Stale time in milliseconds (default: 5000) */
   staleTime?: number
   /** Refetch interval in milliseconds (false to disable, default: false) */
@@ -389,16 +392,21 @@ export interface MutationConfig<TInput = any, TOutput = any> {
 }
 
 /**
- * React Query mutations configuration
+ * React Query mutations configuration.
+ *
+ * `TResult` is the `data` that create/update resolve: the entity by default.
+ * An API whose actions answer something else (`{ id }`, nothing in particular)
+ * says so once, `CrudConfig<User, UserFormData, { id: string }>` (or `unknown`),
+ * and `onSuccess` gets that type.
  */
-export interface MutationsConfig<T, TFormData = T> {
+export interface MutationsConfig<T, TFormData = T, TResult = T> {
   /**
    * Create mutation. Optional — omit for a read-only module
    * (no stub required; the create dialog/button simply won't be wired).
    */
   create?: MutationConfig<
     TFormData,
-    { success: boolean; message?: string; data?: T }
+    { success: boolean; message?: string; data?: TResult }
   >
   /**
    * Update mutation. Optional — omit for a read-only (or
@@ -406,7 +414,7 @@ export interface MutationsConfig<T, TFormData = T> {
    */
   update?: MutationConfig<
     { id: string; data: Partial<TFormData> },
-    { success: boolean; message?: string; data?: T }
+    { success: boolean; message?: string; data?: TResult }
   >
   /**
    * Delete mutation. Optional — omit for a module with no
@@ -654,6 +662,7 @@ export interface CrudPermissions {
  *
  * @template T - The entity type (e.g., Parametro, Produto)
  * @template TFormData - The form data type (default: T)
+ * @template TResult - The `data` create/update resolve (default: T); e.g. `{ id: string }`
  *
  * @example
  * React Query (required):
@@ -682,7 +691,7 @@ export interface CrudPermissions {
  * ```
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any -- public entrypoint generic default; consumers write `CrudConfig<User>` and may omit args. Changing the default to `unknown` is a public-API change (requires a breaking-change review).
-export interface CrudConfig<T = any, TFormData = T> {
+export interface CrudConfig<T = any, TFormData = T, TResult = T> {
   /** Module metadata */
   module: ModuleMetadata
 
@@ -706,7 +715,7 @@ export interface CrudConfig<T = any, TFormData = T> {
    * React Query mutations configuration
    * REQUIRED - Replaces Server Actions pattern
    */
-  mutations: MutationsConfig<T, TFormData>
+  mutations: MutationsConfig<T, TFormData, TResult>
 
   /** Actions column configuration (view/edit/delete buttons). Set to false to hide the column entirely. */
   actionsConfig?: DataTableActionsConfig<T> | false
@@ -726,14 +735,15 @@ export interface CrudConfig<T = any, TFormData = T> {
 }
 
 /**
- * CrudConfig with the form-data side erased (existential).
+ * CrudConfig with the form-data and mutation-result sides erased (existential).
  *
  * `TFormData` appears in both covariant (`getForEdit` return) and
- * contravariant (`mutationFn` input) positions, so no concrete type other
- * than `any` accepts every `CrudConfig<T, TFormData>`. This alias exists so
+ * contravariant (`mutationFn` input) positions, and `TResult` in both the
+ * `mutationFn` result and the `onSuccess` input, so no concrete type other
+ * than `any` accepts every `CrudConfig<T, TFormData, TResult>`. This alias exists so
  * components that only consume the entity type (e.g. ListPage) can accept
  * any config without consumers having to thread the form-data generic
  * (`<ListPage<Entity> config={config} />` stays valid).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type CrudConfigWithAnyForm<T> = CrudConfig<T, any>
+export type CrudConfigWithAnyForm<T> = CrudConfig<T, any, any>

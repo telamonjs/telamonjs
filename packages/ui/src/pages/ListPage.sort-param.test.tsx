@@ -141,7 +141,7 @@ describe('ListPage sortParam - export and toolbarContent', () => {
       ])
     )
     const state: ListQueryState = seen.mock.calls.at(-1)?.[0]
-    // fetchAllPages (exportAll) starts from these params
-    expect(state.params.sortBy).toEqual(state.sorting)
+    // fetchAllPages (exportAll) starts from these params: what queryFn gets
+    expect(state.params).toMatchObject({ sortBy: 'customer.name', sortOrder: 'desc' })
   })
 })

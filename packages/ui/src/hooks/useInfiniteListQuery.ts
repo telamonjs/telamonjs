@@ -4,16 +4,17 @@ import {
   type QueryKey,
 } from '@tanstack/react-query'
 import { useCallback, useMemo } from 'react'
-import type {
-  PaginationParams,
-  PaginatedResponse,
-  SortField,
+import {
+  toListQueryParams,
+  type ListQueryParams,
+  type PaginatedResponse,
+  type SortField,
 } from '../types/pagination'
 import { LIB_QUERY_META } from '../utils/query-meta'
 
 interface UseInfiniteListQueryParams<T> {
   queryKey: QueryKey
-  queryFn: (params: PaginationParams) => Promise<PaginatedResponse<T>>
+  queryFn: (params: ListQueryParams) => Promise<PaginatedResponse<T>>
   pageSize: number
   search?: string
   sortBy?: string | SortField[]
@@ -81,21 +82,11 @@ export function useInfiniteListQuery<T>({
   const result = useInfiniteQuery({
     meta: LIB_QUERY_META,
     queryKey: fullQueryKey,
-    queryFn: ({ pageParam }) => {
-      // Serialize SortField[] to sortBy+sortOrder strings for API clients
-      const sortByParam = Array.isArray(sortBy) ? sortBy[0]?.field : sortBy
-      const sortOrderParam = Array.isArray(sortBy)
-        ? sortBy[0]?.order
-        : undefined
-      return queryFn({
-        page: pageParam,
-        pageSize,
-        search,
-        sortBy: sortByParam,
-        sortOrder: sortOrderParam,
-        filters,
-      })
-    },
+    // SortField[] → one sortBy/sortOrder pair, what API clients take
+    queryFn: ({ pageParam }) =>
+      queryFn(
+        toListQueryParams({ page: pageParam, pageSize, search, sortBy, filters })
+      ),
     initialPageParam: 1,
     getNextPageParam: lastPage => {
       if (lastPage.page < lastPage.totalPages) {

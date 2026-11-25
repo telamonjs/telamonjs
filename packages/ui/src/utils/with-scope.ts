@@ -1,6 +1,6 @@
 import type { QueryKey } from '@tanstack/react-query'
 import type { CrudConfig, MutationConfig } from '../types/crud'
-import type { PaginationParams } from '../types/pagination'
+import type { ListQueryParams } from '../types/pagination'
 
 /**
  * Parent context for a child CRUD (e.g. a client's contacts tab).
@@ -137,7 +137,7 @@ export function withScope<C extends CrudConfig<any, any>>(
     query: {
       ...config.query,
       queryKey: [...config.query.queryKey, filters],
-      queryFn: (p: PaginationParams) =>
+      queryFn: (p: ListQueryParams) =>
         config.query.queryFn({
           ...p,
           filters: { ...(p?.filters ?? {}), ...filters },

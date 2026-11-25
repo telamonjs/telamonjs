@@ -10,6 +10,7 @@ export type {
   PaginationParams,
   PaginatedResponse,
   SortField,
+  ListQueryParams,
 } from '../types/pagination'
 export { createPaginatedResponse, asQueryFn } from '../types/pagination'
 
