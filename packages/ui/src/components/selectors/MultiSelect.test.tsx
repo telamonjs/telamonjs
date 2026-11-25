@@ -10,7 +10,7 @@ import { describe, it, expect, vi } from 'vitest'
 import { render, screen, waitFor } from '../../test/test-utils'
 // test-utils shadows RTL's waitFor with a sleep(ms) helper (its callback never
 // runs) — the cascade tests below need the real one.
-import { waitFor as waitForReal } from '@testing-library/react'
+import { waitFor as waitForReal, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { useForm, FieldValues, FormProvider } from 'react-hook-form'
 import { MultiSelect } from './MultiSelect'
@@ -90,6 +90,25 @@ describe('MultiSelect (async search)', () => {
       expect(trigger).toHaveTextContent('0011 - RHS9I23')
     })
     expect(trigger).not.toHaveTextContent('selecionados')
+  })
+
+  it('alinha os rótulos selecionados à esquerda no gatilho', async () => {
+    // regression: the badges sit inside a <button>, inherited the browser's
+    // text-align: center and showed up centered in the field. jsdom has no
+    // layout, so the class that pins the alignment is what we can assert.
+    const user = userEvent.setup()
+    render(<Harness loadOptions={vi.fn(async () => OPTIONS)} />)
+
+    const trigger = screen.getByRole('combobox')
+    await user.click(trigger)
+    await user.click(
+      await screen.findByText('ÔNIBUS OSM0852', {}, { timeout: 3000 })
+    )
+
+    const badge = await waitForReal(() =>
+      within(trigger).getByText('ÔNIBUS OSM0852')
+    )
+    expect(badge.parentElement).toHaveClass('text-left')
   })
 
   it('não refaz a busca de opções ao marcar um item', async () => {
