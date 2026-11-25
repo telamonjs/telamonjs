@@ -75,3 +75,14 @@ export type {
   ImpersonationUserOption,
   ImpersonationConfirmResult,
 } from '../components/impersonation'
+
+// ============================================================================
+// AUTH FORMS
+// ============================================================================
+export { SignInForm, ForgotPasswordForm } from '../components/auth'
+export type {
+  SignInFormProps,
+  SignInFormValues,
+  SignInFormResult,
+  ForgotPasswordFormProps,
+} from '../components/auth'

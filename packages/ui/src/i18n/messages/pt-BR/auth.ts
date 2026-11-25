@@ -1,0 +1,16 @@
+export const auth = {
+  identifierLabel: 'E-mail',
+  passwordLabel: 'Senha',
+  showPassword: 'Mostrar senha',
+  hidePassword: 'Ocultar senha',
+  submit: 'Entrar',
+  submitting: 'Entrando...',
+  forgotPassword: 'Esqueceu a senha?',
+  invalidCredentials: 'Credenciais inválidas. Verifique seus dados e tente novamente.',
+  signInError: 'Não foi possível entrar. Tente novamente.',
+  forgotSubmit: 'Enviar link de redefinição',
+  forgotSending: 'Enviando...',
+  forgotSent: 'Se o e-mail estiver cadastrado, você receberá um link de redefinição em instantes.',
+  forgotError: 'Não foi possível enviar o link. Tente novamente.',
+  backToSignIn: 'Voltar para o login',
+} as const

@@ -1,0 +1,140 @@
+---
+title: SignInForm & ForgotPasswordForm
+description: Credentials sign-in over next-auth and a forgot-password form, localized, validated and safe against open redirects and account probing
+---
+
+The sign-in and forgot-password forms every app used to copy from the CLI template. They render
+the form only: branding, the card and any extra links go around them in your page.
+
+```tsx
+// src/app/(auth)/sign-in/page.tsx — a Server Component is fine
+import { SignInForm } from '@telamonjs/ui'
+
+export default function SignInPage() {
+  return (
+    <div className='mx-auto mt-24 max-w-md rounded-lg border bg-background p-8'>
+      <SignInForm callbackUrl='/admin' forgotPasswordHref='/forgot-password' />
+    </div>
+  )
+}
+```
+
+```tsx
+// src/app/(auth)/forgot-password/page.tsx
+'use client'
+import { ForgotPasswordForm } from '@telamonjs/ui'
+import { authApi } from '@/lib/api/auth-client'
+
+export default function ForgotPasswordPage() {
+  return (
+    <ForgotPasswordForm
+      onSubmit={(email) => authApi.requestPasswordReset(email)}
+      signInHref='/sign-in'
+    />
+  )
+}
+```
+
+Both read their text from the library messages (`telamonjs.auth.*`, `telamonjs.validation.*`),
+so the page must sit under `AppProviders` (the generated root layout already does this).
+
+---
+
+## SignInForm
+
+### Behavior
+
+- **Submit** calls `signIn('credentials', { [identifierName]: identifier, password, redirect: false, callbackUrl })`
+  from `next-auth/react`, then `router.push(url)` and `router.refresh()`. The button stays pending
+  until the page changes.
+- **Destination**: a `?callbackUrl` in the address bar wins when it points to the same origin
+  (relative, or absolute on this host). Anything else (another host, `//host`, `javascript:`) is
+  ignored, then `callbackUrl`, then `'/'`.
+- **Validation** (zod): both fields required; with `identifierType='email'` the format is checked
+  too. Errors render under each input and are linked with `aria-describedby`.
+- **Errors**: a `CredentialsSignin` result shows the localized "invalid credentials"; any other
+  error, or a thrown one, shows a generic failure. `errorMessages` overrides by `code` first, then
+  by `error`, which covers custom `CredentialsSignin` subclasses thrown in `authorize()`:
+
+```tsx
+// src/auth.ts
+class LockedError extends CredentialsSignin {
+  code = 'locked'
+}
+
+// the page
+<SignInForm errorMessages={{ locked: msg('auth.locked') }} />
+```
+
+- **Password toggle**: an icon button that switches the field between hidden and visible, with a
+  localized `aria-label`.
+
+### Username, CPF or another identifier
+
+```tsx
+<SignInForm
+  identifierName='login'
+  identifierType='text'
+  identifierLabel={msg('auth.username')}
+  normalizeIdentifier={(value) => value.replace(/\D/g, '')}
+/>
+```
+
+`normalizeIdentifier` runs on the trimmed value right before sign-in.
+
+### Custom navigation or authentication
+
+`onSuccess` replaces the router navigation. Use it for a full reload or a home that depends on the
+role:
+
+```tsx
+<SignInForm
+  onSuccess={async (url) => {
+    const session = await getSession()
+    window.location.assign(url === '/' ? homeForRole(session?.user.role) : url)
+  }}
+/>
+```
+
+`onSubmit` replaces the `signIn` call. Resolve `{ error, code }` to show an error (mapped as
+above), or anything else to continue to `onSuccess` / navigation.
+
+### Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `identifierName` | `string`, the key sent to the credentials provider | `'email'` |
+| `identifierLabel` | `I18nText` | localized "Email" |
+| `identifierType` | `'email' \| 'text' \| 'tel'` | `'email'` |
+| `identifierPlaceholder` | `I18nText` | — |
+| `normalizeIdentifier` | `(value: string) => string` | — |
+| `callbackUrl` | `string`, used when the URL has no same-origin `?callbackUrl` | `'/'` |
+| `forgotPasswordHref` | `string`, renders the "Forgot your password?" link | no link |
+| `errorMessages` | `Record<string, I18nText>`, by error `code`, then `error` | — |
+| `onSubmit` | `(values: SignInFormValues) => Promise<SignInFormResult>` | next-auth `signIn` |
+| `onSuccess` | `(url: string) => void \| Promise<void>` | `router.push` + `router.refresh` |
+| `className` | `string`, on the `<form>` | — |
+
+`SignInFormValues` is `{ identifier: string; password: string }`. `SignInFormResult` is
+`{ error?: string | null; code?: string | null } | void`, which next-auth's `SignInResponse` fits.
+
+---
+
+## ForgotPasswordForm
+
+- Asks for an email (required, validated), then calls `onSubmit(email)` with the trimmed value.
+  Your app sends the email.
+- On success it replaces the form with a neutral message ("If that email is registered...") in a
+  `role="status"` region. Resolve `onSubmit` whether or not the account exists.
+- A rejection shows a generic localized error and keeps the form. The rejection's message is never
+  shown, so it cannot leak whether an account exists.
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `onSubmit` | `(email: string) => Promise<void>` | — |
+| `signInHref` | `string`, renders "Back to sign in" in both states | no link |
+| `className` | `string` | — |
+
+## Related
+
+- [AdminShell](/docs/components/admin-shell): the shell the user lands in after signing in

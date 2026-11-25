@@ -94,7 +94,6 @@ Open http://localhost:{{appPort}}
 │   │   └── api/                # NextAuth + Route Handlers (api/usuarios)
 │   │
 │   ├── components/
-│   │   ├── auth/               # Sign-in form
 │   │   └── providers/          # App providers + AdminShell wrapper
 │   │
 │   ├── config/menu.ts          # Menu structure

@@ -83,6 +83,7 @@ async `loadField`), `'multiselect'`, `'richtext'` and 31 more; there is no
 | Pages | `ListPage`, `DetailPage`, `CreatePage`, `EditPage` |
 | Dialogs | `CreateDialog`, `EditDialog`, `ViewDialog`, `ViewPortalDialog` (launcher grid, inline per-section editing), `DialogFrame`, `SplitDialogFrame`, `ConfirmActionDialog` (validated inputs incl. dates, free `body`, dialog- or caller-controlled `pending`) |
 | Forms | `AdminForm`, `CreateForm`, `EditForm`, `Stepper`, `FileUpload`, `useUnsavedChangesGuard` |
+| Auth | `SignInForm` (credentials over next-auth, same-origin `?callbackUrl` only), `ForgotPasswordForm` |
 | Field system | 36 field types; `registerFieldRenderer` adds your own |
 | Shell | `AdminShell` (sidebar, breadcrumb, header, Cmd+K palette fed from your menu), `ShellPage`, `AdminTabs`, `ImpersonationBanner` |
 | Data | `DataTable`, `VirtualDataTable`, `InfiniteList`, bulk actions, Excel/CSV/PDF export, `QueryErrorState` (error + pending "Try again" for your own `useQuery`) |

@@ -24,6 +24,8 @@
     "create-page",
     "edit-page",
     "base-form-page",
+    "---Auth---",
+    "sign-in-form",
     "---Forms---",
     "form",
     "create-form",

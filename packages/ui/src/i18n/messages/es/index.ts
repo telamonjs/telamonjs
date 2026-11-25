@@ -14,6 +14,7 @@ import { detail } from './detail'
 import { dashboard } from './dashboard'
 import { queue } from './queue'
 import { business } from './business'
+import { auth } from './auth'
 import type { MessagesShape } from '../shape'
 import type { ptBR } from '../pt-BR'
 
@@ -35,5 +36,6 @@ export const es = {
     dashboard,
     queue,
     business,
+    auth,
   },
 } satisfies MessagesShape<typeof ptBR>

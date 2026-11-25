@@ -158,6 +158,7 @@ Runtime:
 - `FileUpload`
 - `Flex`
 - `FlexCol`
+- `ForgotPasswordForm`
 - `Form`
 - `FormControl`
 - `FormDescription`
@@ -233,6 +234,7 @@ Runtime:
 - `SheetTrigger`
 - `ShellContent`
 - `ShellPage`
+- `SignInForm`
 - `Skeleton`
 - `Slider`
 - `Sonner`
@@ -490,6 +492,7 @@ Types:
 - `FieldType` (type)
 - `FileUploadProps` (type)
 - `FilterOption` (type)
+- `ForgotPasswordFormProps` (type)
 - `FormActionResult` (type)
 - `FormConfig` (type)
 - `FormMetadata` (type)
@@ -576,6 +579,9 @@ Types:
 - `ShellContentProps` (type)
 - `ShellPageContextValue` (type)
 - `ShellPageProps` (type)
+- `SignInFormProps` (type)
+- `SignInFormResult` (type)
+- `SignInFormValues` (type)
 - `SingleMenuItem` (type)
 - `SortField` (type)
 - `SplitDialogFrameProps` (type)

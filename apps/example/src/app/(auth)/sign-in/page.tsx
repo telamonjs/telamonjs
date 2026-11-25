@@ -1,4 +1,4 @@
-import { SignInForm } from '@/components/auth/sign-in-form'
+import { SignInForm } from '@telamonjs/ui'
 import { Layout } from 'lucide-react'
 
 export default function SignInPage() {
@@ -16,7 +16,7 @@ export default function SignInPage() {
         </div>
 
         <div className="rounded-lg border bg-background p-8 shadow-sm">
-          <SignInForm />
+          <SignInForm callbackUrl="/admin" identifierPlaceholder="admin@example.com" />
         </div>
       </div>
     </div>
