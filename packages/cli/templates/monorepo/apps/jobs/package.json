@@ -9,7 +9,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "@telamonjs/queue": "^1.4.0",
+    "@telamonjs/queue": "^1.4.1",
     "{{scope}}/shared": "workspace:*",
     "@prisma/client": "6.2.0"
   },

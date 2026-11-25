@@ -1,5 +1,29 @@
 # Changelog
 
+## ui 1.9.0, auth 1.3.0, queue 1.4.1, cli 1.1.7 (2026-11-25)
+
+`@telamonjs/queue` 1.4.1:
+- Fix: 1.4.0 broke test runners that transpile the package to CommonJS (Jest + ts-jest in Nest apps)
+  with "Cannot use 'import.meta' outside a module". `prom-client` is a static import again.
+
+`@telamonjs/ui`:
+- `arrayQueryFn(fetchAll, { searchFields, filterFields })` turns an endpoint that answers a plain array
+  into a `queryFn`. It filters, searches (case- and accent-insensitive), sorts and pages in memory.
+- `<PermissionsProvider can={...}>` gives the permission checker once. Every `ListPage` below it uses
+  it for `permissions` and action `permission`, and `AdminShell` uses it for the menu. The config's own
+  checker still wins.
+- `permissions.export` gates the export menu.
+
+`@telamonjs/auth`:
+- `createJwtAuthGuard` has a protected `validateUser(user, payload, context)` hook for yes/no checks
+  after `resolveUser`, such as user still active or session ended. `false` or a reason is a generic
+  401, and the reason is logged. A thrown error propagates (5xx). The verdict can be cached per session
+  token with `validateUserCacheTtlMs`.
+
+`@telamonjs/cli`:
+- The generated `AGENTS.md` points plain-array endpoints to `arrayQueryFn`, and the templates pin the
+  latest packages.
+
 ## ui 1.8.0, cli 1.1.6 (2026-11-25)
 
 `@telamonjs/ui`:
