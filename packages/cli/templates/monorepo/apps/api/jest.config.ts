@@ -10,12 +10,13 @@ const config: Config = {
     '^.+\\.(t|j)s$': ['ts-jest', { tsconfig: 'tsconfig.spec.json', isolatedModules: true }],
   },
   testEnvironment: 'node',
-  // @auth/core and its deps are ESM-only — they need to be transformed
-  // instead of left in node_modules untouched.
+  // @auth/core and its deps, and the @telamonjs/* packages, are ESM — they
+  // need to be transformed instead of left in node_modules untouched (Node
+  // loads them through require(esm) at runtime; Jest does not).
   // pnpm nests packages under node_modules/.pnpm/<pkg>@<version>/node_modules/<pkg>
   // — the lookahead needs to scan the rest of the path (.*), not just the
   // next path segment.
-  transformIgnorePatterns: ['node_modules/(?!.*(@auth[+/]core|@panva[+/]hkdf|jose|oauth4webapi))'],
+  transformIgnorePatterns: ['node_modules/(?!.*(@auth[+/]core|@panva[+/]hkdf|jose|oauth4webapi|@telamonjs[+/]))'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     // ts-jest does not read tsconfig "paths" for module resolution — mirror
