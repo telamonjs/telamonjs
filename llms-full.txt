@@ -2362,6 +2362,7 @@ export default function UsersPage() {
 | `filtersPanel`, `activeFilters`, `onClearFilters`, `footerContent` | | Second toolbar level (see below) |
 | `cardComponent` | `ComponentType<{ data; onClick? }>` | Custom card for the mobile view of the paginated table (the infinite list has no mobile cards) |
 | `embedded` | `boolean` | Render inside a container that owns the toolbar (e.g. a tab) |
+| `header` | `ReactNode` | Bars, alerts or status panels above the toolbar, inside the list (see [Content above the list](#content-above-the-list)) |
 | `dialogUrlSync` | `boolean` | Set `false` for a ListPage inside another ListPage's dialog (see [Dialogs](#dialogs)) |
 | `onRefreshAction` | `() => Promise<void \| { success }>` | Runs after every list refresh (see [Refreshing](#refreshing)) |
 | `disableAutoRefresh` | `boolean` | Default `true`. Set `false` to refetch when the window regains focus |
@@ -2645,6 +2646,26 @@ A crowded toolbar can move secondary controls into a second level. All of these 
 
 `footerContent` adds content to the list status bar, after "N of M" (infinite scroll), such as the
 totals of the current filter.
+
+### Content above the list
+
+A bar, alert or status panel that sits above an embedded list (a tab, a panel) goes in `header`,
+not next to the `ListPage`:
+
+```tsx
+<ListPage
+  config={config}
+  embedded
+  header={<Alert>Results are preliminary until the deadline.</Alert>}
+/>
+```
+
+`header` renders inside the list's root, before the toolbar. In the flex-column layouts (embedded
+or infinite scroll) it keeps its own height and the table fills the rest of the panel, so the
+footer stays at the bottom without extra scroll. No wrapper is needed: a sibling above the
+`ListPage` either leaves the list without a height (footer mid-screen) or adds to its 100%
+height (footer below the viewport). In the paginated standalone layout it is the page's first
+block.
 
 ### Your own button with the list's query
 

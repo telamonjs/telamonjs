@@ -104,6 +104,7 @@ export function ListPage<TData>({
   onClearFilters,
   embedded = false,
   dialogUrlSync = true,
+  header,
 }: ListPageProps<TData>) {
   // Destructure config for easier access
   const { module, list, form, mutations, actionsConfig: rawActionsConfig } =
@@ -422,6 +423,14 @@ export function ListPage<TData>({
   const content = (
     <>
       <div ref={rootRef} className={rootClassName}>
+        {/* Bars/alerts above the list: inside the root, so in the flex column
+            the table below keeps filling only what is left (footer at the bottom) */}
+        {header ? (
+          <div className='shrink-0' data-testid='list-page-header'>
+            {header}
+          </div>
+        ) : null}
+
         {/* Toolbar for embedded mode AND standalone-infinite.
             In paginated standalone the DataTable renders its own toolbar. */}
         {(embedded || isInfiniteScroll) && (

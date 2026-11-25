@@ -113,6 +113,14 @@ export interface ListPageProps<TData> {
   /** Extra content in the list status bar, after "N of M" (infinite scroll), e.g. totals of the filter */
   footerContent?: ReactNode
 
+  /**
+   * Content above the toolbar, inside the list's root (bars, alerts, status
+   * panels). In the flex-column layouts (embedded or infinite scroll) it does
+   * not shrink and the table keeps filling the rest of the panel, so the
+   * footer stays at the bottom — no wrapper needed around the ListPage.
+   */
+  header?: ReactNode
+
   /** When true, hides DataTable toolbar and title, removes container wrapper. Use when the table is rendered inside a container with an embedded toolbar. */
   embedded?: boolean
 
