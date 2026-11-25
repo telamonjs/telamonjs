@@ -1,5 +1,11 @@
 # Changelog
 
+## queue 1.3.2 (2026-11-25)
+
+`@telamonjs/queue`:
+- `FlowProducer.add()` validates every node's merged options, like `add()` and `addBulk()`.
+  Invalid options throw `InvalidJobOptionsError` before any job of the flow is added.
+
 ## ui 1.4.5 (2026-11-25)
 
 `@telamonjs/ui`:

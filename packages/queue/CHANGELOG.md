@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.2
+
+### Patch Changes
+
+- 49306d1: `FlowProducer.add()` validates the merged options of every node, like `QueueManager.add()` and `addBulk()`: invalid options (e.g. `attempts: -1`) throw `InvalidJobOptionsError` before any job of the flow is added, instead of reaching BullMQ.
+
 ## 1.3.1
 
 ### Patch Changes
