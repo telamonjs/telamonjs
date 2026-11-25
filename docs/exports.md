@@ -840,6 +840,25 @@ Types:
 - `StatusFilterProps` (type)
 - `StatusOption` (type)
 
+### `@telamonjs/ui/menu`
+
+Runtime:
+
+- `filterMenuByPermission`
+
+Types:
+
+- `BaseMenuItem` (type)
+- `BreadcrumbData` (type)
+- `GroupMenuItem` (type)
+- `IconComponent` (type)
+- `MenuConfig` (type)
+- `MenuItem` (type)
+- `MenuItemType` (type)
+- `MenuVariant` (type)
+- `SeparatorMenuItem` (type)
+- `SingleMenuItem` (type)
+
 ### `@telamonjs/ui/i18n`
 
 Runtime:

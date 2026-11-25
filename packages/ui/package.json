@@ -45,6 +45,10 @@
       "types": "./dist/components/filters/index.d.ts",
       "import": "./dist/components/filters/index.js"
     },
+    "./menu": {
+      "types": "./dist/menu/index.d.ts",
+      "import": "./dist/menu/index.js"
+    },
     "./i18n": {
       "types": "./dist/i18n/index.d.ts",
       "import": "./dist/i18n/index.js"

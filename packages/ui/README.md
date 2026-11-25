@@ -108,6 +108,7 @@ belongs to your app.
 - `@telamonjs/ui/cards`
 - `@telamonjs/ui/pickers`
 - `@telamonjs/ui/filters`
+- `@telamonjs/ui/menu`
 - `@telamonjs/ui/i18n`
 
 Every name each entry point exports, runtime and types: [Public API index](https://github.com/telamonjs/telamonjs/blob/main/docs/exports.md).

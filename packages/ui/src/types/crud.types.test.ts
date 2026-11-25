@@ -15,6 +15,7 @@ import type { DialogHeaderConfig } from './dialog-header'
 import type { FormField } from './forms/admin-form'
 import type { ListQueryParams, PaginatedResponse, SortField } from './pagination'
 import { asQueryFn } from './pagination'
+import { useCrudMutations } from '../hooks/useCrudMutations'
 
 // What an API returns: nullable columns, relations, a status enum
 interface Product {
@@ -197,6 +198,9 @@ describe('CrudConfig types', () => {
       ...base,
       mutations: { create: { mutationFn: saved, invalidates: [] } },
     }
+    // useCrudMutations takes them too (type-level only: a hook is never called here)
+    const useMutationsFor = (c: typeof idOnly) => useCrudMutations({ config: c })
+    void useMutationsFor
     // ListPage takes them as any other config
     const forList: CrudConfigWithAnyForm<Product>[] = [idOnly, anything]
     const entityByDefault: CrudConfig<Product, ProductFormData> = {

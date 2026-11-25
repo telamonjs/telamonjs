@@ -30,9 +30,9 @@ import { getErrorMessage } from '../utils/error-message'
 import { useTelamonjsT } from '../i18n/use-t'
 import { LIB_QUERY_META } from '../utils/query-meta'
 
-interface UseCrudMutationsParams<T, TFormData> {
-  /** CrudConfig with mutations */
-  config: CrudConfig<T, TFormData>
+interface UseCrudMutationsParams<T, TFormData, TResult> {
+  /** CrudConfig with mutations (any `TResult`, like ListPage) */
+  config: CrudConfig<T, TFormData, TResult>
 }
 
 interface UseCrudMutationsReturn<TFormData> {
@@ -79,9 +79,9 @@ interface UseCrudMutationsReturn<TFormData> {
  *
  * Uses React Query mutations with automatic cache invalidation.
  */
-export function useCrudMutations<T, TFormData = T>({
+export function useCrudMutations<T, TFormData = T, TResult = T>({
   config,
-}: UseCrudMutationsParams<T, TFormData>): UseCrudMutationsReturn<TFormData> {
+}: UseCrudMutationsParams<T, TFormData, TResult>): UseCrudMutationsReturn<TFormData> {
   const t = useTelamonjsT()
   const queryClient = useQueryClient()
   const { mutations } = config

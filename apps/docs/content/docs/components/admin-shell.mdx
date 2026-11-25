@@ -95,6 +95,9 @@ above the shell filters instead, so one checker gates the menu and every list.
 
 For a menu rendered outside `AdminShell`, the same rule is exported as a pure function,
 `filterMenuByPermission(menu, can)`, which returns a new array and leaves the input untouched.
+Import it, and the menu types, from `@telamonjs/ui/menu` in plain modules such as a menu config
+under `src/lib` and its unit tests: that entry has no React or Next.js import, while the root
+barrel pulls in `next/navigation`.
 
 <Callout type="warn">
   Hiding a menu item is not access control. The page and the API behind it must check the
