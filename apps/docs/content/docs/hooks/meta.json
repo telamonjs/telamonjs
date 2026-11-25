@@ -5,6 +5,7 @@
     "use-table-state",
     "use-url-sync",
     "use-tab-url-sync",
+    "use-url-filters",
     "use-shell-page",
     "use-animated-counter"
   ]

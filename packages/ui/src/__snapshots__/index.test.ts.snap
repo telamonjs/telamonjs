@@ -335,6 +335,7 @@ exports[`index.ts (public barrel) > Export surface > pins the full sorted list o
   "useTheme",
   "useTickingNow",
   "useUnsavedChangesGuard",
+  "useUrlFilters",
   "useUrlSync",
   "useWatch",
   "validateCEP",

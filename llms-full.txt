@@ -2602,6 +2602,35 @@ With `urlSync`, a toolbar filter whose `key` is also in `urlFilters` round-trips
 - Toolbar filters not listed in `urlFilters` stay in memory only. Keys in `urlFilters` that are
   not toolbar filters are read from the URL once and passed to `queryFn`.
 
+For a "Filters" panel with selectors, date ranges and text fields that stays in sync with the
+URL — reload, Back and shared links keep it — use [`useUrlFilters`](/docs/hooks/use-url-filters).
+It returns `filtersPanel`, `activeFilters` and `onClearFilters` for `ListPage`, plus the active
+`values`:
+
+```tsx
+const { values, filtersPanel, activeFilters, onClearFilters } = useUrlFilters(FILTERS)
+// values reach the data through config.query, memoized on them
+const config = useMemo(
+  () => ({
+    ...ordersConfig,
+    query: {
+      ...ordersConfig.query,
+      queryKey: [...ordersConfig.query.queryKey, values],
+      queryFn: (params: PaginationParams) =>
+        ordersConfig.query.queryFn({ ...params, filters: { ...params.filters, ...values } }),
+    },
+  }),
+  [values]
+)
+
+<ListPage config={config} filtersPanel={filtersPanel} activeFilters={activeFilters} onClearFilters={onClearFilters} />
+```
+
+- **Do not put the hook's params in `urlFilters`.** `urlFilters` is read once on mount and its
+  sync writes those keys back with the mount values, undoing every change made in the panel.
+- `values` is a stable object (same identity until a filter changes), so it can key the
+  config's `useMemo` and the query.
+
 ### Toolbar levels
 
 A crowded toolbar can move secondary controls into a second level. All of these are opt-in:
@@ -19482,6 +19511,7 @@ file marked `'use client'`.
 | --- | --- |
 | [`useUrlSync`](/docs/hooks/use-url-sync) | Read/write query params (`getParam`, `setParam`, `setParams`) |
 | [`useTabUrlSync`](/docs/hooks/use-tab-url-sync) | Active tab kept in the URL, with validation |
+| [`useUrlFilters`](/docs/hooks/use-url-filters) | `ListPage` "Filters" panel (selectors, date ranges, text) kept in the URL |
 
 ## CRUD data
 
@@ -19796,6 +19826,185 @@ Any dashboard with tabs built on [ShellPage](/docs/components/shell-page) + [Adm
 
 - [AdminTabs](/docs/components/admin-tabs) — the component this hook drives
 - [useUrlSync](/docs/hooks/use-url-sync) — the underlying URL param hook
+
+---
+
+# useUrlFilters
+
+> A URL-driven "Filters" panel for ListPage — selectors, date ranges and text, shareable by link
+
+Source: apps/docs/content/docs/hooks/use-url-filters.mdx
+
+Builds the content of the `ListPage` "Filters" popover from a list of filter definitions,
+with the URL as the **single source of truth**: reloading, going Back or pasting the link keeps
+the filters. It returns exactly the `ListPage` props of the [toolbar levels](/docs/patterns/listpage-pattern#toolbar-levels)
+plus the active `values` for your query.
+
+```tsx
+'use client'
+
+import { useMemo } from 'react'
+import { ListPage, useUrlFilters, type PaginationParams, type UrlFilterDef } from '@telamonjs/ui'
+import { ordersConfig } from './config'
+
+// Module level (or memoized): the hook keys its memo on this array
+const FILTERS: UrlFilterDef[] = [
+  {
+    kind: 'options',
+    param: 'status',
+    label: 'Status',
+    defaultValue: 'OPEN',
+    noDefaultValue: 'ALL',
+    options: [
+      { value: 'ALL', label: 'All' },
+      { value: 'OPEN', label: 'Open' },
+      { value: 'PAID', label: 'Paid' },
+    ],
+  },
+  {
+    kind: 'options',
+    param: 'customer',
+    apiKey: 'customerId',
+    label: 'Customer',
+    queryKey: ['customers', 'options'],
+    load: (search, { selected, signal }) => customersApi.options({ search, include: selected, signal }),
+  },
+  { kind: 'dateRange', param: 'due', label: 'Due date' },
+  { kind: 'text', param: 'doc', apiKey: 'document', label: 'Document', placeholder: 'Number' },
+]
+
+export function OrdersPage() {
+  const { values, filtersPanel, activeFilters, onClearFilters } = useUrlFilters(FILTERS)
+  const config = useMemo(
+    () => ({
+      ...ordersConfig,
+      query: {
+        ...ordersConfig.query,
+        queryKey: [...ordersConfig.query.queryKey, values],
+        queryFn: (params: PaginationParams) =>
+          ordersConfig.query.queryFn({ ...params, filters: { ...params.filters, ...values } }),
+      },
+    }),
+    [values]
+  )
+  return (
+    <ListPage
+      config={config}
+      filtersPanel={filtersPanel}
+      activeFilters={activeFilters}
+      onClearFilters={onClearFilters}
+    />
+  )
+}
+```
+
+<Callout type='warn' title='Do not list these params in `urlFilters`'>
+  `ListPage`'s `urlSync`/`urlFilters` reads custom filters once, on mount, and its sync effect
+  writes the keys listed in `urlFilters` back with those mount values — it would overwrite every
+  change the panel makes. The hook owns its params; its `values` reach the data through
+  `config.query`, as above. `urlSync` itself (page, search, sort) can stay on.
+</Callout>
+
+---
+
+## Signature
+
+```typescript
+function useUrlFilters(
+  defs: readonly UrlFilterDef[],
+  options?: UseUrlFiltersOptions
+): UseUrlFiltersResult
+
+interface UseUrlFiltersOptions {
+  omit?: readonly string[] // apiKeys a scope already fixes: those filters leave the panel
+  fixed?: Readonly<Record<string, unknown>> // parent values when the parent is not in the URL, keyed by param
+}
+
+interface UseUrlFiltersResult {
+  values: Record<string, string> // { apiKey: value } of the active filters; same object until a value changes
+  filtersPanel: ReactNode
+  activeFilters: ActiveFilterChip[]
+  onClearFilters: () => void // one URL write with every param removed
+  params: string[] // every URL key of the panel
+}
+```
+
+It needs the `QueryClient` that `AppProviders` provides (remote labels are queries), and
+writes with `router.replace`: changing a filter adds no history entry.
+
+## Filter definitions
+
+Every definition has `param` (the URL key — unique on the page), `apiKey` (the key in
+`values`, default `param`) and `label` (`I18nText`). The `kind` picks the control.
+
+### `'options'` — a searchable selector
+
+Rendered with [`RichSelector`](/docs/components/rich-selector). Give it either a fixed list or a
+server search:
+
+| Field | Description |
+| --- | --- |
+| `options` | Fixed `{ value, label }[]`, searched in the browser. A URL value outside it is ignored |
+| `load`, `queryKey` | `load(search, { parent, selected, signal })` returns `RichSelectorItem[]`. Return the `selected` items too, so their labels show. A URL value is always kept; its chip label comes from `load('', { selected: [value] })`, cached for 5 minutes |
+| `dependsOn` | `param` of the parent filter. Changing or removing the parent clears this one, and its own dependents, in the same write. `load` receives the parent value |
+| `requireParent`, `parentPlaceholder` | Without a parent value the selector is disabled and shows `parentPlaceholder` |
+| `defaultValue` | Value when the param is absent. It shows as a chip — an invisible default would make the list look complete |
+| `noDefaultValue` | Written when the default's chip is removed (a value such as `ALL` that the API ignores). Without it, the default cannot be cleared |
+| `allLabel`, `searchPlaceholder`, `emptyLabel`, `icon`, `renderItem` | Selector texts and looks |
+| `chipLabel` | `(item) => string`: shorter chip text for a remote value (default: the item's `label`) |
+
+### `'dateRange'` — a calendar range
+
+| Field | Default | Description |
+| --- | --- | --- |
+| `fromParam`, `toParam` | `${param}From`, `${param}To` | URL keys. Set them to keep links that already exist |
+| `apiFrom`, `apiTo` | `${apiKey}From`, `${apiKey}To` | Keys in `values` |
+
+Dates travel as `YYYY-MM-DD`; anything else in the URL is ignored. Either end may be missing:
+the chip then reads "since …" or "until …". With no dates the control shows "Any date".
+
+### `'text'` — free text
+
+`placeholder` is optional. The value is written on Enter or when the field loses focus — not on
+every key, which would refetch the list on every key.
+
+---
+
+## Behavior
+
+- **One write per action.** Changing a parent clears its dependents in the same `replace`;
+  "Clear filters" removes every param in one call (two writes in a row overwrite each other).
+- **Other params are kept** (`tab`, `view`, a second list's filters).
+- **The panel never grows past the popover**: a one-column `minmax(0, 1fr)` grid, so a long
+  option truncates inside its selector, with the full text on hover.
+- **The popover stays open while you work in it**: typing in a field, or a selector or calendar
+  opened from it with the focus inside. A plain hover and leave still closes it.
+
+## Lists inside a scope (`omit` / `fixed`)
+
+A list rendered inside a portal that already fixes some filters (one project's tasks) passes
+those keys to `omit`, and their values to `fixed` so dependent filters still get their parent:
+
+```tsx
+const { values, ...panel } = useUrlFilters(TASK_FILTERS, {
+  omit: Object.keys(scope.filters), // e.g. ['projectId']
+  fixed: scope.filters, // the goal selector loads the goals of this project
+})
+```
+
+To clear the panel together with a param of your own, use `params`:
+
+```tsx
+onClearFilters={() => setParams(Object.fromEntries([...params, 'community'].map(p => [p, null])), { replace: true })}
+```
+
+---
+
+## Related
+
+- [ListPage pattern — filters in the URL](/docs/patterns/listpage-pattern#filters-in-the-url)
+- [useUrlSync](/docs/hooks/use-url-sync) — the underlying URL param hook
+- [RichSelector](/docs/components/rich-selector) — the selector of `'options'` filters
 
 ---
 

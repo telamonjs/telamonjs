@@ -22,6 +22,20 @@ export type {
   UseTabUrlSyncResult,
 } from '../hooks/useTabUrlSync'
 
+export { useUrlFilters } from '../hooks/use-url-filters'
+export type {
+  UseUrlFiltersOptions,
+  UseUrlFiltersResult,
+  UrlFilterDef,
+  UrlFilterOptionsDef,
+  UrlFilterLocalOptionsDef,
+  UrlFilterRemoteOptionsDef,
+  UrlFilterDateRangeDef,
+  UrlFilterTextDef,
+  UrlFilterOption,
+  UrlFilterLoadContext,
+} from '../hooks/use-url-filters'
+
 export { useCrudMutations } from '../hooks/useCrudMutations'
 
 // ============================================================================

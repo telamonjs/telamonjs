@@ -409,6 +409,35 @@ With `urlSync`, a toolbar filter whose `key` is also in `urlFilters` round-trips
 - Toolbar filters not listed in `urlFilters` stay in memory only. Keys in `urlFilters` that are
   not toolbar filters are read from the URL once and passed to `queryFn`.
 
+For a "Filters" panel with selectors, date ranges and text fields that stays in sync with the
+URL — reload, Back and shared links keep it — use [`useUrlFilters`](/docs/hooks/use-url-filters).
+It returns `filtersPanel`, `activeFilters` and `onClearFilters` for `ListPage`, plus the active
+`values`:
+
+```tsx
+const { values, filtersPanel, activeFilters, onClearFilters } = useUrlFilters(FILTERS)
+// values reach the data through config.query, memoized on them
+const config = useMemo(
+  () => ({
+    ...ordersConfig,
+    query: {
+      ...ordersConfig.query,
+      queryKey: [...ordersConfig.query.queryKey, values],
+      queryFn: (params: PaginationParams) =>
+        ordersConfig.query.queryFn({ ...params, filters: { ...params.filters, ...values } }),
+    },
+  }),
+  [values]
+)
+
+<ListPage config={config} filtersPanel={filtersPanel} activeFilters={activeFilters} onClearFilters={onClearFilters} />
+```
+
+- **Do not put the hook's params in `urlFilters`.** `urlFilters` is read once on mount and its
+  sync writes those keys back with the mount values, undoing every change made in the panel.
+- `values` is a stable object (same identity until a filter changes), so it can key the
+  config's `useMemo` and the query.
+
 ### Toolbar levels
 
 A crowded toolbar can move secondary controls into a second level. All of these are opt-in:

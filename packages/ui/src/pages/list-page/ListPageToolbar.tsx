@@ -1,7 +1,7 @@
 'use client'
 
 import { prefetchCreateDialog } from './prefetch-create-dialog'
-import { Fragment, useMemo, type ReactNode } from 'react'
+import { Fragment, useMemo, useRef, type ReactNode } from 'react'
 import { useTranslations } from 'next-intl'
 import { TabToolbar } from '../../components/toolbar/TabToolbar'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
@@ -58,6 +58,8 @@ function useCounterLabel(counterLabel: ToolbarConfig['counterLabel']): {
   }
   return { label: text(counterLabel) ?? '', countIncluded: false }
 }
+
+const EDITABLE = 'input, textarea, select, [contenteditable="true"]'
 
 interface ListPageToolbarProps<TData> {
   list: ListConfig<TData>
@@ -125,13 +127,38 @@ export function ListPageToolbar<TData>({
 }: ListPageToolbarProps<TData>) {
   const t = useTelamonjsT()
   const text = useText()
-  // "Filtros" opens on hover like the other toolbar dropdowns
+  // "Filtros" opens on hover like the other toolbar dropdowns. It stays open
+  // while the person works in it: typing in a field, or focus in a popup the
+  // panel opened (selector list, calendar — portals, outside the panel's DOM).
+  const filtersRef = useRef<HTMLDivElement>(null)
+  const filtersFocus = useRef<EventTarget | null>(null)
+  const filtersTouched = useRef(false)
+  const filtersHover: ReturnType<typeof useHoverPopover> = useHoverPopover({
+    onOpenChange: open => {
+      if (open) return
+      filtersTouched.current = false
+      filtersFocus.current = null
+    },
+    keepOpen: () => {
+      const el = document.activeElement
+      const panel = filtersRef.current
+      const working =
+        filtersTouched.current &&
+        !!el &&
+        el === filtersFocus.current &&
+        (!panel?.contains(el) || el.matches(EDITABLE))
+      const keep = working || Boolean(panel?.matches(':hover'))
+      // Check again later: closes once the popup or field lets go and the pointer is away
+      if (keep) filtersHover.contentProps.onMouseLeave()
+      return keep
+    },
+  })
   const {
     open: filtersOpen,
     setOpen: setFiltersOpen,
     triggerProps: filtersTriggerProps,
     contentProps: filtersContentProps
-  } = useHoverPopover()
+  } = filtersHover
   const counter = useCounterLabel(list.toolbar?.counterLabel)
   // `onExport` alone shows the menu too (the app exports; no rows needed)
   const exportEnabled = Boolean(list.enableExport || list.onExport)
@@ -234,9 +261,29 @@ export function ListPageToolbar<TData>({
               </Button>
             </PopoverTrigger>
             <PopoverContent
+              ref={filtersRef}
               align='start'
               className='w-80 space-y-4'
               {...filtersContentProps}
+              // React events bubble through portals: these also see the panel's popups
+              onFocus={e => {
+                const from = filtersFocus.current
+                filtersFocus.current = e.target
+                // Back from a popup that closed under the pointer (a pick): no
+                // mouseleave will come, so arm the close check here.
+                if (
+                  from instanceof Node &&
+                  !filtersRef.current?.contains(from) &&
+                  filtersRef.current?.contains(e.target)
+                )
+                  filtersContentProps.onMouseLeave()
+              }}
+              onPointerDown={() => {
+                filtersTouched.current = true
+              }}
+              onKeyDown={() => {
+                filtersTouched.current = true
+              }}
             >
               {moreFilters.map(({ f, more }) => {
                 const current = valueOf(f)

@@ -346,6 +346,7 @@ Runtime:
 - `useTheme`
 - `useTickingNow`
 - `useUnsavedChangesGuard`
+- `useUrlFilters`
 - `useUrlSync`
 - `useWatch`
 - `validateCEP`
@@ -597,9 +598,19 @@ Types:
 - `ToolbarFilterConfig` (type)
 - `ToolbarFilterOption` (type)
 - `TooltipConfig` (type)
+- `UrlFilterDateRangeDef` (type)
+- `UrlFilterDef` (type)
+- `UrlFilterLoadContext` (type)
+- `UrlFilterLocalOptionsDef` (type)
+- `UrlFilterOption` (type)
+- `UrlFilterOptionsDef` (type)
+- `UrlFilterRemoteOptionsDef` (type)
+- `UrlFilterTextDef` (type)
 - `UseInfiniteListQueryReturn` (type)
 - `UseTabUrlSyncOptions` (type)
 - `UseTabUrlSyncResult` (type)
+- `UseUrlFiltersOptions` (type)
+- `UseUrlFiltersResult` (type)
 - `User` (type)
 - `ViewDialogProps` (type)
 - `ViewPortalDialogProps` (type)
