@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.1.4
+
+### Patch Changes
+
+- cc2f6ff: `@telamonjs/ui` no longer lists `framer-motion` or `@prisma/client` as peer dependencies: only `DashboardFullscreen` used framer-motion (for a fade-in, now CSS), and nothing imports `@prisma/client` (the server helpers build Prisma's object shape). Apps can drop both if nothing else of theirs uses them. Generated apps no longer install `framer-motion`.
+
 ## 1.1.3
 
 ### Patch Changes

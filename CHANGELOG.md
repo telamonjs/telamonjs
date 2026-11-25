@@ -1,5 +1,24 @@
 # Changelog
 
+## ui 1.6.0, queue 1.4.0, cli 1.1.4 (2026-11-25)
+
+`@telamonjs/ui`:
+- Menu items take `permission` (any of the listed permissions grants), and `AdminShell` takes `can`.
+  With it, the sidebar and the command palette show only what the user may open. The breadcrumb
+  still labels routes from the full menu. `filterMenuByPermission(menu, can)` is exported for custom
+  shells.
+- `framer-motion` and `@prisma/client` are no longer peer dependencies. `DashboardFullscreen` fades in
+  with CSS.
+
+`@telamonjs/queue`:
+- New `@telamonjs/queue/metrics` entry point for `QueueMetrics` and `OptimizedQueueMetrics`. The root
+  re-export still works but is deprecated.
+- Importing the root, `./monitoring` or `./metrics` no longer loads `prom-client`. It loads when a
+  metrics collector is constructed.
+
+`@telamonjs/cli`:
+- Generated apps no longer install `framer-motion`, and the templates pin the latest packages.
+
 ## data 1.0.1, queue 1.3.3, permissions 1.1.1, auth 1.2.1, ui 1.5.1 (2026-11-25)
 
 Security and correctness fixes. No API changes.
