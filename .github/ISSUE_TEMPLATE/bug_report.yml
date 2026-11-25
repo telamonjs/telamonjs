@@ -1,0 +1,36 @@
+name: Bug report
+description: Something in a TelamonJS package does not work as documented
+labels: [bug]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options: ['@telamonjs/ui', '@telamonjs/data', '@telamonjs/auth', '@telamonjs/permissions', '@telamonjs/logger', '@telamonjs/queue', '@telamonjs/cli']
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      placeholder: '1.13.0'
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: The smallest CrudConfig, component or command that shows the problem.
+      render: tsx
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: 'Next.js 16, React 19, Node 22, macOS'

@@ -1,4 +1,8 @@
+<a href="https://github.com/telamonjs/telamonjs"><img alt="TelamonJS" src="https://cdn.jsdelivr.net/gh/telamonjs/telamonjs@main/.github/assets/logo-mark.svg" height="40"></a>
+
 # @telamonjs/cli
+
+[![npm](https://img.shields.io/npm/v/@telamonjs/cli.svg)](https://www.npmjs.com/package/@telamonjs/cli) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/telamonjs/telamonjs/blob/main/LICENSE)
 
 Scaffolding for TelamonJS apps: create a ready-to-run Next.js admin wired to
 `@telamonjs/ui`, generate CRUD modules from your Prisma schema, add admin-kit

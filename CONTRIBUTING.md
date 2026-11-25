@@ -3,6 +3,7 @@
 TelamonJS is a pnpm monorepo: the packages live in `packages/*`, the docs site
 in `apps/docs` and a generated example app in `apps/example`. AI agents should
 also read [AGENTS.md](./AGENTS.md), which lists the traps that cost the most time.
+Everyone taking part follows the [Code of Conduct](./CODE_OF_CONDUCT.md).
 
 ## Setup and the gates, in order
 

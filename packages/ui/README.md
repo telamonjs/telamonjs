@@ -1,4 +1,8 @@
+<a href="https://github.com/telamonjs/telamonjs"><img alt="TelamonJS" src="https://cdn.jsdelivr.net/gh/telamonjs/telamonjs@main/.github/assets/logo-mark.svg" height="40"></a>
+
 # @telamonjs/ui
+
+[![npm](https://img.shields.io/npm/v/@telamonjs/ui.svg)](https://www.npmjs.com/package/@telamonjs/ui) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/telamonjs/telamonjs/blob/main/LICENSE)
 
 The TelamonJS admin framework for Next.js and React. A single `CrudConfig`
 object declares a module (list, form, queries, mutations, dialogs) and
