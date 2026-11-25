@@ -105,6 +105,15 @@ describe('redactPayload', () => {
       })
     })
 
+    // Consumer schemas are often pt-BR: a `senha` field must not reach the audit table
+    it('masks pt-BR password fields too (senha, novaSenha)', () => {
+      expect(redactPayload({ senha: 'x', novaSenha: 'y', nome: 'a' })).toEqual({
+        senha: '[REDACTED]',
+        novaSenha: '[REDACTED]',
+        nome: 'a',
+      })
+    })
+
     it('matches keys case-insensitively, inside longer names and across _ and -', () => {
       expect(
         redactPayload({

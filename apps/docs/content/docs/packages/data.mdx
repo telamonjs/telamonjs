@@ -245,8 +245,8 @@ createAuditInterceptor({
 The root entry has the two pure helpers the interceptor and hand-written audit calls share.
 `redactPayload(value, keys = DEFAULT_REDACT_KEYS)` returns a deep copy with the value of every
 secret key replaced by `'[REDACTED]'`. A key is secret when, lowercased and without `-`/`_`, it
-contains one of `keys`: `password` catches `newPassword`, `token` catches `REFRESH_TOKEN`, `apikey`
-catches `api-key`. Spread `DEFAULT_REDACT_KEYS` to add your own.
+contains one of `keys`: `password` catches `newPassword`, `senha` catches `novaSenha`, `token` catches
+`REFRESH_TOKEN`, `apikey` catches `api-key`. Spread `DEFAULT_REDACT_KEYS` to add your own.
 
 `computeDiff(before, after)` returns the fields of `after` that changed, as `{ key: { old, new } }`.
 It reads only the keys of `after`, so a partial DTO works; `null` equals `undefined`, dates compare

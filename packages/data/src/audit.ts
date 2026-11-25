@@ -58,6 +58,8 @@ export function computeDiff(before: object, after: object, options: ComputeDiffO
 export const DEFAULT_REDACT_KEYS: readonly string[] = [
   'password',
   'passwd',
+  // pt-BR schemas name it `senha`; same list as ui's AuditChangesViewer
+  'senha',
   'secret',
   'token',
   'authorization',
