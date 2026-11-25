@@ -1,5 +1,32 @@
 # Changelog
 
+## ui 1.12.0, data 1.2.0, permissions 1.3.0, cli 1.1.9 (2026-11-25)
+
+`@telamonjs/ui`:
+- `SignInForm`:
+  - credentials sign-in through next-auth, with validation and a password toggle;
+  - a same-origin `callbackUrl`;
+  - `errorMessages` by error code, `onSubmit` and `onSuccess` overrides, `forgotPasswordHref`;
+  - `identifierName`, `identifierType` and `identifierLabel` for username logins.
+- `ForgotPasswordForm`: the success message never reveals whether the account exists.
+- Admin building blocks:
+  - `PermissionMatrix`: roles × permissions grouped by category, async per-cell toggle with rollback,
+    read-only system roles, search and select-all per group;
+  - `AuditChangesViewer`: shows a field diff, before/after or a raw payload, with secret keys masked.
+
+`@telamonjs/data`:
+- `createAuditInterceptor({ write, inject, resolveEntity, ignore, redact, user })` and `@SkipAudit()` in
+  `./nest`: every successful, authenticated mutation becomes an `AuditEntry` for the app to store.
+- The pure helpers `computeDiff`, `redactPayload` and `DEFAULT_REDACT_KEYS` (which includes `senha`).
+
+`@telamonjs/permissions`:
+- The Prisma fragment is now the RBAC core the apps share: `Role`, `Permission`, `RolePermission`,
+  `UserRole`.
+- `diffPermissionCatalog(catalog, rows)` syncs the permissions defined in code with the database.
+
+`@telamonjs/cli`:
+- The app template's sign-in page uses `SignInForm`.
+
 ## data 1.1.0, cli 1.1.8 (2026-11-25)
 
 `@telamonjs/data`:

@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.12.0
+
+### Minor Changes
+
+- 81a2f78: Add `PermissionMatrix` and `AuditChangesViewer`, the first data-agnostic admin building blocks.
+
+  - `PermissionMatrix`: roles × permissions grid of checkboxes grouped by permission group, with search, sticky header and first column, per-group "select all", system roles read-only by default, and an async `onToggle` that shows the cell optimistically, marks it busy and rolls back with a toast on failure.
+  - `AuditChangesViewer`: renders an audit payload, whether a `{ field: { old, new } }` (or `{ before, after }`) diff, `before`/`after` snapshots diffed field by field with a "show all" toggle, or a plain object with collapsible nested JSON. Password/token/secret-like keys are masked by default; `redactKeys` adds more.
+
+- 647bdbf: `SignInForm` and `ForgotPasswordForm`: localized credentials sign-in over next-auth (zod validation, password visibility toggle, pending state, next-auth error mapping with per-code overrides, same-origin `?callbackUrl` only, `onSubmit`/`onSuccess` overrides) and a forgot-password form that never reveals whether an account exists. The CLI app template's sign-in page now uses `SignInForm` instead of its own copy.
+
+### Patch Changes
+
+- Updated dependencies [91e6434]
+  - @telamonjs/data@1.2.0
+
 ## 1.11.0
 
 ### Minor Changes
