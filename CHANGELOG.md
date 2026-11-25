@@ -1,5 +1,12 @@
 # Changelog
 
+## ui 1.10.1 (2026-11-25)
+
+`@telamonjs/ui`:
+- Fix: the desktop "Filter..." field of `SubList` (the list inside a `crud` field) did not filter, and
+  its pagination and column toggles did not update. The pieces were memoized on the TanStack table
+  instance, which never changes identity.
+
 ## ui 1.10.0 (2026-11-25)
 
 `@telamonjs/ui`:
