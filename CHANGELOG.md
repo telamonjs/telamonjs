@@ -1,5 +1,17 @@
 # Changelog
 
+## cli 1.4.0 (2026-11-25)
+
+`@telamonjs/cli`: `telamonjs add admin invitations`.
+- Adds an `Invitation` model that stores only a sha256 of the token and expires after 7 days. Resend
+  rotates the token.
+- Accepting creates the user with the invited roles in one transaction.
+- Routes: `GET`/`POST /invitations`, `POST :id/resend`, `PUT :id/revoke`, and the public
+  `GET by-token/:token` and `POST accept`.
+- Pages: `/admin/convites` and a public `/convite/[token]` accept page that signs the new user in.
+- Mail goes through a `MailSender` port that only logs by default. Replace it with your provider. The
+  link is built from `NEXTAUTH_URL`.
+
 ## ui 1.13.1 (2026-11-25)
 
 - `@telamonjs/ui`: an indeterminate `Checkbox`, such as a `PermissionMatrix` group with only some
