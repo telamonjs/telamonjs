@@ -1,161 +1,63 @@
-// This is the Prisma schema for the telamonjs permissions system
-// Copy this into your main schema.prisma file and adjust to your needs
+// The RBAC tables of @telamonjs/permissions — the tables the admin kit generates.
+// A fragment, not a managed migration: copy these models into your
+// schema.prisma, then migrate. Rename tables (@@map) freely; the checker only
+// reads the permissions[] claim your login resolves from them.
+//
+// Your app owns the `User` model. Add the back-relation to it:
+//
+//   model User {
+//     id    String     @id @default(cuid())
+//     ...
+//     roles UserRole[]
+//   }
+//
+// and keep `UserRole.userId` the same type as `User.id`.
 
-// Permission actions enum
-enum AcaoPermissao {
-  CREATE
-  READ
-  UPDATE
-  DELETE
-  EXECUTE
-  EXPORT
-  IMPORT
-  APPROVE
-  PUBLISH
+model Role {
+  id          String  @id @default(cuid())
+  name        String
+  code        String  @unique // "superadmin", "admin", "readonly", ...
+  description String?
+  system      Boolean @default(false) // built-in role: the app must not delete it
+
+  permissions RolePermission[]
+  users       UserRole[]
 }
 
-// Override type for user permissions
-enum TipoOverride {
-  CONCEDER  // Grant permission
-  REVOGAR   // Revoke permission
+// The catalog. Defined in code and reconciled with diffPermissionCatalog().
+model Permission {
+  id          String  @id @default(cuid())
+  code        String  @unique // "module.action", e.g. "users.read"
+  module      String // "users"
+  // "read" | "write" | "execute" | "approve": the suffix of `code`.
+  // A String, not an enum, so a new action needs no migration.
+  action      String
+  category    String? // groups the permission matrix, e.g. "Records"
+  description String?
+
+  roles RolePermission[]
+
+  @@index([module, action])
 }
 
-// Permission check result
-enum ResultadoPermissao {
-  PERMITIDO
-  NEGADO
-  ERRO
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
 }
 
-// Roles (RBAC) — system roles cannot be deleted
-model Papel {
-  id         String  @id @default(cuid())
-  nome       String
-  codigo     String  @unique // e.g., "superadmin", "admin", "supervisor"
-  descricao  String?
-  cor        String?
-  prioridade Int     @default(0)
-  sistema    Boolean @default(false)
+model UserRole {
+  userId String
+  roleId String
 
-  usuarioPapeis UsuarioPapel[]
-  permissoes    PermissaoPapel[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
-  createdAt DateTime  @default(now())
-  updatedAt DateTime? @updatedAt
-
-  @@map("papeis")
-}
-
-// Pivot table: User <-> Role (N:N, multi-role)
-model UsuarioPapel {
-  id String @id @default(cuid())
-
-  usuarioId String
-  papelId   String
-
-  usuario User  @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  papel   Papel @relation(fields: [papelId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([usuarioId, papelId])
-  @@index([usuarioId])
-  @@index([papelId])
-  @@map("usuarios_papeis")
-}
-
-// Available permissions in the system
-model Permissao {
-  id          String   @id @default(cuid())
-  codigo      String   @unique  // e.g., "clientes.create", "produtos.view"
-  modulo      String              // e.g., "clientes", "produtos"
-  acao        AcaoPermissao       // CREATE, READ, UPDATE, DELETE, etc.
-  descricao   String?
-  categoria   String?             // Organization (cadastro, relatorios, etc)
-
-  // Advanced attributes
-  requerContexto Boolean @default(false)  // Requires contextual validation (ABAC)
-  tempoExpiracao Int?                     // Minutes until expiration (for temporary permissions)
-
-  // Relations
-  papeis      PermissaoPapel[]
-  usuarios    PermissaoUsuario[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@index([modulo, acao])
-  @@index([codigo])
-  @@map("permissoes")
-}
-
-// Pivot table: Permissions by Role (RBAC)
-model PermissaoPapel {
-  id          String @id @default(cuid())
-  papelId     String
-  permissaoId String
-
-  // Additional attributes (ABAC)
-  condicoes   Json?   // Extra conditions: { "clienteId": "$user.clienteId" }
-  escopo      Json?   // Limits: { "maxRegistros": 100 }
-
-  // Relations
-  papel       Papel     @relation(fields: [papelId], references: [id], onDelete: Cascade)
-  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([papelId, permissaoId])
-  @@index([papelId])
-  @@map("permissoes_papeis")
-}
-
-// Individual user permissions (override role permissions)
-model PermissaoUsuario {
-  id          String @id @default(cuid())
-  usuarioId   String
-  permissaoId String
-
-  // Override type
-  tipo        TipoOverride @default(CONCEDER)  // GRANT or REVOKE
-
-  // Temporality
-  expiraEm    DateTime?
-
-  // Context
-  condicoes   Json?
-  motivo      String?     // Audit reason
-  concessaoPor String?    // Who granted
-
-  // Relations
-  usuario     User      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
-  permissao   Permissao @relation(fields: [permissaoId], references: [id], onDelete: Cascade)
-
-  createdAt DateTime @default(now())
-
-  @@unique([usuarioId, permissaoId])
-  @@index([usuarioId])
-  @@index([expiraEm])
-  @@map("permissoes_usuarios")
-}
-
-// Audit log for all permission checks
-model LogPermissao {
-  id          String @id @default(cuid())
-  usuarioId   String
-  permissao   String
-  acao        String
-  recurso     String?
-  resultado   ResultadoPermissao  // PERMITIDO, NEGADO, ERRO
-  motivo      String?
-  contexto    Json?
-  ip          String?
-  userAgent   String?
-
-  createdAt DateTime @default(now())
-
-  @@index([usuarioId, createdAt])
-  @@index([permissao, resultado])
-  @@index([createdAt])
-  @@map("logs_permissoes")
+  @@unique([userId, roleId])
+  @@index([roleId])
 }

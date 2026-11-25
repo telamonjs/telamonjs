@@ -1,7 +1,7 @@
 {
   "name": "@telamonjs/permissions",
   "version": "1.2.0",
-  "description": "RBAC materialized into the JWT: client-safe permission checker, role helpers, a NestJS guard/decorator and a reference Prisma schema",
+  "description": "RBAC materialized into the JWT: client-safe permission checker, role helpers, a NestJS guard/decorator, the Prisma RBAC tables and a permission catalog diff",
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",

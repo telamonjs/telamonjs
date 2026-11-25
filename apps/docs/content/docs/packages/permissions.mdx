@@ -1,6 +1,6 @@
 ---
 title: Permissions
-description: RBAC materialized in the JWT — pure checkers, role helpers, Nest guard and Prisma models
+description: RBAC materialized in the JWT — pure checkers, role helpers, Nest guard, Prisma tables and catalog sync
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -18,8 +18,9 @@ invalidate, client-safe by construction**.
 - **Core (isomorphic)** — `createPermissionChecker` (`can` / `canAny` /
   `canAll` / `hasBypassRole`) and role helpers
 - **`/nest` subpath** — `@Permissions()` decorator + `createPermissionsGuard()`
-- **Prisma reference schema** — `Papel`, `UsuarioPapel`, `Permissao`,
-  `PermissaoPapel`, `PermissaoUsuario` models to copy into your app
+- **Prisma RBAC tables** — `Role`, `Permission`, `RolePermission`,
+  `UserRole` to copy into your app, plus `diffPermissionCatalog` to keep the
+  `Permission` table in step with the catalog defined in code
 
 ```bash
 pnpm add @telamonjs/permissions
@@ -32,22 +33,120 @@ Dual ESM+CJS build; the `/nest` subpath expects `@nestjs/common` and
 
 ## Data Model (Prisma)
 
-Copy the models from the package's reference schema into your
-`schema.prisma` (exported at
-`@telamonjs/permissions/prisma/schema.prisma`) and migrate:
+These are the tables the admin kit generates. Copy the fragment shipped with
+the package (exported at `@telamonjs/permissions/prisma/schema.prisma`) into
+your `schema.prisma` and migrate — it is a template, not a managed migration:
 
-| Model              | Table                 | Role                                          |
-| ------------------ | --------------------- | --------------------------------------------- |
-| `Papel`            | `papeis`              | Role: unique `codigo` (`superadmin`, `admin`, …), `sistema` flag protects built-ins |
-| `UsuarioPapel`     | `usuarios_papeis`     | User ↔ Role pivot (N:N — **multi-role**)      |
-| `Permissao`        | `permissoes`          | Permission catalog: unique `codigo` (`clientes.create`), `modulo` + `acao` (enum `AcaoPermissao`: CREATE/READ/UPDATE/DELETE/EXECUTE/EXPORT/IMPORT/APPROVE/PUBLISH) |
-| `PermissaoPapel`   | `permissoes_papeis`   | Permissions granted to a role (RBAC), optional ABAC `condicoes`/`escopo` JSON |
-| `PermissaoUsuario` | `permissoes_usuarios` | Per-user override: `tipo` CONCEDER (grant) or REVOGAR (revoke), optional `expiraEm` for temporary grants, `motivo`/`concessaoPor` for audit |
-| `LogPermissao`     | `logs_permissoes`     | Audit log of permission checks (optional)     |
+```prisma title="prisma/schema.prisma"
+model Role {
+  id          String  @id @default(cuid())
+  name        String
+  code        String  @unique // "superadmin", "admin", "readonly", ...
+  description String?
+  system      Boolean @default(false) // built-in role: the app must not delete it
 
-Effective permissions for a user =
-**union of all their roles' permissions, plus CONCEDER overrides, minus
-REVOGAR overrides** (skipping expired ones).
+  permissions RolePermission[]
+  users       UserRole[]
+}
+
+model Permission {
+  id          String  @id @default(cuid())
+  code        String  @unique // "module.action", e.g. "users.read"
+  module      String
+  action      String  // "read" | "write" | "execute" | "approve"
+  category    String?
+  description String?
+
+  roles RolePermission[]
+
+  @@index([module, action])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model UserRole {
+  userId String
+  roleId String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([roleId])
+}
+```
+
+Your app owns the `User` model: add the back-relation `roles UserRole[]` to it,
+and keep `UserRole.userId` the same type as `User.id`. `action` is a `String`
+holding the suffix of the code, not an enum — a new action needs no migration.
+Rename the models or map the tables freely; the checker only reads the
+`permissions[]` claim.
+
+Effective permissions for a user = **the union of all their roles'
+permissions**.
+
+### Syncing the catalog
+
+The permission catalog is defined in code; the `Permission` table follows it.
+`diffPermissionCatalog(catalog, rows)` compares the two by `code` and returns
+what to change — it never touches the database or its inputs:
+
+| Field       | Holds                                                         |
+| ----------- | ------------------------------------------------------------- |
+| `toCreate`  | Codes in the catalog, not in the table — every column resolved, ready for `createMany` |
+| `toUpdate`  | Codes in both whose `description` or `category` changed — the row's `id` plus the catalog's values |
+| `toDelete`  | Rows whose code is no longer in the catalog                   |
+| `unchanged` | Rows with nothing to change                                   |
+
+`module`/`action` default to the two halves of `code` (split at the last dot,
+so `reports.sales.export` → `reports.sales` + `export`) and are not compared: a
+row stored as `READ` for `users.read` is left alone. `null` and a missing value
+are equal. A duplicate code in the catalog, or a code without a dot and no
+explicit `module`/`action`, throws.
+
+Apply it in one transaction, at deploy, in a seed or when the API boots:
+
+```ts title="permissions/sync.ts"
+import { diffPermissionCatalog, type PermissionDefinition } from '@telamonjs/permissions'
+import type { PrismaClient } from '@prisma/client'
+
+export const PERMISSIONS: PermissionDefinition[] = [
+  { code: 'users.read', category: 'Records', description: 'View users' },
+  { code: 'users.write', category: 'Records', description: 'Create, edit and remove users' },
+  { code: 'roles.read', category: 'Access', description: 'View roles' },
+  { code: 'roles.write', category: 'Access', description: 'Edit roles and the permission matrix' },
+]
+
+export async function syncPermissions(prisma: PrismaClient) {
+  const rows = await prisma.permission.findMany()
+  const { toCreate, toUpdate, toDelete } = diffPermissionCatalog(PERMISSIONS, rows)
+
+  await prisma.$transaction([
+    prisma.permission.createMany({ data: toCreate }),
+    ...toUpdate.map(({ id, category, description }) =>
+      prisma.permission.update({ where: { id }, data: { category, description } }),
+    ),
+    // RolePermission rows go with them (onDelete: Cascade)
+    prisma.permission.deleteMany({ where: { id: { in: toDelete.map((row) => row.id) } } }),
+  ])
+
+  return { created: toCreate.length, updated: toUpdate.length, deleted: toDelete.length }
+}
+```
+
+Leave out the `deleteMany` to keep permissions that are no longer in code
+(an upsert-only sync). Assigning permissions to a role is a separate step:
+replace the role's `RolePermission` rows (`deleteMany` + `createMany` in a
+transaction).
 
 ---
 
@@ -60,7 +159,7 @@ REVOGAR overrides** (skipping expired ones).
 
 At login, the app materializes the user's effective permission codes and puts
 them in the session claims. The convention is a `getPermissionsForJWT` helper
-that implements the union/override resolution over the models above:
+that takes the union of the user's roles' permissions over the tables above:
 
 ```ts title="auth.ts (authorize)"
 async authorize(credentials) {
@@ -70,19 +169,22 @@ async authorize(credentials) {
   return {
     id: user.id,
     email: user.email,
-    role: user.papel,                    // { id, name, code }
-    roles: user.papeis,                  // multi-role via UsuarioPapel
+    role: user.roles[0],                 // { id, name, code }
+    roles: user.roles,                   // multi-role via UserRole
     permissions: await getPermissionsForJWT(user.id),
-    // → ['clientes.read', 'clientes.create', 'produtos.read', ...]
+    // → ['users.read', 'users.write', 'roles.read', ...]
   }
 }
 ```
 
-```ts title="getPermissionsForJWT (shape)"
-// Union of role permissions (all roles via UsuarioPapel)
-// + PermissaoUsuario CONCEDER  (skip expired: expiraEm < now)
-// - PermissaoUsuario REVOGAR
-// → string[] of permission codes
+```ts title="getPermissionsForJWT"
+async function getPermissionsForJWT(userId: string): Promise<string[]> {
+  const links = await prisma.rolePermission.findMany({
+    where: { role: { users: { some: { userId } } } },
+    select: { permission: { select: { code: true } } },
+  })
+  return [...new Set(links.map((l) => l.permission.code))]
+}
 ```
 
 The [Auth package](/docs/packages/auth)'s `createAuthCallbacks()` copies
@@ -298,24 +400,6 @@ host's — see
 [NestJS guard exceptions across package instances](/docs/troubleshooting#nestjs-guard-exceptions-across-package-instances).
 The JWT guard of [@telamonjs/auth](/docs/packages/auth) takes the same option,
 so one function serves both.
-
----
-
-## Advanced Grants (database-side)
-
-The models support more than plain RBAC — resolution happens in your
-`getPermissionsForJWT`, so these are conventions of the schema:
-
-- **Temporary permission**: `PermissaoUsuario` with `expiraEm`; resolution
-  skips expired grants, so the permission disappears from tokens issued after
-  expiry.
-- **Revoke override**: `tipo: 'REVOGAR'` subtracts a role-granted permission
-  from a specific user.
-- **Audit trail**: `motivo` and `concessaoPor` on the grant; `LogPermissao`
-  for check/denial logging if the app wants it.
-- **ABAC columns**: `condicoes`/`escopo` JSON on `PermissaoPapel` exist for
-  apps that implement contextual checks on top — the core checker itself is
-  deliberately context-free.
 
 ---
 

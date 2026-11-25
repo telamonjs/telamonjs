@@ -125,21 +125,63 @@ getPrimaryRole(role, roles)
 
 Multi-role first: `roles[]` wins everywhere, and the singular `role` is the fallback.
 
-## Reference Prisma schema
+## Prisma schema: the RBAC tables
 
-A starting-point schema ships with the package. Copy it into your
-`schema.prisma` and adapt it: it is a reference, not a managed migration.
+The tables the admin kit generates ship with the package as a fragment. Copy
+it into your `schema.prisma` and migrate: it is a template, not a managed
+migration.
 
 ```bash
 cat node_modules/@telamonjs/permissions/src/prisma/schema.prisma
 ```
 
-The model and enum names are in **Portuguese (pt-BR)**: `Papel` (role),
-`UsuarioPapel` (user ↔ role), `Permissao` (permission), `PermissaoPapel`
-(role ↔ permission), `PermissaoUsuario` (per-user grant/revoke overrides) and
-`LogPermissao` (audit log), plus the enums `AcaoPermissao`, `TipoOverride` and
-`ResultadoPermissao`. Rename them freely in your copy; the checker only reads
-the `permissions[]` claim.
+| Model | Columns |
+| --- | --- |
+| `Role` | `id`, `name`, unique `code` (`superadmin`, `admin`, …), `description?`, `system` (built-in, not deletable) |
+| `Permission` | `id`, unique `code` (`module.action`), `module`, `action`, `category?`, `description?` |
+| `RolePermission` | `roleId` + `permissionId`, unique together |
+| `UserRole` | `userId` + `roleId`, unique together (multi-role) |
+
+`action` is a `String` holding the suffix of the code (`read`, `write`,
+`execute`, `approve`), not an enum: a new action needs no migration, and the
+catalog helper below derives it from the code. Your app owns the `User` model:
+add `roles UserRole[]` to it (the fragment's comments show where). Rename the
+models freely; the checker only reads the `permissions[]` claim.
+
+## Syncing the permission catalog
+
+Define the catalog in code and reconcile the `Permission` table with it — at
+deploy, in a seed or on boot. `diffPermissionCatalog(catalog, rows)` is pure:
+it matches by `code` and returns `{ toCreate, toUpdate, toDelete, unchanged }`.
+`module`/`action` default to the two halves of `code` (split at the last dot);
+only a changed `description` or `category` counts as an update.
+
+```ts
+import { diffPermissionCatalog, type PermissionDefinition } from '@telamonjs/permissions'
+
+export const PERMISSIONS: PermissionDefinition[] = [
+  { code: 'users.read', category: 'Records', description: 'View users' },
+  { code: 'users.write', category: 'Records', description: 'Create, edit and remove users' },
+]
+
+export async function syncPermissions(prisma: PrismaClient) {
+  const rows = await prisma.permission.findMany()
+  const { toCreate, toUpdate, toDelete } = diffPermissionCatalog(PERMISSIONS, rows)
+
+  await prisma.$transaction([
+    prisma.permission.createMany({ data: toCreate }),
+    ...toUpdate.map(({ id, category, description }) =>
+      prisma.permission.update({ where: { id }, data: { category, description } }),
+    ),
+    // RolePermission rows go with them (onDelete: Cascade)
+    prisma.permission.deleteMany({ where: { id: { in: toDelete.map((row) => row.id) } } }),
+  ])
+}
+```
+
+Leave out the `deleteMany` to keep permissions that are no longer in code.
+A duplicate code in the catalog, or a code without a dot and no explicit
+`module`/`action`, throws.
 
 This package **checks** permissions. *Resolving* them at login (database →
 `permissions[]` claim) is your app's job, typically in your NextAuth

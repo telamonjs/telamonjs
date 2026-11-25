@@ -1048,6 +1048,7 @@ Types:
 Runtime:
 
 - `createPermissionChecker`
+- `diffPermissionCatalog`
 - `getPrimaryRole`
 - `hasGlobalDataVisibility`
 - `isAdminRole`
@@ -1055,9 +1056,13 @@ Runtime:
 
 Types:
 
+- `PermissionCatalogDiff` (type)
 - `PermissionChecker` (type)
 - `PermissionCheckerConfig` (type)
 - `PermissionClause` (type)
+- `PermissionDefinition` (type)
+- `PermissionRow` (type)
+- `ResolvedPermission` (type)
 - `RoleInfo` (type)
 - `UserWithPermissions` (type)
 

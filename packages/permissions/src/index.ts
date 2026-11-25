@@ -5,7 +5,8 @@
  * the token; checks are pure functions over the claims, no query per request.
  *
  * NestJS side (guard + decorator): '@telamonjs/permissions/nest'.
- * Reference Prisma schema: src/prisma/schema.prisma (copy into the app).
+ * Reference Prisma schema: src/prisma/schema.prisma (copy into the app);
+ * diffPermissionCatalog reconciles the catalog in code with its rows.
  */
 
 export {
@@ -20,5 +21,13 @@ export {
   hasGlobalDataVisibility,
   getPrimaryRole
 } from './role-helpers'
+
+export {
+  diffPermissionCatalog,
+  type PermissionDefinition,
+  type PermissionRow,
+  type ResolvedPermission,
+  type PermissionCatalogDiff
+} from './catalog'
 
 export type { RoleInfo, UserWithPermissions, PermissionClause } from './types'
