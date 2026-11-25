@@ -1,0 +1,80 @@
+{
+  "nav": {
+    "invitations": "Invitations"
+  },
+  "convites": {
+    "title": "Invitations",
+    "description": "Invite people by email with their roles",
+    "counter": "{count, plural, one {# invitation} other {# invitations}}",
+    "searchPlaceholder": "Search by email or name...",
+    "status": {
+      "PENDING": "Pending",
+      "ACCEPTED": "Accepted",
+      "EXPIRED": "Expired",
+      "REVOKED": "Revoked"
+    },
+    "sections": {
+      "invitee": {
+        "label": "Invitee",
+        "description": "Who gets the email, and the roles they start with"
+      }
+    },
+    "columns": {
+      "email": "Email",
+      "roles": "Roles",
+      "status": "Status",
+      "expiresAt": "Expires at",
+      "invitedBy": "Invited by"
+    },
+    "fields": {
+      "email": "Email",
+      "emailPlaceholder": "person@example.com",
+      "name": "Name",
+      "nameDescription": "Optional: pre-fills the accept form",
+      "roles": "Roles",
+      "rolesDescription": "The new user gets every permission of every role"
+    },
+    "dialogs": {
+      "create": {
+        "title": "New Invitation",
+        "description": "An email with a link to create the account is sent"
+      }
+    },
+    "actions": {
+      "resend": "Resend invitation",
+      "resent": "Invitation resent",
+      "revoke": "Revoke invitation",
+      "revoked": "Invitation revoked"
+    },
+    "confirmResend": {
+      "title": "Resend the invitation to {email}?",
+      "description": "A new link is sent and the previous one stops working.",
+      "confirmText": "Resend",
+      "cancelText": "Cancel"
+    },
+    "confirmRevoke": {
+      "title": "Revoke the invitation to {email}?",
+      "description": "The link stops working. You can invite this email again later.",
+      "confirmText": "Revoke",
+      "cancelText": "Cancel"
+    },
+    "accept": {
+      "title": "Create your account",
+      "subtitle": "You were invited as {email}. Choose your name and password.",
+      "loading": "Checking the invitation...",
+      "name": "Name",
+      "password": "Password",
+      "passwordHint": "At least 8 characters",
+      "confirmPassword": "Confirm password",
+      "passwordTooShort": "The password must be at least 8 characters",
+      "passwordMismatch": "The passwords don't match",
+      "submit": "Create account",
+      "submitting": "Creating account...",
+      "error": "Could not accept the invitation",
+      "invalid": "This invitation link is not valid. Ask whoever invited you for a new one.",
+      "expired": "This invitation link has expired. Ask whoever invited you to resend it.",
+      "accepted": "This invitation was already used. Sign in with your email and password.",
+      "signIn": "Go to sign in"
+    }
+  }
+}

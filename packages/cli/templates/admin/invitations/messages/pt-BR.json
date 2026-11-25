@@ -1,0 +1,80 @@
+{
+  "nav": {
+    "invitations": "Convites"
+  },
+  "convites": {
+    "title": "Convites",
+    "description": "Convide pessoas por e-mail com seus papéis",
+    "counter": "{count, plural, one {# convite} other {# convites}}",
+    "searchPlaceholder": "Buscar por e-mail ou nome...",
+    "status": {
+      "PENDING": "Pendente",
+      "ACCEPTED": "Aceito",
+      "EXPIRED": "Expirado",
+      "REVOKED": "Revogado"
+    },
+    "sections": {
+      "invitee": {
+        "label": "Convidado",
+        "description": "Quem recebe o e-mail e com quais papéis começa"
+      }
+    },
+    "columns": {
+      "email": "E-mail",
+      "roles": "Papéis",
+      "status": "Status",
+      "expiresAt": "Expira em",
+      "invitedBy": "Convidado por"
+    },
+    "fields": {
+      "email": "E-mail",
+      "emailPlaceholder": "pessoa@exemplo.com",
+      "name": "Nome",
+      "nameDescription": "Opcional: preenche o formulário de aceite",
+      "roles": "Papéis",
+      "rolesDescription": "O novo usuário recebe todas as permissões de todos os papéis"
+    },
+    "dialogs": {
+      "create": {
+        "title": "Novo Convite",
+        "description": "Um e-mail com o link para criar a conta é enviado"
+      }
+    },
+    "actions": {
+      "resend": "Reenviar convite",
+      "resent": "Convite reenviado",
+      "revoke": "Revogar convite",
+      "revoked": "Convite revogado"
+    },
+    "confirmResend": {
+      "title": "Reenviar o convite para {email}?",
+      "description": "Um novo link é enviado e o anterior deixa de funcionar.",
+      "confirmText": "Reenviar",
+      "cancelText": "Cancelar"
+    },
+    "confirmRevoke": {
+      "title": "Revogar o convite para {email}?",
+      "description": "O link deixa de funcionar. Você pode convidar este e-mail de novo depois.",
+      "confirmText": "Revogar",
+      "cancelText": "Cancelar"
+    },
+    "accept": {
+      "title": "Crie sua conta",
+      "subtitle": "Você foi convidado como {email}. Escolha seu nome e sua senha.",
+      "loading": "Verificando o convite...",
+      "name": "Nome",
+      "password": "Senha",
+      "passwordHint": "Pelo menos 8 caracteres",
+      "confirmPassword": "Confirme a senha",
+      "passwordTooShort": "A senha deve ter pelo menos 8 caracteres",
+      "passwordMismatch": "As senhas não conferem",
+      "submit": "Criar conta",
+      "submitting": "Criando conta...",
+      "error": "Não foi possível aceitar o convite",
+      "invalid": "Este link de convite não é válido. Peça um novo a quem convidou você.",
+      "expired": "Este link de convite expirou. Peça a quem convidou você para reenviá-lo.",
+      "accepted": "Este convite já foi usado. Entre com seu e-mail e senha.",
+      "signIn": "Ir para o login"
+    }
+  }
+}

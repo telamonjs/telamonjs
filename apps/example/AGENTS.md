@@ -555,7 +555,7 @@ pnpm build            # production build
 pnpm type-check       # TypeScript check
 pnpm lint:telamonjs     # telamonjs lint src/app/admin (conventions above)
 pnpm telamonjs generate crud <module> --model <Model>  # new module in this same pattern, from prisma/schema.prisma
-pnpm telamonjs add admin audit       # admin kit: audit log (also: parameters); then db:migrate + db:seed
+pnpm telamonjs add admin audit       # admin kit: audit log (also: parameters, invitations); then db:migrate + db:seed
 pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345 (idempotent)
 pnpm telamonjs link   # @telamonjs/ui from a local checkout (../telamonjs); `pnpm telamonjs unlink` before committing
 docker compose up -d  # database only, for pnpm dev
@@ -615,9 +615,13 @@ matrix; the seed keeps `admin` complete.
 model, `audit.read`, `/admin/auditoria`, `src/lib/audit.ts` called by the users
 and roles Route Handlers); `pnpm telamonjs add admin parameters` adds system
 parameters (`Parameter` model, `parameters.read`/`parameters.write`,
-`/admin/parametros`, `getParameter(key, fallback)` in `src/lib/parameters.ts`).
-Both are idempotent and never migrate: run `pnpm db:migrate --name <name>` and
-`pnpm db:seed` afterwards. New mutating Route Handlers should call `audit()` too.
+`/admin/parametros`, `getParameter(key, fallback)` in `src/lib/parameters.ts`);
+`pnpm telamonjs add admin invitations` adds email invitations (`Invitation`
+model, `invitations.read`/`invitations.write`, `/admin/convites`, the public
+`/convite/<token>` accept page). Invitation emails go through `sendMail()` in
+`src/lib/mail.ts`, which only logs until you plug in a provider; the link is
+built from `NEXTAUTH_URL`. All are idempotent and never migrate: run
+`pnpm db:migrate --name <name>` and `pnpm db:seed` afterwards. New mutating Route Handlers should call `audit()` too.
 
 ---
 

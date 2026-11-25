@@ -149,13 +149,54 @@ describe('addAdmin', () => {
       expect(read(app, 'src/app/api/usuarios/route.ts')).toBe(routesBefore)
     })
 
+    it('invitations: model, catalog, menu, messages, mail port, public routes and the .env.example note', () => {
+      const result = addAdmin('invitations', { cwd: app })
+
+      expect(result.warnings).toEqual([])
+      expect(result.created).toEqual(
+        expect.arrayContaining([
+          'src/lib/invitations.ts',
+          'src/lib/mail.ts',
+          'src/app/api/invitations/route.ts',
+          'src/app/api/invitations/[id]/resend/route.ts',
+          'src/app/api/invitations/[id]/revoke/route.ts',
+          'src/app/api/invitations/by-token/[token]/route.ts',
+          'src/app/api/invitations/accept/route.ts',
+          'src/lib/api/invitations-client.ts',
+          'src/app/admin/convites/config.tsx',
+          'src/app/admin/convites/page.tsx',
+          'src/app/(auth)/convite/[token]/page.tsx',
+        ])
+      )
+      expect(read(app, 'prisma/schema.prisma')).toMatch(/model Invitation \{[\s\S]*tokenHash\s+String\s+@unique/)
+      const rbac = read(app, 'src/rbac.ts')
+      expect(rbac).toContain("code: 'invitations.read'")
+      expect(rbac).toContain("code: 'invitations.write'")
+      const menu = read(app, 'src/config/menu.ts')
+      expect(menu).toContain("id: 'convites'")
+      expect(menu).toContain("title: msg('nav.invitations'),")
+      expect(menu).toContain("permission: 'invitations.read',")
+      expect(JSON.parse(read(app, 'messages/pt-BR.json')).nav.invitations).toBe('Convites')
+      expect(JSON.parse(read(app, 'messages/en.json')).convites.accept.expired).toContain('expired')
+      expect(JSON.parse(read(app, 'messages/es.json')).convites.status.REVOKED).toBe('Revocada')
+      expect(read(app, '.env.example')).toContain('NEXTAUTH_URL/convite/<token>')
+      expect(read(app, '.env.example')).toContain('src/lib/mail.ts (sendMail)')
+      // the public routes need no session; the admin ones check the codes
+      expect(read(app, 'src/app/api/invitations/accept/route.ts')).not.toContain('requirePermission')
+      expect(read(app, 'src/app/api/invitations/route.ts')).toContain("requirePermission('invitations.write')")
+      expect(result.nextSteps).toContain('pnpm db:migrate --name add-invitations')
+      expect(result.nextSteps.at(-1)).toContain('src/lib/mail.ts')
+    })
+
     it('is idempotent: a second run changes nothing and duplicates nothing', () => {
       addAdmin('audit', { cwd: app })
       addAdmin('parameters', { cwd: app })
+      addAdmin('invitations', { cwd: app })
       const first = snapshot(app)
 
       const again = addAdmin('audit', { cwd: app })
       addAdmin('parameters', { cwd: app })
+      expect(addAdmin('invitations', { cwd: app }).modified).toEqual([])
 
       expect(again.created).toEqual([])
       expect(again.modified).toEqual([])
@@ -167,6 +208,8 @@ describe('addAdmin', () => {
       expect(count(read(app, 'src/rbac.ts'), "'audit.read'")).toBe(1)
       expect(count(read(app, 'src/config/menu.ts'), "id: 'auditoria'")).toBe(1)
       expect(count(read(app, 'src/app/api/roles/[id]/route.ts'), 'await audit(')).toBe(2)
+      expect(count(schema, 'model Invitation ')).toBe(1)
+      expect(count(read(app, '.env.example'), 'telamonjs:admin:invitations')).toBe(1)
     })
 
     it('keeps a module file the app already changed', () => {
@@ -184,6 +227,8 @@ describe('addAdmin', () => {
       expect(result.modified).toEqual(
         expect.arrayContaining(['prisma/schema.prisma', 'src/rbac.ts', 'src/config/menu.ts', 'messages/pt-BR.json', 'package.json'])
       )
+      expect(snapshot(app)).toEqual(before)
+      expect(addAdmin('invitations', { cwd: app, dryRun: true }).modified).toContain('.env.example')
       expect(snapshot(app)).toEqual(before)
     })
 
@@ -257,15 +302,47 @@ describe('addAdmin', () => {
       expect(audit.nextSteps[1]).toContain('pnpm db:push')
     })
 
+    it('invitations: API module with its mail port, wired into AppModule; web client and pages', () => {
+      const result = addAdmin('invitations', { cwd: mono })
+
+      expect(result.warnings).toEqual([])
+      for (const file of [
+        'apps/api/src/modules/invitations/invitations.controller.ts',
+        'apps/api/src/modules/invitations/invitations.service.ts',
+        'apps/api/src/modules/invitations/invitations.service.spec.ts',
+        'apps/api/src/modules/invitations/dto/invitation.dto.ts',
+        'apps/api/src/modules/mail/mail.module.ts',
+        'apps/web/src/lib/api/invitations-client.ts',
+        'apps/web/src/app/admin/convites/config.tsx',
+        'apps/web/src/app/(auth)/convite/[token]/page.tsx',
+      ]) {
+        expect(existsSync(join(mono, file)), file).toBe(true)
+      }
+      expect(existsSync(join(mono, 'apps/web/src/lib/mail.ts'))).toBe(false)
+      expect(existsSync(join(mono, 'apps/web/src/app/api/invitations'))).toBe(false)
+      expect(read(mono, 'packages/shared/prisma/schema.prisma')).toContain('model Invitation {')
+      expect(read(mono, 'packages/shared/src/rbac.ts')).toContain("code: 'invitations.write'")
+      expect(read(mono, '.env.example')).toContain('apps/api/src/modules/mail (MAIL_SENDER)')
+
+      const appModule = read(mono, 'apps/api/src/app.module.ts')
+      expect(appModule).toContain("import { InvitationsModule } from './modules/invitations/invitations.module'\n")
+      expect(appModule).toMatch(/RolesModule,\n {4}InvitationsModule,\n {2}\]/)
+      expect(read(mono, 'apps/api/src/modules/invitations/invitations.controller.ts')).toContain("@Public()\n  @Post('accept')")
+      expect(result.nextSteps.at(-1)).toContain('ConsoleMailSender')
+    })
+
     it('is idempotent', () => {
       addAdmin('audit', { cwd: mono })
       addAdmin('parameters', { cwd: mono })
+      addAdmin('invitations', { cwd: mono })
       const first = snapshot(mono)
 
       expect(addAdmin('audit', { cwd: mono }).modified).toEqual([])
       expect(addAdmin('parameters', { cwd: mono }).modified).toEqual([])
+      expect(addAdmin('invitations', { cwd: mono }).modified).toEqual([])
       expect(snapshot(mono)).toEqual(first)
       expect(count(read(mono, 'apps/api/src/app.module.ts'), 'AuditModule')).toBe(2)
+      expect(count(read(mono, 'apps/api/src/app.module.ts'), 'InvitationsModule')).toBe(2)
     })
   })
 
@@ -278,11 +355,12 @@ describe('addAdmin', () => {
 
       expect(() => addAdmin('audit', { cwd: plain })).toThrow(AdminKitError)
       expect(() => addAdmin('audit', { cwd: plain })).toThrow(/src\/rbac\.ts[\s\S]*createAuditInterceptor/)
+      expect(() => addAdmin('invitations', { cwd: plain })).toThrow(AdminKitError)
       expect(snapshot(plain).size).toBe(2)
     })
 
     it('rejects an unknown module', () => {
-      expect(() => addAdmin('billing', { cwd: app })).toThrow(/Unknown admin module "billing". Available: audit, parameters/)
+      expect(() => addAdmin('billing', { cwd: app })).toThrow(/Unknown admin module "billing". Available: audit, parameters, invitations/)
     })
   })
 })

@@ -16,7 +16,7 @@ import { LOCALES, mergeMissingKeys } from '../generate/messages-writer.js'
 
 const TEMPLATES = fileURLToPath(new URL('../../../templates', import.meta.url))
 
-export const ADMIN_MODULES = ['audit', 'parameters'] as const
+export const ADMIN_MODULES = ['audit', 'parameters', 'invitations'] as const
 export type AdminModule = (typeof ADMIN_MODULES)[number]
 
 export interface AddAdminOptions {
@@ -55,6 +55,8 @@ interface ModuleSpec {
   menu: { titleCode: string; icon: string; permission: string }
   permissions: Array<{ code: string; category: string; description: string }>
   migration: string
+  /** Monorepo: the Nest module class registered in AppModule (./modules/<module>/<module>.module) */
+  nestModule: string
 }
 
 const MODULES: Record<AdminModule, ModuleSpec> = {
@@ -64,6 +66,7 @@ const MODULES: Record<AdminModule, ModuleSpec> = {
     menu: { titleCode: "msg('nav.audit')", icon: 'History', permission: 'audit.read' },
     permissions: [{ code: 'audit.read', category: 'Audit', description: 'View the audit log' }],
     migration: 'add-audit',
+    nestModule: 'AuditModule',
   },
   parameters: {
     model: 'Parameter',
@@ -74,6 +77,18 @@ const MODULES: Record<AdminModule, ModuleSpec> = {
       { code: 'parameters.write', category: 'Parameters', description: 'Create, edit and delete system parameters' },
     ],
     migration: 'add-parameters',
+    nestModule: 'ParametersModule',
+  },
+  invitations: {
+    model: 'Invitation',
+    route: 'convites',
+    menu: { titleCode: "msg('nav.invitations')", icon: 'Mail', permission: 'invitations.read' },
+    permissions: [
+      { code: 'invitations.read', category: 'Invitations', description: 'View invitations' },
+      { code: 'invitations.write', category: 'Invitations', description: 'Invite users, resend and revoke invitations' },
+    ],
+    migration: 'add-invitations',
+    nestModule: 'InvitationsModule',
   },
 }
 
@@ -295,9 +310,21 @@ export function addAdmin(module: string, options: AddAdminOptions = {}): AddAdmi
 
   // 7. Wiring into the existing code
   if (layout.kind === 'monorepo') {
-    registerNestModule(plan, join(root, 'apps/api/src/app.module.ts'), name)
+    registerNestModule(plan, join(root, 'apps/api/src/app.module.ts'), name, spec.nestModule)
   } else if (name === 'audit') {
     patchAuditedRoutes(plan, root)
+  }
+
+  // 8. Invitations: .env.example says where the accept link comes from
+  if (name === 'invitations') {
+    const envPath = join(root, '.env.example')
+    const env = plan.read(envPath)
+    if (env !== undefined && !env.includes('telamonjs:admin:invitations')) {
+      plan.write(
+        envPath,
+        `${env.trimEnd()}\n\n# telamonjs:admin:invitations — the accept link in invitation emails is\n# NEXTAUTH_URL/convite/<token>, so NEXTAUTH_URL must be the public URL. Mail goes\n# through ${layout.kind === 'monorepo' ? 'apps/api/src/modules/mail (MAIL_SENDER)' : 'src/lib/mail.ts (sendMail)'}: console only until you plug in a provider.\n`
+      )
+    }
   }
 
   const { created, modified } = plan.split()
@@ -314,27 +341,35 @@ export function addAdmin(module: string, options: AddAdminOptions = {}): AddAdmi
     modified,
     kept: plan.kept.sort(),
     warnings: plan.warnings,
-    nextSteps: nextSteps(layout, spec),
+    nextSteps: nextSteps(layout, name, spec),
   }
 }
 
-function nextSteps(layout: Layout, spec: ModuleSpec): string[] {
-  return [
+function nextSteps(layout: Layout, name: AdminModule, spec: ModuleSpec): string[] {
+  const steps = [
     'pnpm install',
     `pnpm db:migrate --name ${spec.migration}${layout.kind === 'monorepo' ? '   # or pnpm db:push' : ''}`,
     'pnpm db:seed   # syncs the permission catalog; the admin role gets the new permissions',
     'Sign in again (or wait for the token refresh) to see the new menu entry',
   ]
+  if (name === 'invitations') {
+    steps.push(
+      layout.kind === 'monorepo'
+        ? 'Mail: replace ConsoleMailSender in apps/api/src/modules/mail/mail.module.ts with your provider (it only logs)'
+        : 'Mail: replace the body of sendMail() in src/lib/mail.ts with your provider (it only logs)'
+    )
+  }
+  return steps
 }
 
 /** Monorepo: the module joins AppModule's imports (audit also registers its interceptor). */
-function registerNestModule(plan: Plan, path: string, name: AdminModule): void {
+function registerNestModule(plan: Plan, path: string, name: AdminModule, className: string): void {
   const text = plan.read(path)
-  const className = name === 'audit' ? 'AuditModule' : 'ParametersModule'
+  const modulePath = `./modules/${name}/${name}.module`
   const manual =
     name === 'audit'
-      ? `import AuditModule (./modules/audit/audit.module) into AppModule and add { provide: APP_INTERCEPTOR, useClass: AuditInterceptor } (./modules/audit/audit.interceptor) to its providers`
-      : `import ParametersModule (./modules/parameters/parameters.module) into AppModule`
+      ? `import AuditModule (${modulePath}) into AppModule and add { provide: APP_INTERCEPTOR, useClass: AuditInterceptor } (./modules/audit/audit.interceptor) to its providers`
+      : `import ${className} (${modulePath}) into AppModule`
   if (text === undefined || text.includes(className)) return
 
   const fail = () => plan.warnings.push(`apps/api/src/app.module.ts: ${manual}`)
@@ -344,9 +379,8 @@ function registerNestModule(plan: Plan, path: string, name: AdminModule): void {
   if (!lastImport || lastImport.index === undefined || !modulesOpen || modulesOpen.index === undefined) return void fail()
 
   const importLines =
-    name === 'audit'
-      ? "import { AuditModule } from './modules/audit/audit.module'\nimport { AuditInterceptor } from './modules/audit/audit.interceptor'\n"
-      : "import { ParametersModule } from './modules/parameters/parameters.module'\n"
+    `import { ${className} } from '${modulePath}'\n` +
+    (name === 'audit' ? "import { AuditInterceptor } from './modules/audit/audit.interceptor'\n" : '')
   const at = lastImport.index + lastImport[0].length
   let next = text.slice(0, at) + importLines + text.slice(at)
   const open = next.match(/@Module\(\{[\s\S]*?imports:\s*\[/)

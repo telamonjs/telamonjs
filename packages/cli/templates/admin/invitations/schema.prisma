@@ -1,0 +1,24 @@
+// Invitations: an admin invites an email with roles, the invitee picks a
+// password at /convite/<token> and becomes a user. Only the token's sha256 is
+// stored. `status` is PENDING, ACCEPTED or REVOKED; a PENDING row past
+// `expiresAt` reads as EXPIRED. `invitedById`/`userId` are plain columns, not
+// relations, so the User model stays untouched.
+model Invitation {
+  id          String    @id @default(cuid())
+  tokenHash   String    @unique
+  email       String
+  name        String?
+  roleIds     String[]  @default([])
+  status      String    @default("PENDING")
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  resendCount Int       @default(0)
+  invitedById String
+  userId      String?   @unique
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([email])
+  @@index([status])
+  @@map("invitations")
+}

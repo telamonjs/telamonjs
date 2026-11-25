@@ -712,6 +712,7 @@ messages and an admin page.
 | --- | --- | --- | --- |
 | `audit` | `AuditLog`: user, impersonator, action, entity type and id, `changes` (JSON, secrets redacted), IP, user agent, method, path, status, date; indexed by entity, user and date | `audit.read` | `/admin/auditoria`: read-only list (when, who, action, entity, record), action filter, view dialog with `AuditChangesViewer` |
 | `parameters` | `Parameter`: unique `key`, text `value` read through `type` (`STRING`, `NUMBER`, `BOOLEAN`, `JSON`), `description`, `group`, `public` | `parameters.read`, `parameters.write` | `/admin/parametros`: CRUD in dialogs, the value input follows the type |
+| `invitations` | `Invitation`: `email`, `name`, `roleIds`, `tokenHash` (sha256 of the link's token, unique), `status` (`PENDING`, `ACCEPTED`, `REVOKED`; a pending one past `expiresAt` reads as `EXPIRED`), `expiresAt`, `acceptedAt`, `resendCount`, `invitedById`, `userId` | `invitations.read`, `invitations.write` | `/admin/convites`: list (email, roles, status, expiry, inviter), invite dialog with a roles multiselect, resend and revoke row actions; plus the public `/convite/<token>` accept page |
 
 What each module writes besides the shared edits below:
 
@@ -719,11 +720,25 @@ What each module writes besides the shared edits below:
 | --- | --- | --- |
 | `audit` | `src/lib/audit.ts` (`audit()`, built on `computeDiff` and `redactPayload`), `GET /api/audit` and `/api/audit/[id]`; the users and roles Route Handlers call `audit()` after each create, update, (de)activation, deletion, grant and revoke | `apps/api/src/modules/audit` (`GET /v1/audit`, `GET /v1/audit/:id`), and `createAuditInterceptor` registered as `APP_INTERCEPTOR`, so every successful, authenticated mutation is recorded |
 | `parameters` | `src/lib/parameters.ts` (`getParameter(key, fallback)`), Route Handlers under `/api/parameters` | `apps/api/src/modules/parameters` (`ParametersService.get(key, fallback)`, exported by its module), wired into `AppModule` |
+| `invitations` | `src/lib/invitations.ts`, `src/lib/mail.ts` (the mail port: `sendMail({ to, subject, html, text })`), Route Handlers under `/api/invitations` | `apps/api/src/modules/invitations` wired into `AppModule`, and `apps/api/src/modules/mail` (the mail port: the `MAIL_SENDER` token, a `MailSender` interface and `ConsoleMailSender`) |
 
 The audit list takes the filters `entityType`, `entityId`, `userId`, `action`,
 `from` and `to` (ISO dates), plus `search`. `GET /parameters/public?keys=a,b`
 needs no session and answers `{ key: value }` for the requested parameters marked
 `public`, typed; private and unknown keys are absent.
+
+Invitations: `GET /invitations`, `POST /invitations`, `POST /invitations/:id/resend`
+(a new link, the previous one stops working, a new 7-day expiry) and
+`PUT /invitations/:id/revoke` check the permissions; `GET /invitations/by-token/:token`
+and `POST /invitations/accept` need no session. The link carries a random 32-byte
+token (`generateApiKey` from `@telamonjs/auth`) and the row keeps only its sha256
+(`hashApiKey`). Inviting an email that already has a user or a pending invitation is
+a 409. Accepting creates the user (active, with the invited roles that still exist)
+and marks the invitation accepted in one transaction; an unknown, used, revoked or
+expired token gets the same 410. The accept page then signs in with the new
+credentials. Mail goes through the port above, which only logs to the console:
+replace it with your provider. The link is `NEXTAUTH_URL/convite/<token>`, never
+the request's host, and the run notes it in `.env.example`.
 
 Shared edits, all idempotent:
 
