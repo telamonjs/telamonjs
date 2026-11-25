@@ -325,7 +325,8 @@ export const MultiSelect = forwardRef<ControllerRenderProps, MultiSelectProps>(
                       >
                         {selectedValues.length}
                       </Badge>
-                      <div className='w-full space-x-1'>
+                      {/* text-left: a <button> centers inline content by default */}
+                      <div className='w-full space-x-1 text-left'>
                         {(() => {
                           // Show the labels of what is selected. Previously,
                           // 2+ items collapsed into just "N selected" and there
