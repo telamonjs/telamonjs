@@ -14,7 +14,13 @@ import {
 import { getFieldAccessibilityAttrs } from '../../utils/test-ids'
 import type { FieldRenderer, FieldRendererProps } from './types'
 import { useFormContext } from 'react-hook-form'
-import { resolveDateLimit, toCalendarDay, toValidDate } from '../date-limits'
+import {
+  dateLimitField,
+  resolveDateLimit,
+  toCalendarDay,
+  toValidDate,
+} from '../date-limits'
+import { useDependentValue } from '../../hooks/use-dependent-value'
 
 /**
  * Whether `locale`'s native date order puts the month before the day
@@ -502,7 +508,11 @@ const MaskedDateField = ({ field, t, dateFnsLocale }: FieldRendererProps) => {
     maxDate: fieldMaxDate,
   } = field
   // Limits may depend on other fields (`minDate: v => v.emissao`): read the
-  // form values at render — opening the calendar re-renders, so they're fresh
+  // form values at render — opening the calendar re-renders, so they're fresh.
+  // A `{ field }` limit also subscribes to that field, so an open calendar
+  // follows it too.
+  useDependentValue(dateLimitField(fieldMinDate))
+  useDependentValue(dateLimitField(fieldMaxDate))
   const formValues = (useFormContext()?.getValues() ?? {}) as Record<
     string,
     unknown

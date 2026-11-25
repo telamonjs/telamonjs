@@ -4,12 +4,26 @@
  * dates and compare days the same way.
  */
 
-/** Static day, `'today'` (the viewer's today) or a function of the form values (another field). */
+/** Another field's day, shifted by `offsetDays` (`{ field: 'start', offsetDays: 1 }` = strictly after it). */
+export interface DateFieldLimit {
+  field: string
+  offsetDays?: number
+}
+
+/**
+ * Static day, `'today'` (the viewer's today), another field's day
+ * (`{ field, offsetDays? }`) or a function of the form values.
+ */
 export type DateLimit =
   | Date
   | string
   | 'today'
+  | DateFieldLimit
   | ((values: Record<string, unknown>) => Date | string | null | undefined)
+
+/** The field a `{ field }` limit follows (undefined for any other limit). */
+export const dateLimitField = (limit: DateLimit | undefined): string | undefined =>
+  typeof limit === 'object' && !(limit instanceof Date) ? limit.field : undefined
 
 /** Converts a field value (Date | ISO string) into a valid Date, or undefined */
 export const toValidDate = (value: unknown): Date | undefined => {
@@ -46,7 +60,15 @@ export function resolveDateLimit(
 ): Date | undefined {
   if (!limit) return undefined
   if (limit === 'today') return toCalendarDay(now)
-  const raw = typeof limit === 'function' ? limit(values) : limit
+  const field = dateLimitField(limit)
+  if (field !== undefined) {
+    const day = toCalendarDay(values[field])
+    const offset = (limit as DateFieldLimit).offsetDays ?? 0
+    // Local-midnight day + n days: setDate stays on midnight across DST
+    if (day) day.setDate(day.getDate() + offset)
+    return day
+  }
+  const raw = typeof limit === 'function' ? limit(values) : (limit as Date | string)
   return raw ? toCalendarDay(raw) : undefined
 }
 

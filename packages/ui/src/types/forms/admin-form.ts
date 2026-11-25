@@ -151,8 +151,9 @@ export interface FormField<TValue = unknown> {
   focus?: boolean
   readOnly?: boolean
   /**
-   * `date` fields: first/last valid day — a Date/ISO string, `'today'` or a
-   * function of the form values (`v => v.emissao`, another field). The
+   * `date` fields: first/last valid day — a Date/ISO string, `'today'`,
+   * another field's day (`{ field: 'start', offsetDays: 1 }`) or a function
+   * of the form values (`v => v.emissao`). The
    * calendar disables the days outside and the form rejects a typed value
    * outside (tooSmallDate/tooBigDate), no schema rule needed
    */

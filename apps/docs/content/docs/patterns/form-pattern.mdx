@@ -179,13 +179,18 @@ overwrites it. There is no need to remount the form with a `key` to wait for dat
 date order, or picking from a calendar opened by the icon inside the input. The form value is an
 ISO string.
 
-`date` fields take `minDate` and `maxDate`: a `Date`, an ISO string, `'today'` or a function of the
-form values. The calendar disables the days outside, and the form rejects a typed value outside
-with or without a schema rule. An empty field opens the calendar on an allowed month.
+`date` fields take `minDate` and `maxDate`: a `Date`, an ISO string, `'today'`, another field
+(`{ field, offsetDays? }`) or a function of the form values. The calendar disables the days
+outside, and the form rejects a typed value outside with or without a schema rule. An empty field
+opens the calendar on an allowed month.
 
 ```tsx
-{ name: 'dueDate', label: 'Due date', type: 'date', minDate: values => values.issueDate as string, maxDate: 'today' }
+{ name: 'dueDate', label: 'Due date', type: 'date', minDate: { field: 'issueDate' }, maxDate: 'today' }
+{ name: 'endDate', label: 'End', type: 'date', minDate: { field: 'startDate', offsetDays: 1 } } // strictly after
 ```
+
+`{ field }` is that field's day, inclusive; `offsetDays` shifts it (negative too). While the other
+field is empty there is no limit, and the calendar follows the other field as it changes.
 
 ### Reading other fields in a custom field
 
