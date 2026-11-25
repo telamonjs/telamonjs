@@ -1,5 +1,28 @@
 # Changelog
 
+## data 1.1.0, cli 1.1.8 (2026-11-25)
+
+`@telamonjs/data`:
+- New `@telamonjs/data/nest` entry point, with `@nestjs/common` as an optional peer. The root and
+  `./prisma` entries stay dependency-free.
+  - `PrismaExceptionFilter` catches only Prisma errors and maps them to HTTP:
+    - P2002 → 409, with the conflicting `field`;
+    - P2003 → 400;
+    - P2025 → 404;
+    - validation errors → 400;
+    - P1000–P1003 → 503;
+    - anything else → 500, logged.
+
+    The body is `{ statusCode, message, error, field?, timestamp, path }`, and the messages can be
+    overridden.
+  - `HealthModule.forRoot({ checks, inject, path, decorators })` serves `GET /health`, which answers
+    `{ status, timestamp, uptime, <check>: 'connected' | 'disconnected' }`, with 503 when a check is
+    down.
+
+`@telamonjs/cli`:
+- The monorepo API template uses `PrismaExceptionFilter` and `HealthModule` instead of its own copies.
+  Its Jest config also transforms the ESM `@telamonjs/*` packages.
+
 ## ui 1.11.0, auth 1.4.0, permissions 1.2.0 (2026-11-25)
 
 `@telamonjs/ui`:
