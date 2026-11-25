@@ -32,7 +32,8 @@ telamonjs create my-admin
 The single-app template is a Next.js admin wired to `@telamonjs/ui`: an
 `AdminShell` layout with its menu, NextAuth v5, Prisma with a `docker-compose.yml`
 database, a reference CRUD module (`usuarios`) whose create, edit and view open in
-dialogs, and `pt-BR`/`en`/`es` messages. Unless you pass `--skip-install`, the CLI
+dialogs, database-backed roles and permissions (below), and `pt-BR`/`en`/`es`
+messages. Unless you pass `--skip-install`, the CLI
 installs dependencies and then sets the app up: it copies `.env`, starts the
 database container, runs the migrations and the seed. Then:
 
@@ -44,6 +45,29 @@ pnpm dev     # http://localhost:3001, sign in as admin@example.com / 12345
 If the automatic setup fails (Docker not running, for example), the CLI prints
 the manual steps: `docker compose up -d db`, `cp .env.example .env`,
 `pnpm db:migrate`, `pnpm db:seed`.
+
+### Roles and permissions in a new app
+
+New apps ship RBAC from the database, built on
+[`@telamonjs/permissions`](/docs/packages/permissions) and
+[`@telamonjs/auth`](/docs/packages/auth):
+
+| Piece | Where |
+| --- | --- |
+| `Role`, `Permission`, `RolePermission`, `UserRole` tables (the package's Prisma fragment); `User` has `roles`, `active`, `accessChangedAt`, `sessionsRevokedAt` | `prisma/schema.prisma` |
+| The permission catalog (`users.read/write`, `roles.read/write`) and `loadAccess()` | `src/rbac.ts` |
+| Catalog sync with `diffPermissionCatalog`, a built-in `admin` role holding every permission, the admin user with that role | `prisma/seed.ts` (idempotent: rerun it after adding a permission) |
+| Roles and permission codes materialized into the JWT at sign-in; on every renewal `sessionState` signs out a deactivated or revoked user and recomputes the claims of a stale token | `src/auth.ts` |
+| `requirePermission('users.write')` in every Route Handler | `src/lib/auth.ts`, `src/app/api/**` |
+| `PermissionsProvider` around the `AdminShell`, menu items with `permission`, CrudConfigs with `permissions` | `LayoutProviders.tsx`, `src/config/menu.ts` |
+| `/admin/papeis`: role CRUD and a `PermissionMatrix` tab (built-in roles locked); `/admin/usuarios`: multi-role assignment, activate/deactivate | `src/app/admin/**` |
+
+Changing a role's permissions, renaming or deleting it, or changing a user's
+roles stamps `accessChangedAt` on the affected users, so their next request
+carries fresh claims without a new sign-in; deactivating a user stamps
+`sessionsRevokedAt` and ends their sessions. In the monorepo, `src/rbac.ts`
+moves to `packages/shared` (`@<name>/shared/rbac`) and `apps/api` enforces the
+same codes with `createPermissionsGuard` and `@Permissions(...)`.
 
 ### Options
 
@@ -94,8 +118,9 @@ apps/jobs/        BullMQ worker and scheduler on @telamonjs/queue
 packages/shared/  Prisma schema and client, shared by web, api and jobs
 ```
 
-`apps/web` starts from the single-app template, with Prisma and the reference
-module's Route Handlers moved out to `packages/shared` and `apps/api`. The
+`apps/web` starts from the single-app template, with Prisma, `src/rbac.ts` and
+the Route Handlers of `usuarios` and `roles` moved out to `packages/shared` and
+`apps/api`. The
 monorepo uses pnpm through corepack and does not run the database setup for you:
 
 ```bash

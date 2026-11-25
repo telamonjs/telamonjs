@@ -31,7 +31,9 @@ or monorepo, and whether to install dependencies and initialize git.
 | `--skip-git` | off | Skip git initialization |
 
 You get a reference `CrudConfig` module, the `AdminShell` layout with a typed
-menu, NextAuth v5 sign-in, a Prisma schema with docker-compose for the
+menu, NextAuth v5 sign-in, database-backed roles and permissions (role CRUD,
+a permission matrix, multi-role users, permissions in the JWT with
+`@telamonjs/permissions`), a Prisma schema with docker-compose for the
 database, the Tailwind preset and pt-BR (default), en and es messages with a
 language switcher. The CLI prints the remaining steps (database, env, seed)
 when it finishes. The app pins `@telamonjs/cli` as a devDependency, so the
