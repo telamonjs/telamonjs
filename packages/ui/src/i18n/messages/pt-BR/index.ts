@@ -15,6 +15,7 @@ import { dashboard } from './dashboard'
 import { queue } from './queue'
 import { business } from './business'
 import { auth } from './auth'
+import { admin } from './admin'
 
 export const ptBR = {
   telamonjs: {
@@ -35,5 +36,6 @@ export const ptBR = {
     queue,
     business,
     auth,
+    admin,
   },
 } as const

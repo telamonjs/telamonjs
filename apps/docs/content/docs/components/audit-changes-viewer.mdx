@@ -1,0 +1,80 @@
+---
+title: AuditChangesViewer
+description: Renders an audit entry's payload, whether a field diff, before/after snapshots or a plain object, with secrets masked
+---
+
+The "what changed" panel of an audit log detail. Hand it whatever your audit trail stored and it
+picks the layout. It is pure UI: no fetching. Together with
+[PermissionMatrix](/docs/components/permission-matrix) it is one of the building blocks of the
+upcoming admin kit.
+
+```tsx
+'use client'
+import { AuditChangesViewer } from '@telamonjs/ui'
+
+export function AuditEntryChanges({ log }: { log: AuditLogRow }) {
+  return log.before !== undefined || log.after !== undefined ? (
+    <AuditChangesViewer before={log.before} after={log.after} />
+  ) : (
+    <AuditChangesViewer changes={log.changes} />
+  )
+}
+```
+
+---
+
+## Payload shapes
+
+| Payload | Rendered as |
+| --- | --- |
+| `changes={{ name: { old: 'Ann', new: 'Anna' } }}`: every entry is `{ old, new }`, or `{ before, after }` as [`logger.audit()`](/docs/packages/logger) writes it | Field / Before / After table |
+| `before={…} after={…}`, or `changes={{ before, after }}` | Field / Before / After, computed here: changed fields only, with a "Show all fields" toggle |
+| `changes={{ title: 'Hello', tags: ['a'] }}`: any other object (a request body, metadata) | Field / Value list |
+| an array, a number or free text | pretty-printed block |
+| `null`, `undefined`, `{}` | localized "No changes recorded." |
+
+- A JSON **string** (a text column holding JSON) is parsed first, for `changes`, `before` and
+  `after`.
+- **Nested values** (objects, arrays) are pretty-printed inside a native `<details>`, collapsed,
+  with the entry count as the summary.
+- **before/after**: fields are compared deeply (key order does not count). A creation
+  (`before={null}`) lists every field of `after`. When nothing differs, the viewer says so and the
+  toggle still shows every field. Unchanged fields render muted.
+- `null` shows as `null` and a missing value as `—`, so "cleared" and "not recorded" stay distinct.
+
+## Redaction
+
+Keys containing `password`, `passwd`, `senha`, `secret`, `token`, `apikey`, `authorization`, `cookie` or
+`privatekey` are masked at any depth, in every shape, before anything reaches the DOM. Matching is
+case-insensitive and ignores `_` and `-`, so `passwordHash`, `api_token` and `clientSecret` are
+covered. `redactKeys` adds keys to that list:
+
+```tsx
+<AuditChangesViewer changes={log.changes} redactKeys={['taxId', 'birthDate']} />
+```
+
+Redaction only hides values on screen. Keep secrets out of the audit trail on the server too.
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `changes` | `unknown`: diff, `{ before, after }`, object, JSON string | — |
+| `before` | `unknown`, snapshot before the change (takes precedence over `changes`) | — |
+| `after` | `unknown`, snapshot after the change | — |
+| `redactKeys` | `string[]`, added to the built-in list | — |
+| `className` | `string` | — |
+
+Labels come from the library messages (`telamonjs.admin.auditChanges.*`).
+
+## What stays in your app
+
+The rest of the audit detail: who, when, IP, user agent, action badges and entity names (compose
+them with [DetailCard](/docs/components/detail-card) and [Tabs](/docs/components/tabs)), field
+display names, and adapting other shapes. A list of changes, for example, becomes a diff in one line:
+`Object.fromEntries(list.map(c => [c.field, { old: c.from, new: c.to }]))`.
+
+## Related
+
+- [PermissionMatrix](/docs/components/permission-matrix): roles × permissions grid
+- [Logger](/docs/packages/logger): `audit()` writes the entries this viewer reads

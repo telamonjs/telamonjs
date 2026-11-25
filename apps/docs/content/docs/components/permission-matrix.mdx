@@ -1,0 +1,94 @@
+---
+title: PermissionMatrix
+description: Roles × permissions grid of checkboxes, grouped by permission group, with search, group "select all" and per-cell pending state
+---
+
+The roles screen every admin ends up writing: roles as columns, permissions as rows under their
+group, a checkbox per cell. It is pure UI: your app loads the roles and permissions and persists
+each toggle. Together with [AuditChangesViewer](/docs/components/audit-changes-viewer) it is one of
+the building blocks of the upcoming admin kit.
+
+```tsx
+'use client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { PermissionMatrix, QueryErrorState } from '@telamonjs/ui'
+
+export function RolesMatrix() {
+  const qc = useQueryClient()
+  const { data, error, refetch } = useQuery({ queryKey: ['roles-matrix'], queryFn: rolesApi.matrix })
+  const toggle = useMutation({
+    mutationFn: (v: { roleId: string; permissionId: string; next: boolean }) =>
+      v.next ? rolesApi.grant(v.roleId, v.permissionId) : rolesApi.revoke(v.roleId, v.permissionId),
+  })
+
+  if (error) return <QueryErrorState error={error} onRetry={refetch} />
+  if (!data) return null
+
+  const byRole = new Map(data.roles.map(r => [r.id, new Set(r.permissionIds)]))
+  return (
+    <PermissionMatrix
+      roles={data.roles.map(r => ({ id: r.id, label: r.name, system: r.isSystem }))}
+      permissions={data.permissions.map(p => ({ id: p.id, code: p.code, group: p.category, description: p.description }))}
+      granted={(roleId, permissionId) => byRole.get(roleId)?.has(permissionId) ?? false}
+      onToggle={async (roleId, permissionId, next) => {
+        await toggle.mutateAsync({ roleId, permissionId, next })
+        await qc.invalidateQueries({ queryKey: ['roles-matrix'] })
+      }}
+    />
+  )
+}
+```
+
+---
+
+## Behavior
+
+- **Layout**: one column per role, one row per permission, rows grouped by `group` in order of
+  first appearance. The header row and the permission column stay sticky while the grid scrolls in
+  both directions, so wide role sets work on small screens.
+- **`granted`** is a function, so any storage works: `role.permissionIds`, a `Map` of sets, or a
+  role that holds everything (`(roleId) => roleId === superId || …`).
+- **Toggling**: each click calls `onToggle(roleId, permissionId, next)`. When it returns a promise,
+  the cell shows the new value right away, is disabled and `aria-busy` until the promise settles.
+  A rejection rolls the cell back and shows a toast with the error's message, or a localized
+  fallback. Resolve after `granted` reflects the change (await the refetch, as above), or the cell
+  flickers back for a moment.
+- **Group "select all"**: the group row has a checkbox per role, checked, unchecked or mixed. It
+  calls `onToggle` once for each cell that differs, and only for the permissions the search left
+  visible. A failing batch shows a single toast. Hide it with `selectAllInGroup={false}`.
+- **Read-only**: roles flagged `system` are locked by default. `readOnly={true}` locks every cell.
+  `readOnly={roleId => …}` decides per role and replaces the `system` default. Without `onToggle`
+  the whole matrix is read-only.
+- **Search** filters by code, label, description and group (case-insensitive). Hide it with
+  `searchable={false}`.
+- **Accessibility**: a real `<table>` with a caption, column headers per role and row headers per
+  permission. Every checkbox is labelled with its permission and role, such as "Read posts for
+  Editor" (the group ones "All posts permissions for Editor"), reachable with Tab and toggled with
+  Space.
+- Text comes from the library messages (`telamonjs.admin.permissionMatrix.*`); role, permission and
+  group labels accept `I18nText`.
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `roles` | `PermissionMatrixRole[]`: `{ id, label: I18nText, system? }` | required |
+| `permissions` | `PermissionMatrixPermission[]`: `{ id, code, label?: I18nText, group, description?: I18nText }` | required |
+| `granted` | `(roleId, permissionId) => boolean` | required |
+| `onToggle` | `(roleId, permissionId, next) => void \| Promise<unknown>` | read-only |
+| `readOnly` | `boolean \| ((roleId) => boolean)` | `system` roles locked |
+| `groupLabels` | `Record<string, I18nText>`, display names of `group` values | the raw group |
+| `selectAllInGroup` | `boolean` | `true` |
+| `searchable` | `boolean` | `true` |
+| `className` | `string`, classes of the scroll container | height `min(70vh, 720px)` |
+
+## What stays in your app
+
+Loading and saving, role management (create, rename, delete, end sessions), a "save per role" batch
+flow (keep local edits in state and pass them through `granted`/`onToggle`), and anything beyond
+role ↔ permission grants, such as per-user overrides or attribute-based rules.
+
+## Related
+
+- [AuditChangesViewer](/docs/components/audit-changes-viewer): what an audit entry changed
+- [Permissions](/docs/packages/permissions): checking the permissions this matrix grants

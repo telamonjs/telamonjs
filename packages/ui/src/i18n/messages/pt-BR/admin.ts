@@ -1,0 +1,25 @@
+export const admin = {
+  permissionMatrix: {
+    caption: 'Matriz de permissões',
+    permission: 'Permissão',
+    search: 'Buscar permissão...',
+    searchLabel: 'Buscar permissão',
+    noResults: 'Nenhuma permissão encontrada.',
+    system: 'Sistema',
+    cellLabel: '{permission} para {role}',
+    groupLabel: 'Todas as permissões de {group} para {role}',
+    toggleError: 'Não foi possível atualizar a permissão.',
+  },
+  auditChanges: {
+    field: 'Campo',
+    value: 'Valor',
+    before: 'Antes',
+    after: 'Depois',
+    empty: 'Nenhuma alteração registrada.',
+    noChangedFields: 'Nenhum campo foi alterado.',
+    showAll: 'Mostrar todos os campos ({count})',
+    showChanged: 'Mostrar só os alterados',
+    redacted: 'oculto',
+    entries: '{count, plural, one {# item} other {# itens}}',
+  },
+} as const

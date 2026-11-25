@@ -6770,6 +6770,16 @@ outgrow a dialog; see [Standalone form pages](/docs/patterns/edit-page).
 
 How they fit together: [Detail views](/docs/patterns/detail-page).
 
+## Admin
+
+Data-agnostic screens every admin ends up writing, and the building blocks of the upcoming admin kit.
+Pure UI: your app fetches and persists.
+
+| Component | What it is |
+| --- | --- |
+| [PermissionMatrix](/docs/components/permission-matrix) | Roles × permissions grid with search, group "select all" and per-cell pending state |
+| [AuditChangesViewer](/docs/components/audit-changes-viewer) | What an audit entry changed: field diff, before/after or plain payload, secrets masked |
+
 ## Dashboard
 
 | Component | What it is |
@@ -14707,6 +14717,188 @@ async function exportUserData(id: string) {
 ---
 
 **Status:** ✅ Stable
+
+---
+
+# PermissionMatrix
+
+> Roles × permissions grid of checkboxes, grouped by permission group, with search, group "select all" and per-cell pending state
+
+Source: apps/docs/content/docs/components/permission-matrix.mdx
+
+The roles screen every admin ends up writing: roles as columns, permissions as rows under their
+group, a checkbox per cell. It is pure UI: your app loads the roles and permissions and persists
+each toggle. Together with [AuditChangesViewer](/docs/components/audit-changes-viewer) it is one of
+the building blocks of the upcoming admin kit.
+
+```tsx
+'use client'
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { PermissionMatrix, QueryErrorState } from '@telamonjs/ui'
+
+export function RolesMatrix() {
+  const qc = useQueryClient()
+  const { data, error, refetch } = useQuery({ queryKey: ['roles-matrix'], queryFn: rolesApi.matrix })
+  const toggle = useMutation({
+    mutationFn: (v: { roleId: string; permissionId: string; next: boolean }) =>
+      v.next ? rolesApi.grant(v.roleId, v.permissionId) : rolesApi.revoke(v.roleId, v.permissionId),
+  })
+
+  if (error) return <QueryErrorState error={error} onRetry={refetch} />
+  if (!data) return null
+
+  const byRole = new Map(data.roles.map(r => [r.id, new Set(r.permissionIds)]))
+  return (
+    <PermissionMatrix
+      roles={data.roles.map(r => ({ id: r.id, label: r.name, system: r.isSystem }))}
+      permissions={data.permissions.map(p => ({ id: p.id, code: p.code, group: p.category, description: p.description }))}
+      granted={(roleId, permissionId) => byRole.get(roleId)?.has(permissionId) ?? false}
+      onToggle={async (roleId, permissionId, next) => {
+        await toggle.mutateAsync({ roleId, permissionId, next })
+        await qc.invalidateQueries({ queryKey: ['roles-matrix'] })
+      }}
+    />
+  )
+}
+```
+
+---
+
+## Behavior
+
+- **Layout**: one column per role, one row per permission, rows grouped by `group` in order of
+  first appearance. The header row and the permission column stay sticky while the grid scrolls in
+  both directions, so wide role sets work on small screens.
+- **`granted`** is a function, so any storage works: `role.permissionIds`, a `Map` of sets, or a
+  role that holds everything (`(roleId) => roleId === superId || …`).
+- **Toggling**: each click calls `onToggle(roleId, permissionId, next)`. When it returns a promise,
+  the cell shows the new value right away, is disabled and `aria-busy` until the promise settles.
+  A rejection rolls the cell back and shows a toast with the error's message, or a localized
+  fallback. Resolve after `granted` reflects the change (await the refetch, as above), or the cell
+  flickers back for a moment.
+- **Group "select all"**: the group row has a checkbox per role, checked, unchecked or mixed. It
+  calls `onToggle` once for each cell that differs, and only for the permissions the search left
+  visible. A failing batch shows a single toast. Hide it with `selectAllInGroup={false}`.
+- **Read-only**: roles flagged `system` are locked by default. `readOnly={true}` locks every cell.
+  `readOnly={roleId => …}` decides per role and replaces the `system` default. Without `onToggle`
+  the whole matrix is read-only.
+- **Search** filters by code, label, description and group (case-insensitive). Hide it with
+  `searchable={false}`.
+- **Accessibility**: a real `<table>` with a caption, column headers per role and row headers per
+  permission. Every checkbox is labelled with its permission and role, such as "Read posts for
+  Editor" (the group ones "All posts permissions for Editor"), reachable with Tab and toggled with
+  Space.
+- Text comes from the library messages (`telamonjs.admin.permissionMatrix.*`); role, permission and
+  group labels accept `I18nText`.
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `roles` | `PermissionMatrixRole[]`: `{ id, label: I18nText, system? }` | required |
+| `permissions` | `PermissionMatrixPermission[]`: `{ id, code, label?: I18nText, group, description?: I18nText }` | required |
+| `granted` | `(roleId, permissionId) => boolean` | required |
+| `onToggle` | `(roleId, permissionId, next) => void \| Promise<unknown>` | read-only |
+| `readOnly` | `boolean \| ((roleId) => boolean)` | `system` roles locked |
+| `groupLabels` | `Record<string, I18nText>`, display names of `group` values | the raw group |
+| `selectAllInGroup` | `boolean` | `true` |
+| `searchable` | `boolean` | `true` |
+| `className` | `string`, classes of the scroll container | height `min(70vh, 720px)` |
+
+## What stays in your app
+
+Loading and saving, role management (create, rename, delete, end sessions), a "save per role" batch
+flow (keep local edits in state and pass them through `granted`/`onToggle`), and anything beyond
+role ↔ permission grants, such as per-user overrides or attribute-based rules.
+
+## Related
+
+- [AuditChangesViewer](/docs/components/audit-changes-viewer): what an audit entry changed
+- [Permissions](/docs/packages/permissions): checking the permissions this matrix grants
+
+---
+
+# AuditChangesViewer
+
+> Renders an audit entry's payload, whether a field diff, before/after snapshots or a plain object, with secrets masked
+
+Source: apps/docs/content/docs/components/audit-changes-viewer.mdx
+
+The "what changed" panel of an audit log detail. Hand it whatever your audit trail stored and it
+picks the layout. It is pure UI: no fetching. Together with
+[PermissionMatrix](/docs/components/permission-matrix) it is one of the building blocks of the
+upcoming admin kit.
+
+```tsx
+'use client'
+import { AuditChangesViewer } from '@telamonjs/ui'
+
+export function AuditEntryChanges({ log }: { log: AuditLogRow }) {
+  return log.before !== undefined || log.after !== undefined ? (
+    <AuditChangesViewer before={log.before} after={log.after} />
+  ) : (
+    <AuditChangesViewer changes={log.changes} />
+  )
+}
+```
+
+---
+
+## Payload shapes
+
+| Payload | Rendered as |
+| --- | --- |
+| `changes={{ name: { old: 'Ann', new: 'Anna' } }}`: every entry is `{ old, new }`, or `{ before, after }` as [`logger.audit()`](/docs/packages/logger) writes it | Field / Before / After table |
+| `before={…} after={…}`, or `changes={{ before, after }}` | Field / Before / After, computed here: changed fields only, with a "Show all fields" toggle |
+| `changes={{ title: 'Hello', tags: ['a'] }}`: any other object (a request body, metadata) | Field / Value list |
+| an array, a number or free text | pretty-printed block |
+| `null`, `undefined`, `{}` | localized "No changes recorded." |
+
+- A JSON **string** (a text column holding JSON) is parsed first, for `changes`, `before` and
+  `after`.
+- **Nested values** (objects, arrays) are pretty-printed inside a native `<details>`, collapsed,
+  with the entry count as the summary.
+- **before/after**: fields are compared deeply (key order does not count). A creation
+  (`before={null}`) lists every field of `after`. When nothing differs, the viewer says so and the
+  toggle still shows every field. Unchanged fields render muted.
+- `null` shows as `null` and a missing value as `—`, so "cleared" and "not recorded" stay distinct.
+
+## Redaction
+
+Keys containing `password`, `passwd`, `senha`, `secret`, `token`, `apikey`, `authorization`, `cookie` or
+`privatekey` are masked at any depth, in every shape, before anything reaches the DOM. Matching is
+case-insensitive and ignores `_` and `-`, so `passwordHash`, `api_token` and `clientSecret` are
+covered. `redactKeys` adds keys to that list:
+
+```tsx
+<AuditChangesViewer changes={log.changes} redactKeys={['taxId', 'birthDate']} />
+```
+
+Redaction only hides values on screen. Keep secrets out of the audit trail on the server too.
+
+## Props
+
+| Prop | Type | Default |
+| --- | --- | --- |
+| `changes` | `unknown`: diff, `{ before, after }`, object, JSON string | — |
+| `before` | `unknown`, snapshot before the change (takes precedence over `changes`) | — |
+| `after` | `unknown`, snapshot after the change | — |
+| `redactKeys` | `string[]`, added to the built-in list | — |
+| `className` | `string` | — |
+
+Labels come from the library messages (`telamonjs.admin.auditChanges.*`).
+
+## What stays in your app
+
+The rest of the audit detail: who, when, IP, user agent, action badges and entity names (compose
+them with [DetailCard](/docs/components/detail-card) and [Tabs](/docs/components/tabs)), field
+display names, and adapting other shapes. A list of changes, for example, becomes a diff in one line:
+`Object.fromEntries(list.map(c => [c.field, { old: c.from, new: c.to }]))`.
+
+## Related
+
+- [PermissionMatrix](/docs/components/permission-matrix): roles × permissions grid
+- [Logger](/docs/packages/logger): `audit()` writes the entries this viewer reads
 
 ---
 

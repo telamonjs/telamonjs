@@ -41,6 +41,7 @@ Runtime:
 - `AreaChart`
 - `AreaChartLazy`
 - `AspectRatio`
+- `AuditChangesViewer`
 - `Avatar`
 - `AvatarFallback`
 - `AvatarImage`
@@ -191,6 +192,7 @@ Runtime:
 - `MultiSelect`
 - `PageContent`
 - `PageSkeleton`
+- `PermissionMatrix`
 - `PermissionsProvider`
 - `PieChart`
 - `PieChartLazy`
@@ -388,6 +390,7 @@ Types:
 - `AreaChartProps` (type)
 - `ArrayQueryFnOptions` (type)
 - `AsyncCheckFn` (type)
+- `AuditChangesViewerProps` (type)
 - `BadgeVariant` (type)
 - `BarChartProps` (type)
 - `BaseCardProps` (type)
@@ -536,6 +539,9 @@ Types:
 - `PagesConfig` (type)
 - `PaginatedResponse` (type)
 - `PaginationParams` (type)
+- `PermissionMatrixPermission` (type)
+- `PermissionMatrixProps` (type)
+- `PermissionMatrixRole` (type)
 - `PermissionsProviderProps` (type)
 - `PieChartProps` (type)
 - `PopoverSelectorLabels` (type)
