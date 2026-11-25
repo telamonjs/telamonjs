@@ -47,6 +47,11 @@ export interface HealthModuleOptions {
    * `@Public()` or `@SkipThrottle()`. This package imports no auth.
    */
   decorators?: ClassDecorator[]
+  /**
+   * Status code when a check is down. Default `503`. Set `200` when a Docker /
+   * CI health check reads only the body (`status`, `<check>: 'disconnected'`).
+   */
+  downStatus?: number
 }
 
 const HEALTH_CHECKS = Symbol('HEALTH_CHECKS')
@@ -62,7 +67,7 @@ async function probe(check: HealthCheck): Promise<'connected' | 'disconnected'> 
 
 /**
  * `GET /health`: runs every check in parallel and answers 200 when all are up,
- * 503 (same body, `status: 'error'`) when any is down, so Docker and load
+ * 503 (or `downStatus`; same body, `status: 'error'`) when any is down, so Docker and load
  * balancer health checks can read the status code.
  *
  * ```ts
@@ -86,7 +91,7 @@ export class HealthModule {
           Object.entries(this.checks).map(async ([name, check]) => [name, await probe(check)] as const)
         )
         const down = results.some(([, state]) => state === 'disconnected')
-        if (down) res.status(503)
+        if (down) res.status(options.downStatus ?? 503)
         return {
           status: down ? 'error' : 'ok',
           timestamp: new Date().toISOString(),

@@ -137,7 +137,7 @@ and call `super.catch(exception, host)` for the rest.
 
 `HealthModule.forRoot()` serves `GET /health`. It runs the checks in parallel and answers 200, or
 503 with `status: 'error'` when any check is down, so Docker and load balancers can read the
-status code:
+status code (`downStatus: 200` keeps 200 for setups that read only the body):
 
 ```ts
 import { Public } from '@telamonjs/auth/nest'

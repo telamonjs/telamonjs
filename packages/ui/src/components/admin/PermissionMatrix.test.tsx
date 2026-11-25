@@ -79,6 +79,15 @@ describe('PermissionMatrix', () => {
       expect(screen.getByText('Sistema')).toBeInTheDocument()
     })
 
+    it('shows a per-permission badge next to its name', () => {
+      render(
+        <Harness
+          permissions={[{ id: 'p1', code: 'posts.read', label: 'Read posts', group: 'posts', badge: 'Read' }]}
+        />
+      )
+      expect(screen.getByText('Read')).toBeInTheDocument()
+    })
+
     it('resolves I18nText labels (roles, permissions, group labels)', () => {
       render(
         <PermissionMatrix

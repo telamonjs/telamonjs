@@ -27,6 +27,8 @@ export interface PermissionMatrixPermission {
   /** Rows are grouped by this value (category, module), in order of first appearance. */
   group: string
   description?: I18nText
+  /** Short tag shown next to the name, e.g. the action (Read / Write / Execute). */
+  badge?: I18nText
 }
 
 export interface PermissionMatrixProps {
@@ -219,6 +221,11 @@ export function PermissionMatrix({
                   <th scope='row' className={cn(sticky, 'z-10 border-b px-3 py-1.5 text-left font-normal')}>
                     {p.label !== undefined && <span className='block'>{text(p.label)}</span>}
                     <code className='text-xs text-muted-foreground'>{p.code}</code>
+                    {p.badge !== undefined && (
+                      <Badge variant='outline' className='ml-2 align-middle text-[10px]'>
+                        {text(p.badge)}
+                      </Badge>
+                    )}
                     {p.description !== undefined && (
                       <span className='block text-xs text-muted-foreground'>{text(p.description)}</span>
                     )}

@@ -27,7 +27,7 @@ export function AuditEntryChanges({ log }: { log: AuditLogRow }) {
 
 | Payload | Rendered as |
 | --- | --- |
-| `changes={{ name: { old: 'Ann', new: 'Anna' } }}`: every entry is `{ old, new }`, or `{ before, after }` as [`logger.audit()`](/docs/packages/logger) writes it | Field / Before / After table |
+| `changes={{ name: { old: 'Ann', new: 'Anna' } }}`: every entry is `{ old, new }`, `{ from, to }`, or `{ before, after }` as [`logger.audit()`](/docs/packages/logger) writes it | Field / Before / After table |
 | `before={…} after={…}`, or `changes={{ before, after }}` | Field / Before / After, computed here: changed fields only, with a "Show all fields" toggle |
 | `changes={{ title: 'Hello', tags: ['a'] }}`: any other object (a request body, metadata) | Field / Value list |
 | an array, a number or free text | pretty-printed block |
@@ -72,7 +72,7 @@ Labels come from the library messages (`telamonjs.admin.auditChanges.*`).
 The rest of the audit detail: who, when, IP, user agent, action badges and entity names (compose
 them with [DetailCard](/docs/components/detail-card) and [Tabs](/docs/components/tabs)), field
 display names, and adapting other shapes. A list of changes, for example, becomes a diff in one line:
-`Object.fromEntries(list.map(c => [c.field, { old: c.from, new: c.to }]))`.
+`Object.fromEntries(list.map(c => [c.field, { from: c.from, to: c.to }]))`.
 
 ## Related
 

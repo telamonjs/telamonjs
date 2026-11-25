@@ -35,6 +35,11 @@ describe('AuditChangesViewer', () => {
       expect(rows()).toEqual(['email | null | a@b.c'])
     })
 
+    it('also reads a per-field { from, to } diff', () => {
+      render(<AuditChangesViewer changes={{ status: { from: 'draft', to: 'sent' } }} />)
+      expect(rows()).toEqual(['status | draft | sent'])
+    })
+
     it('renders a plain object as key/value', () => {
       render(<AuditChangesViewer changes={{ title: 'Hello', published: true, views: 3 }} />)
       expect(screen.getAllByRole('columnheader').map(h => h.textContent)).toEqual(['Campo', 'Valor'])

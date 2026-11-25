@@ -7,7 +7,7 @@ import { cn } from '../../utils'
 
 export interface AuditChangesViewerProps {
   /**
-   * The entry's payload: a `{ field: { old, new } }` (or `{ field: { before, after } }`,
+   * The entry's payload: a `{ field: { old, new } }` (or `{ field: { from, to } }`, or `{ field: { before, after } }`,
    * as `@telamonjs/logger` `audit()` writes) diff, a `{ before, after }`
    * pair, or any object (request body, metadata) shown as key/value. A JSON
    * string is parsed first.
@@ -42,13 +42,14 @@ function parse(v: unknown): unknown {
   }
 }
 
-/** Per-field diff entry: `{ old, new }` (common API shape) or `{ before, after }` (@telamonjs/logger `audit()`). */
+/** Per-field diff entry: `{ old, new }` (common API shape), `{ before, after }` (@telamonjs/logger `audit()`) or `{ from, to }`. */
 function diffEntry(v: unknown): [unknown, unknown] | undefined {
   if (!isObj(v)) return undefined
   const keys = Object.keys(v)
   if (keys.length === 0) return undefined
   if (keys.every(k => k === 'old' || k === 'new')) return [v.old, v.new]
   if (keys.every(k => k === 'before' || k === 'after')) return [v.before, v.after]
+  if (keys.every(k => k === 'from' || k === 'to')) return [v.from, v.to]
   return undefined
 }
 

@@ -14852,7 +14852,7 @@ export function RolesMatrix() {
 | Prop | Type | Default |
 | --- | --- | --- |
 | `roles` | `PermissionMatrixRole[]`: `{ id, label: I18nText, system? }` | required |
-| `permissions` | `PermissionMatrixPermission[]`: `{ id, code, label?: I18nText, group, description?: I18nText }` | required |
+| `permissions` | `PermissionMatrixPermission[]`: `{ id, code, label?: I18nText, group, description?: I18nText, badge?: I18nText }` (`badge`: a short tag next to the name, e.g. the action) | required |
 | `granted` | `(roleId, permissionId) => boolean` | required |
 | `onToggle` | `(roleId, permissionId, next) => void \| Promise<unknown>` | read-only |
 | `readOnly` | `boolean \| ((roleId) => boolean)` | `system` roles locked |
@@ -14904,7 +14904,7 @@ export function AuditEntryChanges({ log }: { log: AuditLogRow }) {
 
 | Payload | Rendered as |
 | --- | --- |
-| `changes={{ name: { old: 'Ann', new: 'Anna' } }}`: every entry is `{ old, new }`, or `{ before, after }` as [`logger.audit()`](/docs/packages/logger) writes it | Field / Before / After table |
+| `changes={{ name: { old: 'Ann', new: 'Anna' } }}`: every entry is `{ old, new }`, `{ from, to }`, or `{ before, after }` as [`logger.audit()`](/docs/packages/logger) writes it | Field / Before / After table |
 | `before={…} after={…}`, or `changes={{ before, after }}` | Field / Before / After, computed here: changed fields only, with a "Show all fields" toggle |
 | `changes={{ title: 'Hello', tags: ['a'] }}`: any other object (a request body, metadata) | Field / Value list |
 | an array, a number or free text | pretty-printed block |
@@ -14949,7 +14949,7 @@ Labels come from the library messages (`telamonjs.admin.auditChanges.*`).
 The rest of the audit detail: who, when, IP, user agent, action badges and entity names (compose
 them with [DetailCard](/docs/components/detail-card) and [Tabs](/docs/components/tabs)), field
 display names, and adapting other shapes. A list of changes, for example, becomes a diff in one line:
-`Object.fromEntries(list.map(c => [c.field, { old: c.from, new: c.to }]))`.
+`Object.fromEntries(list.map(c => [c.field, { from: c.from, to: c.to }]))`.
 
 ## Related
 
@@ -20959,7 +20959,7 @@ and call `super.catch(exception, host)` for the rest.
 
 `HealthModule.forRoot()` serves `GET /health`. It runs the checks in parallel and answers 200, or
 503 with `status: 'error'` when any check is down, so Docker and load balancers can read the
-status code:
+status code (`downStatus: 200` keeps 200 for setups that read only the body):
 
 ```ts
 import { Public } from '@telamonjs/auth/nest'

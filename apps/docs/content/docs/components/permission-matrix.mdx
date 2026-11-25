@@ -73,7 +73,7 @@ export function RolesMatrix() {
 | Prop | Type | Default |
 | --- | --- | --- |
 | `roles` | `PermissionMatrixRole[]`: `{ id, label: I18nText, system? }` | required |
-| `permissions` | `PermissionMatrixPermission[]`: `{ id, code, label?: I18nText, group, description?: I18nText }` | required |
+| `permissions` | `PermissionMatrixPermission[]`: `{ id, code, label?: I18nText, group, description?: I18nText, badge?: I18nText }` (`badge`: a short tag next to the name, e.g. the action) | required |
 | `granted` | `(roleId, permissionId) => boolean` | required |
 | `onToggle` | `(roleId, permissionId, next) => void \| Promise<unknown>` | read-only |
 | `readOnly` | `boolean \| ((roleId) => boolean)` | `system` roles locked |

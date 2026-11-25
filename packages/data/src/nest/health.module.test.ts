@@ -63,6 +63,14 @@ describe('HealthModule', () => {
       expect(res.body).toMatchObject({ status: 'error', database: 'disconnected' })
     })
 
+    it('downStatus overrides the 503 for setups that read only the body', async () => {
+      const nest = await boot({ ...prismaChecks, downStatus: 200 })
+      nest.get(FakePrisma).up = false
+      const res = await request(nest.getHttpServer()).get('/health')
+      expect(res.status).toBe(200)
+      expect(res.body).toMatchObject({ status: 'error', database: 'disconnected' })
+    })
+
     it('a check resolving false is down; any other value is up', async () => {
       const res = await request(
         (
