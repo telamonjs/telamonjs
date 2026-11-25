@@ -654,3 +654,224 @@ describe('createJwtAuthGuard — createException (linked package)', () => {
     })
   })
 })
+
+describe('createJwtAuthGuard — validateUser', () => {
+  const reflector = { getAllAndOverride: () => false } as unknown as Reflector
+  type Verdict = boolean | string | Promise<boolean | string>
+  type Check = (
+    user: AuthUser,
+    payload: MfJwtPayload,
+    context: ExecutionContext
+  ) => Verdict
+
+  function checked(
+    check: Check,
+    options?: Parameters<typeof createJwtAuthGuard>[0]
+  ) {
+    const spy = vi.fn(check)
+    class AppGuard extends createJwtAuthGuard({ secret: SECRET, ...options }) {
+      protected override validateUser(
+        user: AuthUser,
+        p: MfJwtPayload,
+        context: ExecutionContext
+      ): Verdict {
+        return spy(user, p, context)
+      }
+    }
+    return { g: new AppGuard(reflector), spy }
+  }
+
+  async function bearer(extra: Partial<MfJwtPayload> = {}) {
+    const token = await encodeSessionToken(
+      { ...payload, ...extra },
+      { secret: SECRET }
+    )
+    return (): FakeRequest => ({ headers: { authorization: `Bearer ${token}` } })
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks()
+    vi.useRealTimers()
+  })
+
+  it('true → passes; receives the resolved user, the payload and the context', async () => {
+    const { g, spy } = checked(() => true)
+    const request = (await bearer())()
+    const context = ctx(request)
+    expect(await g.canActivate(context)).toBe(true)
+    expect(request.user?.id).toBe('u1')
+    const [user, p, c] = spy.mock.calls[0] ?? []
+    expect(user).toBe(request.user)
+    expect(p?.permissions).toEqual(['produtos.read'])
+    expect(c).toBe(context)
+  })
+
+  it('false → 401 with the generic message, no request.user, rejection logged', async () => {
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined)
+    const { g } = checked(() => false)
+    const request = (await bearer())()
+    await expect(g.canActivate(ctx(request))).rejects.toThrowError(
+      new UnauthorizedException('Session is no longer valid')
+    )
+    expect(request.user).toBeUndefined()
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/u1/)
+  })
+
+  it('a reason string → 401 whose message does not leak the reason; the reason is logged', async () => {
+    const warn = vi
+      .spyOn(Logger.prototype, 'warn')
+      .mockImplementation(() => undefined)
+    const { g } = checked(() => 'account suspended')
+    const rejected = g.canActivate(ctx((await bearer())()))
+    await expect(rejected).rejects.toThrowError(
+      new UnauthorizedException('Session is no longer valid')
+    )
+    expect(String(warn.mock.calls[0]?.[0])).toMatch(/account suspended/)
+  })
+
+  it('a thrown error → 401 (not a 500), logged with its message', async () => {
+    const error = vi
+      .spyOn(Logger.prototype, 'error')
+      .mockImplementation(() => undefined)
+    const { g } = checked(() => {
+      throw new Error('db down')
+    })
+    const rejected = g.canActivate(ctx((await bearer())()))
+    await expect(rejected).rejects.toBeInstanceOf(UnauthorizedException)
+    await expect(rejected).rejects.toThrow('Session is no longer valid')
+    expect(String(error.mock.calls[0]?.[0])).toMatch(/db down/)
+  })
+
+  it('a rejected promise → 401 too', async () => {
+    vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+    const { g } = checked(() => Promise.reject(new Error('timeout')))
+    await expect(g.canActivate(ctx((await bearer())()))).rejects.toBeInstanceOf(
+      UnauthorizedException
+    )
+  })
+
+  it('runs after resolveUser: gets its user, and is skipped when it returns null', async () => {
+    const seen: unknown[] = []
+    class AppGuard extends createJwtAuthGuard<{ id: string }>({
+      secret: SECRET,
+    }) {
+      protected override resolveUser(p: MfJwtPayload): { id: string } | null {
+        return p.id === 'gone' ? null : { id: `db:${p.id}` }
+      }
+      protected override validateUser(user: { id: string }): boolean {
+        seen.push(user)
+        return true
+      }
+    }
+    const g = new AppGuard(reflector)
+    expect(await g.canActivate(ctx((await bearer())()))).toBe(true)
+    await expect(
+      g.canActivate(ctx((await bearer({ id: 'gone' }))()))
+    ).rejects.toThrow(UnauthorizedException)
+    expect(seen).toEqual([{ id: 'db:u1' }])
+  })
+
+  it('a rejection goes through createException (linked package)', async () => {
+    vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+    class HostException extends Error {}
+    const { g } = checked(() => false, {
+      createException: (_status, message) => new HostException(message),
+    })
+    await expect(g.canActivate(ctx((await bearer())()))).rejects.toBeInstanceOf(
+      HostException
+    )
+  })
+
+  it('without validateUserCacheTtlMs it runs on every request', async () => {
+    const { g, spy } = checked(() => true)
+    const request = await bearer()
+    await g.canActivate(ctx(request()))
+    await g.canActivate(ctx(request()))
+    expect(spy).toHaveBeenCalledTimes(2)
+  })
+
+  describe('validateUserCacheTtlMs', () => {
+    it('caches the verdict per token: a second request is a hit', async () => {
+      const { g, spy } = checked(() => true, { validateUserCacheTtlMs: 30_000 })
+      const request = await bearer()
+      expect(await g.canActivate(ctx(request()))).toBe(true)
+      const second = request()
+      expect(await g.canActivate(ctx(second))).toBe(true)
+      expect(second.user?.id).toBe('u1')
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
+
+    it('caches a rejection too', async () => {
+      vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+      const { g, spy } = checked(() => false, { validateUserCacheTtlMs: 30_000 })
+      const request = await bearer()
+      await expect(g.canActivate(ctx(request()))).rejects.toThrow(
+        UnauthorizedException
+      )
+      await expect(g.canActivate(ctx(request()))).rejects.toThrow(
+        UnauthorizedException
+      )
+      expect(spy).toHaveBeenCalledTimes(1)
+    })
+
+    it('another token of the same user is a miss (a new login is not held by an old verdict)', async () => {
+      vi.spyOn(Logger.prototype, 'warn').mockImplementation(() => undefined)
+      const { g, spy } = checked((_user, p) => p['generation'] !== 'old', {
+        validateUserCacheTtlMs: 30_000,
+      })
+      await expect(
+        g.canActivate(ctx((await bearer({ generation: 'old' }))()))
+      ).rejects.toThrow(UnauthorizedException)
+      expect(
+        await g.canActivate(ctx((await bearer({ generation: 'new' }))()))
+      ).toBe(true)
+      expect(spy).toHaveBeenCalledTimes(2)
+    })
+
+    it('expires after the TTL', async () => {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      const { g, spy } = checked(() => true, { validateUserCacheTtlMs: 30_000 })
+      const request = await bearer()
+      await g.canActivate(ctx(request()))
+      vi.advanceTimersByTime(29_000)
+      await g.canActivate(ctx(request()))
+      expect(spy).toHaveBeenCalledTimes(1)
+      vi.advanceTimersByTime(2_000)
+      await g.canActivate(ctx(request()))
+      expect(spy).toHaveBeenCalledTimes(2)
+    })
+
+    it('never caches a thrown error', async () => {
+      vi.spyOn(Logger.prototype, 'error').mockImplementation(() => undefined)
+      let calls = 0
+      const { g } = checked(
+        () => {
+          calls++
+          if (calls === 1) throw new Error('db down')
+          return true
+        },
+        { validateUserCacheTtlMs: 30_000 }
+      )
+      const request = await bearer()
+      await expect(g.canActivate(ctx(request()))).rejects.toThrow(
+        UnauthorizedException
+      )
+      expect(await g.canActivate(ctx(request()))).toBe(true)
+      expect(calls).toBe(2)
+    })
+
+    it('is bounded: past 1000 tokens the oldest entry is evicted', async () => {
+      const { g, spy } = checked(() => true, { validateUserCacheTtlMs: 60_000 })
+      const first = await bearer({ n: 0 })
+      await g.canActivate(ctx(first()))
+      for (let n = 1; n <= 1000; n++) {
+        await g.canActivate(ctx((await bearer({ n }))()))
+      }
+      expect(spy).toHaveBeenCalledTimes(1001)
+      await g.canActivate(ctx(first()))
+      expect(spy).toHaveBeenCalledTimes(1002)
+    })
+  })
+})

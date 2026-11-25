@@ -427,6 +427,58 @@ callbacks: {
   refresh: the impersonation token carries the target's claims.
 </Callout>
 
+### Cached yes/no checks (`validateUser`)
+
+`resolveUser` builds `request.user`, so it runs on every request. When the
+user comes from the token and you only need a yes/no answer (user still
+active, account not suspended, this session not ended), override
+`validateUser` instead and cache its verdict with `validateUserCacheTtlMs`:
+
+```ts title="src/common/guards/jwt-auth.guard.ts"
+import { Injectable } from '@nestjs/common'
+import { Reflector } from '@nestjs/core'
+import { createJwtAuthGuard, type AuthUser } from '@telamonjs/auth/nest'
+
+@Injectable()
+export class JwtAuthGuard extends createJwtAuthGuard({ validateUserCacheTtlMs: 30_000 }) {
+  constructor(
+    reflector: Reflector,
+    private readonly prisma: PrismaService
+  ) {
+    super(reflector)
+  }
+
+  protected override async validateUser(user: AuthUser) {
+    // While impersonating, the actor losing access ends the session too
+    const ids = [user.id, user.originalUser?.id].filter((id): id is string => !!id)
+    const active = await this.prisma.user.count({
+      where: { id: { in: ids }, active: true, deletedAt: null },
+    })
+    if (active !== ids.length) return 'user inactive or deleted'
+    if (user.sessionId && (await this.prisma.sessionLog.count({
+      where: { sessionId: user.sessionId, endedAt: { not: null } },
+    }))) {
+      return 'session ended'
+    }
+    return true
+  }
+}
+```
+
+- It runs after `resolveUser`, only when that returned a user, and receives
+  `(user, payload, context)`.
+- `true` passes. `false` or a reason string is a 401 with the generic
+  'Session is no longer valid'; the reason goes to the guard's Nest `Logger`,
+  never to the client. A thrown error is a 401 too, logged as an error. That
+  is the opposite of `resolveUser`, whose errors propagate: when an outage
+  must be a 5xx, or the client must see a specific error, keep that check in
+  `resolveUser`.
+- The cache is in memory, per process, keyed by the session token (a new
+  login does not inherit an old `false`) and bounded to 1000 tokens. A thrown
+  error is never cached. A database change takes up to the TTL to apply, so
+  keep it short; with the cache on, the verdict must not depend on the
+  request. Without `validateUserCacheTtlMs`, it runs on every request.
+
 ---
 
 ## Troubleshooting

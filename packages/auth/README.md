@@ -134,6 +134,29 @@ override `resolveUser` (its return becomes `request.user`, `null` is a 401);
 `allowQueryToken` turns `?token=` off outside SSE routes. Full recipe on the
 docs site.
 
+For yes/no checks on a user that comes from the token (still active, not
+suspended, session not ended), override `validateUser` instead: it runs after
+`resolveUser` and its verdict can be cached per session token, so the
+database is not hit on every request:
+
+```ts
+@Injectable()
+export class JwtAuthGuard extends createJwtAuthGuard({ validateUserCacheTtlMs: 30_000 }) {
+  constructor(reflector: Reflector, private readonly users: UsersService) {
+    super(reflector)
+  }
+
+  protected override async validateUser(user: AuthUser) {
+    return (await this.users.isActive(user.id)) || 'user inactive'
+  }
+}
+```
+
+`true` passes; `false` or a reason string is a 401 with a generic message, the
+reason going to the Nest `Logger`. A thrown error is a 401 too (logged), unlike
+`resolveUser`, whose errors propagate. The cache is in memory, per process,
+bounded to 1000 tokens, and never keeps a thrown error.
+
 ## Core (isomorphic)
 
 ```ts

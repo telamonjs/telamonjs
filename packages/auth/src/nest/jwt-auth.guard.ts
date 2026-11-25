@@ -86,7 +86,19 @@ export interface JwtAuthGuardOptions extends Omit<TokenConfig, 'secret'> {
     logId: string,
     context: ExecutionContext
   ) => boolean | Promise<boolean>
+  /**
+   * Caches the verdict of `validateUser` for this many milliseconds, per
+   * session token, so a database check does not run on every request.
+   * Default: no cache. The cache is in memory, per guard class (per process),
+   * bounded to 1000 tokens; a thrown error is never cached. A change in the
+   * database (user deactivated, sessions revoked) takes up to this long to
+   * apply — keep it short (e.g. `30_000`).
+   */
+  validateUserCacheTtlMs?: number
 }
+
+/** Most tokens the `validateUser` cache keeps; past it, the oldest goes first. */
+const VALIDATE_CACHE_MAX = 1000
 
 /** Candidate token + the salts to try decoding it with. */
 interface TokenCandidate {
@@ -121,6 +133,26 @@ export class JwtAuthGuardBase<TUser> implements CanActivate {
   ): TUser | null | Promise<TUser | null> {
     // Correct for the default TUser = AuthUser; a custom TUser must override this
     return payloadToAuthUser(payload) as unknown as TUser
+  }
+
+  /**
+   * Per-request yes/no check on the resolved user, called after `resolveUser`
+   * (only when it returned a user). Return `true` to pass, or `false` / a
+   * reason string to reject with a 401 'Session is no longer valid': the
+   * reason is logged (Nest `Logger`), never sent to the client. A thrown error
+   * is a 401 too (logged), not a 500.
+   *
+   * Unlike `resolveUser`, its verdict can be cached:
+   * `validateUserCacheTtlMs` keeps it per session token. With the cache on,
+   * the verdict must depend only on the token (user/payload), not on the
+   * request. Default: `true`.
+   */
+  protected validateUser(
+    _user: TUser,
+    _payload: MfJwtPayload,
+    _context: ExecutionContext
+  ): boolean | string | Promise<boolean | string> {
+    return true
   }
 
   /**
@@ -172,6 +204,12 @@ export function createJwtAuthGuard<TUser = AuthUser>(
     new UnauthorizedException(message)
   // Once per guard class: a warning per request would flood the logs
   let warnedIrrevocable = false
+  const logger = new Logger('JwtAuthGuard')
+  const cacheTtl = options?.validateUserCacheTtlMs ?? 0
+  // Keyed by the token, not the user id: a verdict can depend on its claims
+  // (session id, authTime), and a new login must not inherit an old `false`.
+  // ponytail: FIFO eviction via Map insertion order; an LRU if churn shows up.
+  const verdicts = new Map<string, { verdict: boolean | string; expiresAt: number }>()
 
   @Injectable()
   class JwtAuthGuard extends JwtAuthGuardBase<TUser> {
@@ -219,13 +257,35 @@ export function createJwtAuthGuard<TUser = AuthUser>(
             if (user == null) {
               throw unauthorized('Session is no longer valid')
             }
+            let verdict: boolean | string
+            try {
+              verdict = await this.cachedVerdict(
+                candidate.token,
+                user,
+                payload,
+                context
+              )
+            } catch (error) {
+              logger.error(
+                `validateUser threw for user ${payload.id}: ${
+                  error instanceof Error ? error.message : String(error)
+                }`
+              )
+              throw unauthorized('Session is no longer valid')
+            }
+            if (verdict !== true) {
+              logger.warn(
+                `validateUser rejected user ${payload.id}: ${verdict || 'returned false'}`
+              )
+              throw unauthorized('Session is no longer valid')
+            }
             if (
               payload.impersonatedUserId &&
               !options?.isImpersonationActive &&
               !warnedIrrevocable
             ) {
               warnedIrrevocable = true
-              new Logger('JwtAuthGuard').warn(
+              logger.warn(
                 'Accepted an impersonation token without an isImpersonationActive hook: ' +
                   'ending the impersonation cannot revoke it before it expires. ' +
                   'Pass isImpersonationActive to createJwtAuthGuard().'
@@ -238,6 +298,25 @@ export function createJwtAuthGuard<TUser = AuthUser>(
       }
 
       throw unauthorized('Invalid or expired token')
+    }
+
+    private async cachedVerdict(
+      token: string,
+      user: TUser,
+      payload: MfJwtPayload,
+      context: ExecutionContext
+    ): Promise<boolean | string> {
+      const hit = verdicts.get(token)
+      if (hit && hit.expiresAt > Date.now()) return hit.verdict
+      verdicts.delete(token)
+      const verdict = await this.validateUser(user, payload, context)
+      if (cacheTtl > 0) {
+        if (verdicts.size >= VALIDATE_CACHE_MAX) {
+          verdicts.delete(verdicts.keys().next().value as string)
+        }
+        verdicts.set(token, { verdict, expiresAt: Date.now() + cacheTtl })
+      }
+      return verdict
     }
 
     private extractTokenCandidates(request: RequestLike): TokenCandidate[] {
