@@ -65,17 +65,17 @@ export interface ContentTabsProps {
 
 // Custom styles for non-default variants
 const listStyles: Record<Exclude<ContentTabsVariant, 'default'>, string> = {
-  underline: 'bg-transparent border-b border-slate-200 rounded-none p-0 h-auto',
-  pill: 'inline-flex gap-1 rounded-lg bg-slate-100 p-1',
+  underline: 'bg-transparent border-b border-border rounded-none p-0 h-auto',
+  pill: 'inline-flex gap-1 rounded-lg bg-muted p-1',
   glass:
-    'inline-flex gap-1 rounded-xl px-1.5 py-2 bg-slate-900/5 backdrop-blur-sm border border-slate-200/50',
-  gradient: 'inline-flex gap-1 rounded-xl bg-slate-100 p-1',
+    'inline-flex gap-1 rounded-xl px-1.5 py-2 bg-foreground/5 backdrop-blur-sm border border-border/50',
+  gradient: 'inline-flex gap-1 rounded-xl bg-muted p-1',
 }
 
 const triggerStyles: Record<Exclude<ContentTabsVariant, 'default'>, string> = {
   underline: `
     relative pb-3 rounded-none bg-transparent
-    text-slate-600 hover:text-slate-900
+    text-muted-foreground hover:text-foreground
     after:content-[''] after:absolute after:bottom-0 after:left-0 after:right-0
     after:h-0.5 after:bg-primary after:rounded-full
     after:scale-x-0 after:transition-transform after:duration-300 after:origin-center
@@ -84,23 +84,23 @@ const triggerStyles: Record<Exclude<ContentTabsVariant, 'default'>, string> = {
     data-[state=active]:shadow-none
   `,
   pill: `
-    rounded-md px-4 py-2 text-slate-600
+    rounded-md px-4 py-2 text-muted-foreground
     transition-all duration-200
-    hover:text-slate-900
+    hover:text-foreground
     data-[state=active]:bg-card data-[state=active]:text-primary
     data-[state=active]:shadow-sm
   `,
   glass: `
-    rounded-lg px-4 py-2 text-slate-600
+    rounded-lg px-4 py-2 text-muted-foreground
     transition-all duration-200
-    hover:bg-card/40 hover:text-slate-900
+    hover:bg-card/40 hover:text-foreground
     data-[state=active]:bg-card/80 data-[state=active]:text-primary
     data-[state=active]:shadow-md
   `,
   gradient: `
-    rounded-lg px-4 py-2 text-slate-600
+    rounded-lg px-4 py-2 text-muted-foreground
     transition-all duration-300
-    hover:text-slate-900
+    hover:text-foreground
     data-[state=active]:bg-gradient-to-r
     data-[state=active]:from-blue-500 data-[state=active]:to-purple-600
     data-[state=active]:text-white

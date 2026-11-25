@@ -259,6 +259,7 @@ Runtime:
 - `TabsTrigger`
 - `TelamonjsI18nProvider`
 - `Textarea`
+- `ThemeToggle`
 - `TimeField`
 - `TimePickerUI`
 - `Timeline`
@@ -600,6 +601,7 @@ Types:
 - `TelamonjsI18nConfig` (type)
 - `TelamonjsLocale` (type)
 - `TelamonjsMessages` (type)
+- `ThemeToggleProps` (type)
 - `TimelineItem` (type)
 - `TimelineProps` (type)
 - `ToolbarConfig` (type)

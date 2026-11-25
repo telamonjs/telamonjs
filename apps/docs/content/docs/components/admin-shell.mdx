@@ -165,6 +165,12 @@ barrel pulls in `next/navigation`.
       description: 'Slot for header right-side actions (notifications, settings buttons, etc.)',
       type: 'React.ReactNode',
     },
+    themeToggle: {
+      description:
+        'Shows a light/dark ThemeToggle at the right end of the header, after headerActions (see Theming)',
+      type: 'boolean',
+      default: 'false',
+    },
     commandActions: {
       description: 'App-specific quick actions appended after the auto-generated menuConfig items',
       type: 'CommandPaletteItem[]',
@@ -203,6 +209,7 @@ interface AdminShellProps {
   localeSwitcher?: boolean // default true
   profileHref?: string
   headerActions?: React.ReactNode
+  themeToggle?: boolean // default false
   commandActions?: CommandPaletteItem[]
   breadcrumbProps?: AdminShellBreadcrumbProps
   className?: string
@@ -258,4 +265,5 @@ Each tab that lists a CRUD module renders `<ListPage config={config} embedded />
 
 - [ModernSidebar](/docs/components/modern-sidebar) - Sidebar composed by `AdminShell`
 - [Provider Setup Pattern](/docs/patterns/provider-setup) - Full provider hierarchy
+- [Theming](/docs/patterns/theming) - Tokens the shell uses, dark mode and `ThemeToggle`
 - [AppShell](/docs/components/app-shell) - Flexible primitive shell for non-standard layouts

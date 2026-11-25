@@ -11,6 +11,7 @@ import React, {
 import { useRouter } from 'next/navigation'
 import { useTelamonjsT, useText } from '../i18n/use-t'
 import { ModernSidebar } from './ModernSidebar'
+import { ThemeToggle } from './ThemeToggle'
 import type { ModernSidebarProps } from './ModernSidebar'
 import type { CommandPaletteItem } from '../navigation/CommandPalette'
 
@@ -107,6 +108,12 @@ export interface AdminShellProps {
   // ── Header ──────────────────────────────────────────────────────────────
   /** Slot for header right-side actions (notifications, settings buttons, etc.) */
   headerActions?: React.ReactNode
+  /**
+   * Shows a light/dark `ThemeToggle` at the right end of the header, after
+   * `headerActions`. It drives the next-themes provider mounted by
+   * `AppProviders`. Default: false.
+   */
+  themeToggle?: boolean
 
   // ── Command Palette ─────────────────────────────────────────────────────
   /**
@@ -241,6 +248,7 @@ export function AdminShell({
   localeSwitcher = true,
   profileHref,
   headerActions,
+  themeToggle = false,
   commandActions,
   breadcrumbProps,
 }: AdminShellProps) {
@@ -324,7 +332,7 @@ export function AdminShell({
       />
 
       {/* Main Column */}
-      <div className='flex min-w-0 flex-1 flex-col overflow-hidden bg-slate-50/50'>
+      <div className='flex min-w-0 flex-1 flex-col overflow-hidden bg-muted/30'>
         {/* Impersonation banner (opt-in) — acima do header, fora da área rolável */}
         {showImpersonationBanner && (
           <ImpersonationBanner
@@ -339,7 +347,7 @@ export function AdminShell({
         )}
 
         {/* Sticky Header */}
-        <header className='sticky top-0 z-30 border-b border-slate-200/60 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80'>
+        <header className='sticky top-0 z-30 border-b border-border/60 bg-card/95 shadow-sm backdrop-blur supports-[backdrop-filter]:bg-card/80'>
           <div className='flex h-16 items-center justify-between px-4 lg:px-6'>
             {/* Left: breadcrumb (offset right of the mobile sidebar trigger) */}
             <div className='flex min-w-0 flex-1 items-center pl-14 md:pl-0'>
@@ -352,10 +360,11 @@ export function AdminShell({
               />
             </div>
 
-            {/* Right: header actions slot */}
-            {headerActions && (
+            {/* Right: header actions slot (+ opt-in theme toggle) */}
+            {(headerActions || themeToggle) && (
               <div className='ml-4 flex items-center space-x-2'>
                 {headerActions}
+                {themeToggle && <ThemeToggle />}
               </div>
             )}
           </div>

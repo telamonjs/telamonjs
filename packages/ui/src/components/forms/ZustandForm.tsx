@@ -674,7 +674,7 @@ const ZustandFormComponent: React.FC<ZustandFormProps> = ({
         )}
 
         {!hideButtons && (
-          <div className='flex justify-end space-x-3 mt-6 border-t border-slate-200 pt-4'>
+          <div className='flex justify-end space-x-3 mt-6 border-t border-border pt-4'>
             <Button
               type='button'
               variant='outline'

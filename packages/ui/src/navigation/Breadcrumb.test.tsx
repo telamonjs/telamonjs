@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { NextIntlClientProvider } from 'next-intl'
-import { Breadcrumb } from './Breadcrumb'
+import { Breadcrumb, ResponsiveBreadcrumb } from './Breadcrumb'
+import { rawNeutralClasses } from '../test/theme-tokens'
 import { telamonjsMessages } from '../i18n/messages'
 import { msg } from '../i18n/msg'
 import type { MenuItem } from '../types/menu'
@@ -133,6 +134,15 @@ describe('Breadcrumb', () => {
         'aria-label',
         'Trilha de navegação'
       )
+    })
+  })
+
+  describe('Theme tokens', () => {
+    it('ResponsiveBreadcrumb (desktop + mobile) uses no raw neutral palette classes', () => {
+      currentPathname = '/admin/users'
+      const { container } = render(<ResponsiveBreadcrumb />)
+
+      expect(rawNeutralClasses(container)).toEqual([])
     })
   })
 })

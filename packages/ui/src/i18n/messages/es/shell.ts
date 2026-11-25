@@ -19,6 +19,7 @@ export const shell = {
     dark: 'Oscuro',
     system: 'Sistema',
   },
+  toggleTheme: 'Cambiar tema',
   language: 'Idioma',
   expand: 'Expandir menú lateral',
   collapse: 'Contraer menú lateral',

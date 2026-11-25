@@ -145,7 +145,7 @@ function StatCardInline<T>({ item, stat, text }: StatCardProps<T>) {
         </div>
 
         <div className='min-w-0'>
-          <p className='text-lg font-bold leading-none text-slate-900 dark:text-slate-100'>
+          <p className='text-lg font-bold leading-none text-foreground'>
             {value}
           </p>
           <p className='text-[10px] text-muted-foreground'>{text(stat.label)}</p>
@@ -185,7 +185,7 @@ function StatCardGrid<T>({ item, stat, text }: StatCardProps<T>) {
         </div>
         <div className='min-w-0 flex-1'>
           <p className='text-xs text-muted-foreground truncate'>{text(stat.label)}</p>
-          <p className='text-sm font-semibold truncate text-slate-900 dark:text-slate-100'>
+          <p className='text-sm font-semibold truncate text-foreground'>
             {value}
           </p>
         </div>

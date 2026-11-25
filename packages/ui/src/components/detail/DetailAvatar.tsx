@@ -93,7 +93,7 @@ export function DetailAvatar({
         }
         className={cn(
           sizes.container,
-          'rounded-full object-cover border-2 border-slate-200',
+          'rounded-full object-cover border-2 border-border',
           zoomable && 'transition-opacity group-hover:opacity-80 cursor-pointer'
         )}
         onError={() => setImageError(true)}

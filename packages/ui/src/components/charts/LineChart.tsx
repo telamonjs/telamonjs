@@ -11,6 +11,7 @@ import {
   Legend,
 } from 'recharts'
 import { cn } from '../../utils'
+import { AXIS_PROPS, GRID_STROKE, TOOLTIP_CONTENT_STYLE } from './chart-theme'
 
 /**
  * Chart data
@@ -82,8 +83,11 @@ export function LineChart({
             bottom: 5,
           }}
         >
-          {showGrid && <CartesianGrid strokeDasharray='3 3' />}
+          {showGrid && (
+            <CartesianGrid strokeDasharray='3 3' stroke={GRID_STROKE} />
+          )}
           <XAxis
+            {...AXIS_PROPS}
             dataKey='name'
             label={
               xAxisLabel
@@ -92,19 +96,14 @@ export function LineChart({
             }
           />
           <YAxis
+            {...AXIS_PROPS}
             label={
               yAxisLabel
                 ? { value: yAxisLabel, angle: -90, position: 'insideLeft' }
                 : undefined
             }
           />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '0.5rem',
-            }}
-          />
+          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
           {showLegend && <Legend />}
           {dataKeys.map((key, index) => (
             <Line

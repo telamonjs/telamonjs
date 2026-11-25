@@ -2,6 +2,7 @@
 import { describe, it, expect } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import { PageContent } from './PageContent'
+import { rawNeutralClasses } from '../test/theme-tokens'
 
 describe('PageContent titleAs', () => {
   it('default keeps the title out of the heading outline (unchanged)', () => {
@@ -19,6 +20,24 @@ describe('PageContent titleAs', () => {
       )
       const heading = screen.getByRole('heading', { level: 2, name: 'Relatório' })
       expect(heading.className).toMatch(/font-(bold|semibold)/)
+    })
+  }
+})
+
+describe('PageContent theme tokens', () => {
+  for (const variant of ['card', 'plain'] as const) {
+    it(`${variant}: chrome uses theme tokens, no raw neutral palette classes`, () => {
+      const { container } = render(
+        <PageContent
+          title='Relatório'
+          description='Desc'
+          footer={<span>f</span>}
+          variant={variant}
+        >
+          x
+        </PageContent>
+      )
+      expect(rawNeutralClasses(container)).toEqual([])
     })
   }
 })

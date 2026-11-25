@@ -19,6 +19,7 @@ export const shell = {
     dark: 'Dark',
     system: 'System',
   },
+  toggleTheme: 'Toggle theme',
   language: 'Language',
   expand: 'Expand sidebar',
   collapse: 'Collapse sidebar',

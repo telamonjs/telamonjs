@@ -25,6 +25,11 @@ import {
   Legend,
   ResponsiveContainer,
 } from 'recharts'
+import {
+  AXIS_PROPS,
+  GRID_STROKE,
+  TOOLTIP_CONTENT_STYLE,
+} from '../../components/charts/chart-theme'
 import type { ChartDataPoint, ChartType } from './ChartWidget'
 
 export interface ChartWidgetChartProps {
@@ -56,10 +61,12 @@ export function ChartWidgetChart({
     <ResponsiveContainer width='100%' height={height}>
       {type === 'line' && (
         <LineChart data={data}>
-          {showGrid && <CartesianGrid strokeDasharray='3 3' />}
-          <XAxis dataKey={xAxisKey} />
-          <YAxis />
-          <Tooltip />
+          {showGrid && (
+            <CartesianGrid strokeDasharray='3 3' stroke={GRID_STROKE} />
+          )}
+          <XAxis {...AXIS_PROPS} dataKey={xAxisKey} />
+          <YAxis {...AXIS_PROPS} />
+          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
           {showLegend && <Legend />}
           {dataKeys.map((key, index) => (
             <Line
@@ -75,10 +82,12 @@ export function ChartWidgetChart({
 
       {type === 'bar' && (
         <BarChart data={data}>
-          {showGrid && <CartesianGrid strokeDasharray='3 3' />}
-          <XAxis dataKey={xAxisKey} />
-          <YAxis />
-          <Tooltip />
+          {showGrid && (
+            <CartesianGrid strokeDasharray='3 3' stroke={GRID_STROKE} />
+          )}
+          <XAxis {...AXIS_PROPS} dataKey={xAxisKey} />
+          <YAxis {...AXIS_PROPS} />
+          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
           {showLegend && <Legend />}
           {dataKeys.map((key, index) => (
             <Bar key={key} dataKey={key} fill={colors[index % colors.length]} />
@@ -104,7 +113,7 @@ export function ChartWidgetChart({
               />
             ))}
           </Pie>
-          <Tooltip />
+          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
           {showLegend && <Legend />}
         </PieChart>
       )}

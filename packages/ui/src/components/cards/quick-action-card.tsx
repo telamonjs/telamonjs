@@ -33,7 +33,7 @@ export const QuickActionCard = memo(function QuickActionCard({
       >
         <Icon className='h-7 w-7' />
       </div>
-      <span className='text-center text-sm font-medium text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-200 transition-colors'>
+      <span className='text-center text-sm font-medium text-muted-foreground group-hover:text-foreground transition-colors'>
         {text(title)}
       </span>
     </>

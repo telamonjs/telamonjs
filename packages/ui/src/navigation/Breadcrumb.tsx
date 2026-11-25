@@ -450,9 +450,9 @@ export function ResponsiveBreadcrumb(props: BreadcrumbProps) {
           <Link
             href='/admin'
             onClick={resetToHome}
-            className='group flex items-center justify-center w-8 h-8 rounded-lg hover:bg-slate-100 transition-colors'
+            className='group flex items-center justify-center w-8 h-8 rounded-lg hover:bg-accent transition-colors'
           >
-            <Home className='w-5 h-5 text-slate-600 group-hover:text-primary transition-colors' />
+            <Home className='w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors' />
           </Link>
 
           {breadcrumbData.segments.length > 1 && (

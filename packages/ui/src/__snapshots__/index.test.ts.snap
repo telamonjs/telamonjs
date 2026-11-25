@@ -248,6 +248,7 @@ exports[`index.ts (public barrel) > Export surface > pins the full sorted list o
   "TabsTrigger",
   "TelamonjsI18nProvider",
   "Textarea",
+  "ThemeToggle",
   "TimeField",
   "TimePickerUI",
   "Timeline",

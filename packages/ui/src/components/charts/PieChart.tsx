@@ -9,6 +9,7 @@ import {
   Legend,
 } from 'recharts'
 import { cn } from '../../utils'
+import { TOOLTIP_CONTENT_STYLE } from './chart-theme'
 import type { ChartData } from './LineChart'
 
 /**
@@ -89,13 +90,7 @@ export function PieChart({
               />
             ))}
           </Pie>
-          <Tooltip
-            contentStyle={{
-              backgroundColor: 'hsl(var(--background))',
-              border: '1px solid hsl(var(--border))',
-              borderRadius: '0.5rem',
-            }}
-          />
+          <Tooltip contentStyle={TOOLTIP_CONTENT_STYLE} />
           {showLegend && <Legend />}
         </RechartsPieChart>
       </ResponsiveContainer>

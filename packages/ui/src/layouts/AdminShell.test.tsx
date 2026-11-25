@@ -9,6 +9,7 @@ import { act, render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AdminShell } from './AdminShell'
 import { PermissionsProvider } from '../providers/PermissionsProvider'
+import { rawNeutralClasses } from '../test/theme-tokens'
 import type { MenuItem } from '../types/menu'
 import type { CommandPaletteItem } from '../navigation/CommandPalette'
 
@@ -428,6 +429,33 @@ describe('AdminShell', () => {
       )
       const main = container.querySelector('main')
       expect(main).toHaveClass('test-content-class')
+    })
+  })
+
+  // ── Theme ──────────────────────────────────────────────────────────────────
+
+  describe('Theme', () => {
+    it('shell chrome (content column, header) uses theme tokens, no raw neutral palette classes', () => {
+      const { container } = render(
+        React.createElement(AdminShell, defaultProps)
+      )
+      expect(rawNeutralClasses(container)).toEqual([])
+      expect(container.querySelector('header')).toHaveClass('border-border/60')
+    })
+
+    it('does not render the theme toggle by default', () => {
+      render(React.createElement(AdminShell, defaultProps))
+      expect(
+        screen.queryByRole('button', { name: 'Alternar tema' })
+      ).not.toBeInTheDocument()
+    })
+
+    it('renders the theme toggle in the header when themeToggle is set', () => {
+      const { container } = render(
+        React.createElement(AdminShell, { ...defaultProps, themeToggle: true })
+      )
+      const toggle = screen.getByRole('button', { name: 'Alternar tema' })
+      expect(container.querySelector('header')).toContainElement(toggle)
     })
   })
 

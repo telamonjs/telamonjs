@@ -280,7 +280,7 @@ const AccentCard = memo(function AccentCard({
         <div className='min-w-0 flex-1'>
           <p
             className={cn(
-              'font-bold tracking-tight tabular-nums text-slate-900 dark:text-slate-100',
+              'font-bold tracking-tight tabular-nums text-foreground',
               isCompact ? 'text-lg leading-tight' : 'text-2xl'
             )}
           >

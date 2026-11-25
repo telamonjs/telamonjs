@@ -81,13 +81,13 @@ export default [
         'error',
         {
           selector:
-            'Literal[value=/\\b(bg-white|bg-gray-(50|100)|text-gray-[5-9]00|border-gray-(100|200|300)|from-gray-50|to-white)\\b/]',
+            'Literal[value=/\\b(bg-white|bg-(gray|slate)-(50|100)|text-(gray|slate)-[5-9]00|border-(gray|slate)-(100|200|300)|from-gray-50|to-white)\\b/]',
           message:
             'Use semantic tokens (bg-card/bg-background, bg-muted, text-foreground/text-muted-foreground, border-border) instead of raw palette colors — they break in dark mode. Legitimate exception (print/QR white, translucent overlay): // eslint-disable-next-line no-restricted-syntax with a justification.',
         },
         {
           selector:
-            'TemplateElement[value.raw=/\\b(bg-white|bg-gray-(50|100)|text-gray-[5-9]00|border-gray-(100|200|300)|from-gray-50|to-white)\\b/]',
+            'TemplateElement[value.raw=/\\b(bg-white|bg-(gray|slate)-(50|100)|text-(gray|slate)-[5-9]00|border-(gray|slate)-(100|200|300)|from-gray-50|to-white)\\b/]',
           message:
             'Use semantic tokens (bg-card/bg-background, bg-muted, text-foreground/text-muted-foreground, border-border) instead of raw palette colors — they break in dark mode.',
         },
@@ -173,6 +173,7 @@ export default [
       '**/QRCodeGenerator.tsx',
       '**/StatusIndicator.tsx',
       '**/color-presets.*', // color scale definitions (source of the presets)
+      '**/cards/colors.ts', // card color scales, every entry already dark-aware
       '**/queue/**',
       '**/*.test.{ts,tsx}',
       '**/*.stories.{ts,tsx}',

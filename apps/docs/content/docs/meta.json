@@ -17,6 +17,7 @@
     "patterns/form-pattern",
     "patterns/detail-page",
     "patterns/provider-setup",
+    "patterns/theming",
     "patterns/i18n",
     "---Guides---",
     "patterns/nested-data",

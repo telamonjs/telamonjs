@@ -82,22 +82,22 @@ function PageContent({
     <div className='flex w-full flex-col space-y-4 p-4 lg:p-6'>
       <Card
         className={cn(
-          'flex w-full flex-col border border-slate-200 bg-card shadow-sm print:border-0 print:shadow-none',
+          'flex w-full flex-col border border-border bg-card shadow-sm print:border-0 print:shadow-none',
           className
         )}
       >
         {(title || description) && (
-          <CardHeader className='border-b border-slate-100 px-4 py-3 shadow-sm shadow-slate-300 md:px-6 md:py-4 print:px-0'>
+          <CardHeader className='border-b border-border/50 px-4 py-3 shadow-sm shadow-border md:px-6 md:py-4 print:px-0'>
             {title && (
               <PageHeader
                 as={titleAs}
-                className='text-xl font-semibold text-slate-900 md:p-0'
+                className='text-xl font-semibold text-foreground md:p-0'
               >
                 {title}
               </PageHeader>
             )}
             {description && (
-              <CardDescription className='mt-1 text-slate-600'>
+              <CardDescription className='mt-1 text-muted-foreground'>
                 {description}
               </CardDescription>
             )}
@@ -107,7 +107,7 @@ function PageContent({
           {children}
         </CardContent>
         {footer && (
-          <CardFooter className='border-t border-slate-100 px-4 py-3 md:px-6'>
+          <CardFooter className='border-t border-border/50 px-4 py-3 md:px-6'>
             {footer}
           </CardFooter>
         )}

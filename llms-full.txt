@@ -4814,6 +4814,130 @@ not in `@telamonjs/ui`.
 
 ---
 
+# Theming & Dark Mode
+
+> The CSS-variable tokens the shell, tabs and charts paint with, how dark mode switches them, and the ThemeToggle
+
+Source: apps/docs/content/docs/patterns/theming.mdx
+
+Every surface of the library paints with **shadcn-style CSS variables** declared in
+`@telamonjs/ui/styles` (`:root` for light, `.dark` for dark) and exposed as Tailwind colors by
+`@telamonjs/ui/tailwind-preset` (`bg-background`, `text-muted-foreground`, `border-border`…).
+Dark mode is the `dark` class on `<html>`, set by the next-themes provider inside `AppProviders`.
+
+To restyle the app, redefine the variables in your own `globals.css`, for both modes. Never
+override the library's classes: a token change reaches every component that uses it.
+
+```css
+@layer base {
+  :root {
+    --primary: 197 37% 24%;
+    --muted: 210 40% 96.1%;
+  }
+  .dark {
+    --primary: 173 58% 39%;
+    --muted: 223 47% 11%;
+  }
+}
+```
+
+Values are bare HSL channels (`H S% L%`), with no `hsl()` wrapper: the preset adds it and
+Tailwind's opacity modifiers (`bg-muted/30`) work on top.
+
+---
+
+## Tokens the shell uses
+
+| Surface | Classes | Variables |
+| --- | --- | --- |
+| `AdminShell` root | `bg-background` | `--background` |
+| `AdminShell` content column | `bg-muted/30` | `--muted` |
+| `AdminShell` sticky header | `bg-card/95`, `border-border/60` | `--card`, `--border` |
+| Breadcrumb (mobile home link) | `text-muted-foreground`, `hover:bg-accent` | `--muted-foreground`, `--accent` |
+| `PageContent` card | `border-border`, header/footer `border-border/50`, title `text-foreground`, description `text-muted-foreground` | `--border`, `--foreground`, `--muted-foreground` |
+| `ContentTabs` / `AdminTabs` bar | `from-muted/40 to-muted/30`, `border-border`; idle tabs `text-muted-foreground` | `--muted`, `--border`, `--muted-foreground` |
+| `ContentTabs` `pill` / `gradient` / `glass` lists | `bg-muted`; `glass` uses `bg-foreground/5`, `border-border/50` | `--muted`, `--foreground`, `--border` |
+| `Tabs` primitive (`TabsList`) | `bg-border` | `--border` |
+| Sidebar | `bg-sidebar`, `text-sidebar-foreground`… | `--sidebar-*` |
+
+## Charts
+
+`LineChart`, `AreaChart`, `BarChart`, `PieChart` and the dashboard `ChartWidget` route the
+Recharts chrome through the same variables, so axes and tooltips stay readable in dark mode:
+
+| Part | Color |
+| --- | --- |
+| Axis line and tick labels | `hsl(var(--muted-foreground))` |
+| Grid lines | `hsl(var(--border))` |
+| Tooltip | background `hsl(var(--background))`, border `hsl(var(--border))` |
+
+Series colors are not theme tokens: they come from each chart's `colors` prop. Pass
+`'hsl(var(--chart-1))'`…`'hsl(var(--chart-5))'` to make them follow the theme as well.
+
+---
+
+## ThemeToggle
+
+A light/dark button for the header. It calls next-themes' `setTheme` (the same instance as the
+exported `useTheme`), so the choice persists in `localStorage`, and it renders a Sun and a Moon
+icon with `dark:hidden` / `dark:block`, so server and client HTML match without a mounted-state
+placeholder.
+
+In the shell, turn it on with one prop (off by default):
+
+```tsx
+<AdminShell menuConfig={menuConfig} themeToggle>
+  {children}
+</AdminShell>
+```
+
+Anywhere else:
+
+```tsx
+import { ThemeToggle } from '@telamonjs/ui'
+
+<ThemeToggle className='ml-2' />
+```
+
+| Prop | Type | Description |
+| --- | --- | --- |
+| `className` | `string` | Extra classes, merged into the ghost icon button |
+
+Its label (`aria-label` and tooltip) is the `shell.toggleTheme` message (see [i18n](/docs/patterns/i18n)).
+For a light / dark / system menu instead of a button, build it on `useTheme()`.
+
+## Following the OS preference
+
+`AppProviders` starts in `light`. To start from `prefers-color-scheme`, pass the whole
+`themeConfig`:
+
+```tsx
+<AppProviders
+  config={{
+    themeConfig: { attribute: 'class', defaultTheme: 'system', enableSystem: true },
+  }}
+>
+```
+
+<Callout type='warn'>
+  `themeConfig` replaces the default object as a whole: passing only `defaultTheme` leaves
+  `attribute` undefined, next-themes falls back to `data-theme`, and the `dark` class (which the
+  preset's `darkMode: 'class'` reads) never lands on `<html>`.
+</Callout>
+
+Set `suppressHydrationWarning` on `<html>` (see
+[Provider Setup](/docs/patterns/provider-setup#theme-not-persisting)).
+
+---
+
+## See Also
+
+- [AdminShell](/docs/components/admin-shell) - The `themeToggle` prop
+- [Provider Setup Pattern](/docs/patterns/provider-setup) - `AppProviders` and `themeConfig`
+- [Installation](/docs/getting-started/installation) - Styles and Tailwind preset
+
+---
+
 # Internationalization (i18n)
 
 > Multi-language UI text with next-intl — msg() in configs, locale per user, formatting and zod messages
@@ -6772,6 +6896,7 @@ interface AdminShellProps {
   localeSwitcher?: boolean // default true
   profileHref?: string
   headerActions?: React.ReactNode
+  themeToggle?: boolean // default false
   commandActions?: CommandPaletteItem[]
   breadcrumbProps?: AdminShellBreadcrumbProps
   className?: string

@@ -68,27 +68,37 @@ export const Pie = ({ data, dataKey, nameKey, innerRadius }: any) =>
 export const Cell = ({ fill }: any) =>
   React.createElement('div', { 'data-testid': 'cell', 'data-fill': fill })
 
-export const XAxis = ({ dataKey, label, allowDecimals }: any) =>
+export const XAxis = ({ dataKey, label, allowDecimals, stroke, tick }: any) =>
   React.createElement('div', {
     'data-testid': 'x-axis',
     'data-key': dataKey,
     'data-label': label?.value,
     'data-allow-decimals': allowDecimals,
+    'data-stroke': stroke,
+    'data-tick-fill': tick?.fill,
   })
 
-export const YAxis = ({ label, allowDecimals, width }: any) =>
+export const YAxis = ({ label, allowDecimals, width, stroke, tick }: any) =>
   React.createElement('div', {
     'data-testid': 'y-axis',
     'data-label': label?.value,
     'data-allow-decimals': allowDecimals,
     'data-width': width,
+    'data-stroke': stroke,
+    'data-tick-fill': tick?.fill,
   })
 
-export const CartesianGrid = () =>
-  React.createElement('div', { 'data-testid': 'cartesian-grid' })
+export const CartesianGrid = ({ stroke }: any) =>
+  React.createElement('div', {
+    'data-testid': 'cartesian-grid',
+    'data-stroke': stroke,
+  })
 
-export const Tooltip = () =>
-  React.createElement('div', { 'data-testid': 'tooltip' })
+export const Tooltip = ({ contentStyle }: any) =>
+  React.createElement('div', {
+    'data-testid': 'tooltip',
+    'data-bg': contentStyle?.backgroundColor,
+  })
 
 export const Legend = () =>
   React.createElement('div', { 'data-testid': 'legend' })
