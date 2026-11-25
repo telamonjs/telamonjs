@@ -7,7 +7,7 @@ import {
   type Type
 } from '@nestjs/common'
 import { Reflector } from '@nestjs/core'
-import { createPermissionChecker } from '../checker'
+import { createPermissionChecker, type PermissionCheckerConfig } from '../checker'
 import type { PermissionClause, UserWithPermissions } from '../types'
 import { IS_PUBLIC_KEY, PERMISSIONS_KEY } from './permissions.decorator'
 
@@ -21,7 +21,8 @@ export interface PermissionDeniedContext {
   request: unknown
 }
 
-export interface PermissionsGuardOptions {
+export interface PermissionsGuardOptions
+  extends Pick<PermissionCheckerConfig, 'rolePermissions' | 'wildcard'> {
   /** Roles with full bypass. Default: ['superadmin'] */
   bypassRoles?: readonly string[]
   /**
@@ -67,7 +68,9 @@ export function createPermissionsGuard(
   options?: PermissionsGuardOptions
 ): Type<CanActivate> {
   const checker = createPermissionChecker({
-    bypassRoles: options?.bypassRoles ?? ['superadmin']
+    bypassRoles: options?.bypassRoles ?? ['superadmin'],
+    rolePermissions: options?.rolePermissions,
+    wildcard: options?.wildcard
   })
   const exception = (status: 401 | 403, message: string): Error =>
     options?.createException?.(status, message) ??

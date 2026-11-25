@@ -73,6 +73,79 @@ describe('createPermissionChecker', () => {
     expect(checker.can(admin, 'x.read')).toBe(false)
   })
 
+  describe('rolePermissions (static role map)', () => {
+    const c = createPermissionChecker({
+      bypassRoles: ['superadmin'],
+      rolePermissions: {
+        teacher: ['classes.read', 'grades.write'],
+        student: ['portal.access']
+      }
+    })
+
+    it('grants the permissions of the user role, merged with the JWT array', () => {
+      const user: UserWithPermissions = {
+        id: 'u7',
+        roles: [{ id: 'r', code: 'teacher' }],
+        permissions: ['reports.read']
+      }
+      expect(c.can(user, 'grades.write')).toBe(true)
+      expect(c.can(user, 'reports.read')).toBe(true)
+      expect(c.can(user, 'portal.access')).toBe(false)
+      expect(c.canAll(user, ['classes.read', 'reports.read'])).toBe(true)
+      expect(c.canAny(user, ['portal.access', 'classes.read'])).toBe(true)
+    })
+
+    it('every role in roles[] counts; the singular role is the fallback', () => {
+      const multi: UserWithPermissions = {
+        id: 'u8',
+        roles: [
+          { id: 'r1', code: 'teacher' },
+          { id: 'r2', code: 'student' }
+        ]
+      }
+      expect(c.canAll(multi, ['grades.write', 'portal.access'])).toBe(true)
+      expect(c.can({ id: 'u9', role: { id: 'r', code: 'student' } }, 'portal.access')).toBe(true)
+      expect(
+        c.can(
+          { id: 'u9', role: { id: 'r', code: 'student' }, roles: [{ id: 'r', code: 'teacher' }] },
+          'portal.access'
+        )
+      ).toBe(false)
+    })
+
+    it('unknown role, no user id or an empty list still deny', () => {
+      expect(c.can({ id: 'u10', roles: [{ id: 'r', code: 'guest' }] }, 'classes.read')).toBe(false)
+      expect(c.can({ id: '', roles: [{ id: 'r', code: 'teacher' }] }, 'classes.read')).toBe(false)
+      expect(c.canAny({ id: 'u11', roles: [{ id: 'r', code: 'teacher' }] }, [])).toBe(false)
+    })
+  })
+
+  describe('wildcard', () => {
+    const c = createPermissionChecker({ bypassRoles: [], wildcard: '*' })
+    const root: UserWithPermissions = { id: 'u12', permissions: ['*'] }
+
+    it('a permission equal to the wildcard grants everything', () => {
+      expect(c.can(root, 'anything.at.all')).toBe(true)
+      expect(c.canAll(root, ['a.read', 'b.write'])).toBe(true)
+      expect(c.canAny(root, ['a.read'])).toBe(true)
+    })
+
+    it('an empty list still denies; without the option "*" is an ordinary code', () => {
+      expect(c.canAll(root, [])).toBe(false)
+      expect(c.canAny(root, [])).toBe(false)
+      expect(checker.can(root, 'anything')).toBe(false)
+    })
+
+    it('works through rolePermissions too', () => {
+      const r = createPermissionChecker({
+        bypassRoles: [],
+        wildcard: '*',
+        rolePermissions: { owner: ['*'] }
+      })
+      expect(r.can({ id: 'u13', roles: [{ id: 'r', code: 'owner' }] }, 'x.delete')).toBe(true)
+    })
+  })
+
   it('cross-package contract: AuthUser (telamonjs-auth shape) satisfies UserWithPermissions', () => {
     // Structural mirror of AuthUser from @telamonjs/auth — if the shape
     // drifts from UserWithPermissions, this block stops compiling.

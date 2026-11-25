@@ -218,6 +218,21 @@ describe('createPermissionsGuard', () => {
     )
   })
 
+  it('rolePermissions and wildcard reach the checker', () => {
+    const teacher: UserWithPermissions = { id: 'u11', roles: [{ id: 'r', code: 'teacher' }] }
+    expect(
+      guardWith(['grades.write'], { rolePermissions: { teacher: ['grades.write'] } }).canActivate(
+        ctx(teacher)
+      )
+    ).toBe(true)
+    expect(() => guardWith(['grades.write']).canActivate(ctx(teacher))).toThrow(
+      ForbiddenException
+    )
+    expect(
+      guardWith(['x.delete'], { wildcard: '*' }).canActivate(ctx({ id: 'u12', permissions: ['*'] }))
+    ).toBe(true)
+  })
+
   it('class metadata is considered (getAllAndOverride receives handler and class)', () => {
     const Guard = createPermissionsGuard()
     const calls: unknown[] = []

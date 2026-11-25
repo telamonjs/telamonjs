@@ -144,6 +144,26 @@ included: an empty requirement is a bug, not "nothing required". The
 `UserWithPermissions` type is structural on purpose: the `AuthUser` from the
 auth package satisfies it by shape, with no dependency between the packages.
 
+Two optional settings cover apps that keep (part of) the table in code:
+
+```ts
+createPermissionChecker({
+  bypassRoles: [],
+  // granted by role code, merged with the user's own permissions[]
+  rolePermissions: {
+    teacher: ['classes.read', 'grades.write'],
+    student: ['portal.access'],
+  },
+  wildcard: '*', // holding '*' (in the token or through rolePermissions) grants everything
+})
+```
+
+`rolePermissions` reads every role in `roles[]` (the singular `role` is the fallback, as for
+`bypassRoles`). With `wildcard`, a user holding that code passes every check; an empty
+requirement list still denies. Without the options, `'*'` is an ordinary code. Give
+`createPermissionsGuard` the same `rolePermissions`/`wildcard` so the server agrees with the
+client.
+
 A `CrudConfig` takes the same checker: `permissions: { can: p => can(session?.user, p), create:
 'clientes.create', … }` gates the list's "New" button, row actions and dialogs (see
 [Permissions](/docs/getting-started/crud-config#permissions)). To give it once for every list
@@ -212,6 +232,7 @@ import { createPermissionsGuard } from '@telamonjs/permissions/nest'
 export const PermissionsGuard = createPermissionsGuard()
 // options: createPermissionsGuard({ bypassRoles: ['superadmin', 'admin'], failClosed: true })
 // defaults: bypassRoles ['superadmin'], failClosed false
+// rolePermissions / wildcard: as in createPermissionChecker
 ```
 
 ```ts

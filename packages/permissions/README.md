@@ -39,6 +39,19 @@ canAll(user, ['a.read', 'a.write'])      // AND
 An empty list (`canAny(user, [])`, `canAll(user, [])`) denies, bypass roles
 included: an empty requirement is a bug, not "nothing required".
 
+Role table in code, or a "grants everything" code? Two optional settings:
+
+```ts
+createPermissionChecker({
+  bypassRoles: [],
+  rolePermissions: { teacher: ['classes.read', 'grades.write'] }, // merged with user.permissions
+  wildcard: '*', // holding '*' grants every permission (an empty list still denies)
+})
+```
+
+`rolePermissions` reads every role in `roles[]`, with the singular `role` as the
+fallback. `createPermissionsGuard` takes the same two options.
+
 `user` is anything shaped like `UserWithPermissions`
 (`{ id, role?, roles?, permissions? }`). The `AuthUser` from
 [`@telamonjs/auth`](https://www.npmjs.com/package/@telamonjs/auth) satisfies it
