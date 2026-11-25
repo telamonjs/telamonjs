@@ -10,6 +10,8 @@ export const PERMISSIONS_KEY = 'permissions'
  * - `@Permissions('a.read', 'a.write')` → requires ONE of the two (OR)
  * - `@Permissions(['a.read', 'a.write'])` → requires BOTH (AND)
  *
+ * Throws at decoration time when given no clause or an empty `[]` clause.
+ *
  * Usage:
  * ```ts
  * @Get('admin')
@@ -18,8 +20,16 @@ export const PERMISSIONS_KEY = 'permissions'
  * getAdminData() {}
  * ```
  */
-export const Permissions = (...clauses: PermissionClause[]) =>
-  SetMetadata(PERMISSIONS_KEY, clauses)
+export const Permissions = (...clauses: PermissionClause[]) => {
+  // Fail fast: an empty list would read as "no decorator" and leave the route open
+  if (clauses.length === 0) {
+    throw new Error('@Permissions() needs at least one permission')
+  }
+  if (clauses.some((clause) => Array.isArray(clause) && clause.length === 0)) {
+    throw new Error('@Permissions() got an empty AND clause ([])')
+  }
+  return SetMetadata(PERMISSIONS_KEY, clauses)
+}
 
 /** Alias (projects that use the @RequirePermission convention) */
 export const RequirePermission = Permissions

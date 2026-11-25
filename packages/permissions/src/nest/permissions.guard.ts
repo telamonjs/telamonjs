@@ -100,8 +100,17 @@ export function createPermissionsGuard(
         .getRequest<{ user?: UserWithPermissions }>()
       const user = request.user
 
+      // Empty metadata (hand-made SetMetadata; the decorator rejects it) is a
+      // misconfiguration, never "no decorator": deny, whoever the user is
+      if (
+        clauses?.length === 0 ||
+        clauses?.some((clause) => Array.isArray(clause) && clause.length === 0)
+      ) {
+        throw deny({ user, required: clauses, request })
+      }
+
       // No decorator = open route, unless failClosed (then only @Public() passes)
-      if (!clauses || clauses.length === 0) {
+      if (!clauses) {
         if (!options?.failClosed) return true
         if (this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, targets)) {
           return true

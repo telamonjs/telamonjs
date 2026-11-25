@@ -165,6 +165,19 @@ describe('QueueHttpModule.forRoot', () => {
       ])
     })
 
+    it('throws at boot when a permission is an empty list (it would leave the routes open)', () => {
+      const base = { depsFactory: vi.fn(), getActor: vi.fn() }
+      expect(() => QueueHttpModule.forRoot({ ...base, readPermission: [] })).toThrow(
+        /readPermission/
+      )
+      expect(() => QueueHttpModule.forRoot({ ...base, writePermission: [] })).toThrow(
+        /writePermission/
+      )
+      expect(() =>
+        QueueHttpModule.forRoot({ ...base, writePermission: ['queue.write', []] })
+      ).toThrow(/writePermission/)
+    })
+
     it('does not leak permissions between forRoot() calls or onto the base class', () => {
       const first = QueueHttpModule.forRoot({
         depsFactory: vi.fn(),

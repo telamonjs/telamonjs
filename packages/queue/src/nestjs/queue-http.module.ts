@@ -71,6 +71,15 @@ function applyRoutePermissions(
   read: QueueRoutePermission | undefined,
   write: QueueRoutePermission | undefined
 ): void {
+  // An empty list would declare `[]`, which leaves the routes open: fail at boot
+  const options = { readPermission: read, writePermission: write }
+  for (const [option, value] of Object.entries(options)) {
+    const empty = (v: unknown): boolean => Array.isArray(v) && v.length === 0
+    if (empty(value) || (Array.isArray(value) && value.some(empty))) {
+      throw new Error(`QueueHttpModule.forRoot(): ${option} must not be an empty list`)
+    }
+  }
+
   const base = QueueControllerBase.prototype as unknown as Record<string, unknown>
 
   for (const name of Object.getOwnPropertyNames(base)) {

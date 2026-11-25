@@ -36,6 +36,9 @@ canAny(user, ['a.read', 'b.read'])       // OR
 canAll(user, ['a.read', 'a.write'])      // AND
 ```
 
+An empty list (`canAny(user, [])`, `canAll(user, [])`) denies, bypass roles
+included: an empty requirement is a bug, not "nothing required".
+
 `user` is anything shaped like `UserWithPermissions`
 (`{ id, role?, roles?, permissions? }`). The `AuthUser` from
 [`@telamonjs/auth`](https://www.npmjs.com/package/@telamonjs/auth) satisfies it
@@ -61,6 +64,10 @@ The guard delegates to the same checker, so client and server checks can't drift
 A request with no `request.user` gets a 401; a user without the permission gets a
 403 with the generic message `Insufficient permissions` (the required codes are
 never sent to the client).
+
+`@Permissions()` with no clause, or with an empty `[]` clause, throws when the
+decorator is applied, and the guard denies (403) any route whose permission
+metadata is an empty list — it is never read as "no decorator".
 
 By default a route without `@Permissions` is open. Opt into deny-by-default with
 `failClosed`; then only routes marked `@Public()` skip the decorator:

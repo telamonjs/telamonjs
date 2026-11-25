@@ -54,6 +54,14 @@ describe('createPermissionChecker', () => {
     expect(checker.canAll(gestor, ['processos.read', 'usuarios.write'])).toBe(false)
   })
 
+  it('canAny/canAll: an empty list denies, bypass roles included', () => {
+    expect(checker.canAll(gestor, [])).toBe(false)
+    expect(checker.canAny(gestor, [])).toBe(false)
+    expect(checker.canAll(superadmin, [])).toBe(false)
+    expect(checker.canAny(superadmin, [])).toBe(false)
+    expect(checker.canAll(singularAdmin, [])).toBe(false)
+  })
+
   it('custom bypassRoles', () => {
     const c = createPermissionChecker({ bypassRoles: ['superadmin', 'admin'] })
     const admin: UserWithPermissions = {

@@ -20849,7 +20849,9 @@ export async function deleteCliente(id: string) {
 | `canAll(user, ps)`      | Has **all** (AND)                                  |
 | `hasBypassRole(user)`   | Has any configured bypass role                     |
 
-All are pure and null-safe (`user` may be `null`/`undefined` → `false`). The
+All are pure and null-safe (`user` may be `null`/`undefined` → `false`). An
+empty list (`canAny(user, [])`, `canAll(user, [])`) is `false` too, bypass roles
+included: an empty requirement is a bug, not "nothing required". The
 `UserWithPermissions` type is structural on purpose: the `AuthUser` from the
 auth package satisfies it by shape, with no dependency between the packages.
 
@@ -20907,6 +20909,10 @@ import { Permissions, RequirePermission } from '@telamonjs/permissions/nest'
 `RequirePermission` is an alias of `Permissions` for projects that use that
 naming convention. Routes without the decorator are **not** restricted by the
 guard, unless it is created with `failClosed: true` (see below).
+
+`@Permissions()` with no clause, or with an empty `[]` clause, throws when the
+decorator is applied. The guard denies (403) any route whose permission metadata
+is an empty list — whoever the user is — instead of treating it as "no decorator".
 
 ### `createPermissionsGuard`
 

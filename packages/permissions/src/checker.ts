@@ -13,9 +13,9 @@ export interface PermissionChecker {
   hasBypassRole(user: UserWithPermissions | null | undefined): boolean
   /** Checks a single permission against the JWT array (no query) */
   can(user: UserWithPermissions | null | undefined, permission: string): boolean
-  /** ANY of the permissions (OR) */
+  /** ANY of the permissions (OR). An empty list denies, bypass roles included. */
   canAny(user: UserWithPermissions | null | undefined, permissions: string[]): boolean
-  /** ALL of the permissions (AND) */
+  /** ALL of the permissions (AND). An empty list denies, bypass roles included. */
   canAll(user: UserWithPermissions | null | undefined, permissions: string[]): boolean
 }
 
@@ -54,7 +54,9 @@ export function createPermissionChecker(
     user: UserWithPermissions | null | undefined,
     permissions: string[]
   ): boolean {
-    if (!user?.id) return false
+    // An empty requirement is a bug, not "nothing required": deny it for
+    // everyone, so testing as a bypass role cannot hide it
+    if (permissions.length === 0 || !user?.id) return false
     if (hasBypassRole(user)) return true
     return permissions.some((p) => user.permissions?.includes(p))
   }
@@ -63,7 +65,7 @@ export function createPermissionChecker(
     user: UserWithPermissions | null | undefined,
     permissions: string[]
   ): boolean {
-    if (!user?.id) return false
+    if (permissions.length === 0 || !user?.id) return false
     if (hasBypassRole(user)) return true
     return permissions.every((p) => user.permissions?.includes(p))
   }

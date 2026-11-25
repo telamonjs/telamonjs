@@ -11,7 +11,13 @@ import {
   type PermissionsGuardOptions
 } from './permissions.guard'
 import { Reflector as RealReflector } from '@nestjs/core'
-import { IS_PUBLIC_KEY, PERMISSIONS_KEY, Public } from './permissions.decorator'
+import {
+  IS_PUBLIC_KEY,
+  PERMISSIONS_KEY,
+  Permissions,
+  Public,
+  RequirePermission
+} from './permissions.decorator'
 import type { PermissionClause, UserWithPermissions } from '../types'
 
 function ctx(
@@ -61,7 +67,51 @@ describe('createPermissionsGuard', () => {
   // ported from a consumer app's guard
   it('allows when the handler requires no permission', () => {
     expect(guardWith(undefined).canActivate(ctx())).toBe(true)
-    expect(guardWith([]).canActivate(ctx())).toBe(true)
+  })
+
+  describe('empty permission metadata', () => {
+    it('denies (403) an empty clause list, even without failClosed', () => {
+      expect(() => guardWith([]).canActivate(ctx(gestor))).toThrowError(
+        new ForbiddenException('Insufficient permissions')
+      )
+    })
+
+    it('denies (403) an empty list for a bypass role too', () => {
+      expect(() => guardWith([]).canActivate(ctx(superadmin))).toThrow(
+        ForbiddenException
+      )
+      expect(() => guardWith([[]]).canActivate(ctx(superadmin))).toThrow(
+        ForbiddenException
+      )
+    })
+
+    it('denies (403) an empty list on a @Public() route', () => {
+      expect(() =>
+        guardWith([], { failClosed: true }, true).canActivate(ctx())
+      ).toThrow(ForbiddenException)
+    })
+  })
+
+  describe('@Permissions() decorator', () => {
+    it('throws at decoration time when given no clause', () => {
+      expect(() => Permissions()).toThrow(/at least one permission/)
+      expect(() => RequirePermission()).toThrow(/at least one permission/)
+    })
+
+    it('throws at decoration time when an AND clause is empty', () => {
+      expect(() => Permissions([])).toThrow(/empty/)
+      expect(() => Permissions('a.read', [])).toThrow(/empty/)
+    })
+
+    it('still declares non-empty clauses', () => {
+      class Controller {
+        @Permissions('a.read', ['b.read', 'b.write'])
+        handler() {}
+      }
+      expect(
+        new RealReflector().get(PERMISSIONS_KEY, Controller.prototype.handler)
+      ).toEqual(['a.read', ['b.read', 'b.write']])
+    })
   })
 
   it('allows a bypass role even without the permission in the list', () => {
