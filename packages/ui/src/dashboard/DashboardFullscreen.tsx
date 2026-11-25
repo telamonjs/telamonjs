@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
 import { cn } from '../utils'
 import { Button } from '../ui/button'
@@ -29,7 +28,7 @@ function renderHeaderIcon(
  * Features:
  * - ESC key closes overlay
  * - Focus trap (prevents body scroll)
- * - Framer Motion animations
+ * - Fade-in on open (CSS, tailwindcss-animate)
  * - Z-index: 50 (above modals)
  * - Full viewport coverage
  *
@@ -87,14 +86,7 @@ export function DashboardFullscreen({
   if (!isOpen) return null
 
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
-          className='fixed inset-0 z-50 bg-background'
-        >
+    <div className='fixed inset-0 z-50 bg-background animate-in fade-in-0'>
           {/* Header */}
           <div className='flex items-center justify-between border-b px-4 py-3'>
             <div className='flex items-center gap-3'>
@@ -135,8 +127,6 @@ export function DashboardFullscreen({
 
           {/* Content */}
           <div className='h-[calc(100vh-57px)] overflow-auto'>{children}</div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+    </div>
   )
 }

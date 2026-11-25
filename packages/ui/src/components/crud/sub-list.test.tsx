@@ -69,20 +69,6 @@ vi.mock('sonner', () => ({
   },
 }))
 
-// ---------------------------------------------------------------------------
-// framer-motion — passthrough to avoid animation timing in jsdom.
-// ---------------------------------------------------------------------------
-vi.mock('framer-motion', () => ({
-  motion: new Proxy(
-    {},
-    {
-      get:
-        () =>
-        ({ children, ...props }: any) => <div {...props}>{children}</div>,
-    }
-  ),
-}))
-
 interface Asset extends Record<string, unknown> {
   id: string
   plate: string

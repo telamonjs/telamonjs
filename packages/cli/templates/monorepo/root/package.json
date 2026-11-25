@@ -35,10 +35,5 @@
   "engines": {
     "node": ">=22.0.0",
     "pnpm": ">=9.0.0"
-  },
-  "pnpm": {
-    "overrides": {
-      "framer-motion@12.23.22>motion-dom": "~12.23.23"
-    }
   }
 }

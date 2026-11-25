@@ -41,7 +41,6 @@ const nextConfig = {
     optimizePackageImports: [
       'lucide-react',
       '@tanstack/react-table',
-      'framer-motion',
       '@telamonjs/ui',
       'next-intl',
     ],
