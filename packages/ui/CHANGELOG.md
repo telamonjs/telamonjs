@@ -1,5 +1,17 @@
 # Changelog
 
+## 1.4.5
+
+### Patch Changes
+
+- 9696a07: `@telamonjs/ui/server` and the pagination types re-export `@telamonjs/data`, the new
+  dependency-free package for the server half of a list, so a Next.js app and its backend share one
+  definition. Nothing to change in apps: every name and behavior stays, and `getFilterOptions` still
+  labels boolean options in the library's locale (pt-BR by default).
+- 4f4ca89: With infinite scroll (the default), `ListPage`'s `urlSync` keeps `page` and `pageSize` out of the
+  URL and ignores them in a link: every load starts at page 1 with batches of the config's size, so
+  `pageSize=20` in the URL showed 50 rows. Sort, search and filters still sync.
+
 ## 1.4.4
 
 ### Patch Changes

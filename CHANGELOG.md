@@ -1,5 +1,13 @@
 # Changelog
 
+## ui 1.4.5 (2026-11-25)
+
+`@telamonjs/ui`:
+- `@telamonjs/ui/server` and the pagination types now re-export `@telamonjs/data`. Names and
+  behavior are unchanged.
+- With infinite scroll, `urlSync` keeps `page` and `pageSize` out of the URL. A link with
+  `pageSize=20` used to keep 20 in the URL while the list loaded 50.
+
 ## data 1.0.0
 
 New package `@telamonjs/data`: the server half of a list, with no dependencies. It has the
