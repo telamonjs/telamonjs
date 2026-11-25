@@ -178,6 +178,22 @@ describe('Scheduling', () => {
       expect(isValidCronPattern('0 0 1 * *')).toBe(true)
     })
 
+    // Same parser as BullMQ: whatever a repeatable job accepts is valid here
+    it('accepts the names, ? and L that BullMQ accepts', () => {
+      expect(isValidCronPattern('0 9 * * MON')).toBe(true)
+      expect(isValidCronPattern('0 9 * * MON-FRI')).toBe(true)
+      expect(isValidCronPattern('0 0 1 JAN *')).toBe(true)
+      expect(isValidCronPattern('0 0 ? * MON')).toBe(true)
+      expect(isValidCronPattern('0 0 L * *')).toBe(true)
+      expect(isValidCronPattern('*/30 * * * * *')).toBe(true)
+    })
+
+    it('rejects names in the wrong field and out-of-range values', () => {
+      expect(isValidCronPattern('0 9 * * FOO')).toBe(false)
+      expect(isValidCronPattern('0 9 32 * *')).toBe(false)
+      expect(isValidCronPattern('0 9 * 13 *')).toBe(false)
+    })
+
     it('should reject invalid patterns', () => {
       expect(isValidCronPattern('invalid')).toBe(false)
       expect(isValidCronPattern('* * *')).toBe(false)

@@ -5,6 +5,7 @@
  * and schedule validation utilities.
  */
 
+import cronParser from 'cron-parser'
 import type { CronSchedule } from './types.js'
 
 /**
@@ -378,37 +379,17 @@ export function weekends(
  * ```
  */
 export function isValidCronPattern(pattern: string): boolean {
-  // Basic cron pattern validation (5 or 6 fields)
-  // Format: minute hour day month dayOfWeek [year]
+  // 5 fields (minute hour day month weekday) or 6 (seconds first), as BullMQ reads them
   const parts = pattern.trim().split(/\s+/)
-
-  if (parts.length < 5 || parts.length > 6) {
+  if (parts.length < 5 || parts.length > 6) return false
+  // The parser BullMQ uses for repeatable jobs: names (MON, JAN), ?, L, ranges
+  // and out-of-range values are judged exactly as BullMQ will
+  try {
+    cronParser.parseExpression(pattern.trim())
+    return true
+  } catch {
     return false
   }
-
-  // Each part should be valid cron field syntax
-  const cronFieldPattern =
-    /^(\*|(\*\/)?[0-9]+(-[0-9]+)?(,[0-9]+(-[0-9]+)?)*|L|W)$/
-
-  if (!parts.every(part => cronFieldPattern.test(part))) {
-    return false
-  }
-
-  // Syntax alone doesn't catch out-of-range values (e.g. "60 25 * * *" -
-  // minute/hour matched the regex above but 60 and 25 aren't real minutes
-  // or hours). Check every numeric token in each field against that
-  // field's valid range: minute 0-59, hour 0-23, day 1-31, month 1-12,
-  // weekday 0-7 (0 and 7 both mean Sunday), year unrestricted.
-  const maxByField = [59, 23, 31, 12, 7]
-  return parts.slice(0, 5).every((part, i) => {
-    if (part === '*' || part === 'L' || part === 'W') return true
-    const numbers = part.match(/[0-9]+/g) ?? []
-    const min = i === 2 || i === 3 ? 1 : 0
-    return numbers.every(n => {
-      const value = parseInt(n, 10)
-      return value >= min && value <= maxByField[i]
-    })
-  })
 }
 
 /**
