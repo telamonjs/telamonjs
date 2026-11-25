@@ -57,6 +57,12 @@ interface DataTableStoreState {
 
   resetTable: (tableId: string) => void
   initTable: (tableId: string, initialState?: Partial<TableState>) => void
+  /**
+   * Overwrites the given keys of an existing (or new) table, unlike the
+   * no-op-when-present `initTable`: a URL the list follows. `page` comes from
+   * `state` or goes back to 1, and the row selection is cleared.
+   */
+  applyTableState: (tableId: string, state: Partial<TableState>) => void
 
   // Computed getters
   getTableState: (tableId: string) => TableState
@@ -117,6 +123,20 @@ export const useDataTableStore = create<DataTableStoreState>()(
           },
         }
       })
+    },
+
+    applyTableState: (tableId, partial) => {
+      set(state => ({
+        tables: {
+          ...state.tables,
+          [tableId]: {
+            ...(state.tables[tableId] || defaultTableState),
+            ...partial,
+            page: partial.page ?? 1,
+            rowSelection: EMPTY_SELECTION,
+          },
+        },
+      }))
     },
 
     // Set individual column filter

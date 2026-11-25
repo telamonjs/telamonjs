@@ -69,9 +69,9 @@ export function OrdersPage() {
 ```
 
 <Callout type='warn' title='Do not list these params in `urlFilters`'>
-  `ListPage`'s `urlSync`/`urlFilters` reads custom filters once, on mount, and its sync effect
-  writes the keys listed in `urlFilters` back with those mount values — it would overwrite every
-  change the panel makes. The hook owns its params; its `values` reach the data through
+  `ListPage`'s `urlSync` treats the keys listed in `urlFilters` as its own: it sends them to
+  `queryFn` as filters and writes them back to the URL with the list's state. The hook owns its
+  params, and `ListPage` ignores a change to any param it does not own; its `values` reach the data through
   `config.query`, as above. `urlSync` itself (page, search, sort) can stay on.
 </Callout>
 

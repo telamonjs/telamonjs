@@ -139,10 +139,28 @@ export function useListPageToolbar<TData>({
     [setStorePage, list.toolbar?.filters]
   )
 
+  /** Sets `keys` from `seed` (a URL), back to their default when missing */
+  const resetToolbarFilters = useCallback(
+    (keys: string[], seed: Record<string, string>) => {
+      setToolbarFilters(prev => {
+        const next = { ...prev }
+        for (const f of list.toolbar?.filters ?? []) {
+          if (!keys.includes(f.key)) continue
+          const value = seed[f.key] || (hasOwnDefault(f) ? f.defaultValue : '')
+          if (value) next[f.key] = value
+          else delete next[f.key]
+        }
+        return next
+      })
+    },
+    [list.toolbar?.filters]
+  )
+
   return {
     toolbarFilters,
     localSearch,
     handleToolbarSearch,
     handleToolbarFilterChange,
+    resetToolbarFilters,
   }
 }

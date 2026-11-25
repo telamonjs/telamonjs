@@ -2354,7 +2354,7 @@ export default function UsersPage() {
 | --- | --- | --- |
 | `config` | `CrudConfig<T, TFormData>` | **Required.** Everything about the module |
 | `tableId` | `string` | Key of the table state in the Zustand store. Default: `config.module.route` |
-| `urlSync` | `boolean` | Keeps page, page size, sort and search in the query params; a link carrying them opens the list there. With infinite scroll (the default) only sort and search: every load starts at page 1 |
+| `urlSync` | `boolean` | Keeps page, page size, sort and search in the query params; a link carrying them opens the list there, and Back/Forward or a link to the same page update the list. With infinite scroll (the default) only sort and search: every load starts at page 1 |
 | `urlFilters` | `Record<string, 'string' \| 'number'>` | Extra filters read from the URL (with `urlSync`) and passed to `queryFn` |
 | `filterOptions` / `loadFilterOptions` | `ColumnFilterConfig` / `() => Promise<ColumnFilterConfig>` | Column filter options, static or loaded on mount |
 | `enableBulkActions` / `bulkActions` | `boolean` / `BulkAction<T>[]` | Checkbox column and toolbar for selected rows |
@@ -2600,7 +2600,8 @@ With `urlSync`, a toolbar filter whose `key` is also in `urlFilters` round-trips
 - Opening `?status=ACTIVE` filters the data **and** selects "Active" in the toolbar.
 - Changing the filter writes `?status=`; going back to "All" removes the param.
 - Toolbar filters not listed in `urlFilters` stay in memory only. Keys in `urlFilters` that are
-  not toolbar filters are read from the URL once and passed to `queryFn`.
+  not toolbar filters are read from the URL (on mount, and again on Back/Forward or a link to the
+  same page) and passed to `queryFn`.
 
 For a "Filters" panel with selectors, date ranges and text fields that stays in sync with the
 URL — reload, Back and shared links keep it — use [`useUrlFilters`](/docs/hooks/use-url-filters).
@@ -19899,9 +19900,9 @@ export function OrdersPage() {
 ```
 
 <Callout type='warn' title='Do not list these params in `urlFilters`'>
-  `ListPage`'s `urlSync`/`urlFilters` reads custom filters once, on mount, and its sync effect
-  writes the keys listed in `urlFilters` back with those mount values — it would overwrite every
-  change the panel makes. The hook owns its params; its `values` reach the data through
+  `ListPage`'s `urlSync` treats the keys listed in `urlFilters` as its own: it sends them to
+  `queryFn` as filters and writes them back to the URL with the list's state. The hook owns its
+  params, and `ListPage` ignores a change to any param it does not own; its `values` reach the data through
   `config.query`, as above. `urlSync` itself (page, search, sort) can stay on.
 </Callout>
 

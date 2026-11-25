@@ -17,7 +17,11 @@ import { useCrudMutations } from '../hooks/useCrudMutations'
 import { ColumnFilterConfig } from '../types/filters'
 import type { ListPageProps, ListQueryState } from './list-page/types'
 import { useUrlSync } from '../hooks/useUrlSync'
-import { useListPageUrlSync, tableStateFromUrl } from './list-page/useListPageUrlSync'
+import {
+  useListPageUrlSync,
+  tableStateFromUrl,
+  listParamKeys,
+} from './list-page/useListPageUrlSync'
 import { useListPageToolbar, toolbarQueryFilters } from './list-page/useListPageToolbar'
 import { useListPageData } from './list-page/useListPageData'
 import { useListPageDialogs } from './list-page/useListPageDialogs'
@@ -133,31 +137,42 @@ export function ListPage<TData>({
     useDataTableActions(tableId)
 
   const urlSeed = useUrlSync()
+  const pagination = list.infiniteScroll === false
 
-  // The table starts from the config defaults; with urlSync, a link's
-  // page/pageSize/sort/search win over them. Seeded during render, before the
-  // children mount: DataTable calls `initTable` in its own effect, and child
-  // effects run before the parent's, so a ListPage effect found the table
-  // already created with the store defaults (pageSize 10, no sort).
+  // The table follows the config defaults, under (with urlSync) the URL's
+  // page/pageSize/sort/search: what is missing from the URL is the default.
+  const tableStateAt = (getParam: (key: string) => string | null) => ({
+    pageSize: list.defaultPageSize || 10,
+    sorting: list.defaultSortBy
+      ? [
+          {
+            field: list.defaultSortBy,
+            order: list.defaultSortOrder || ('asc' as const),
+          },
+        ]
+      : [],
+    globalFilter: '',
+    ...(urlSync ? tableStateFromUrl(getParam, pagination) : {}),
+  })
+
+  // Seeded during render, before the children mount: DataTable calls
+  // `initTable` in its own effect, and child effects run before the parent's,
+  // so a ListPage effect found the table already created with the store
+  // defaults (pageSize 10, no sort).
   const [seededFor, setSeededFor] = useState<string>()
   if (seededFor !== tableId) {
     setSeededFor(tableId)
-    useDataTableStore.getState().initTable(tableId, {
-      pageSize: list.defaultPageSize || 10,
-      ...(list.defaultSortBy
-        ? {
-            sorting: [
-              {
-                field: list.defaultSortBy,
-                order: list.defaultSortOrder || 'asc',
-              },
-            ],
-          }
-        : {}),
-      ...(urlSync
-        ? tableStateFromUrl(urlSeed.getParam, list.infiniteScroll === false)
-        : {}),
-    })
+    const store = useDataTableStore.getState()
+    if (!store.tables[tableId]) {
+      store.initTable(tableId, tableStateAt(urlSeed.getParam))
+    } else if (
+      urlSync &&
+      listParamKeys(urlFilters, pagination).some(k => urlSeed.hasParam(k))
+    ) {
+      // The store outlives the page: a link carrying the list's params
+      // replaces the state left by the previous visit
+      store.applyTableState(tableId, tableStateAt(urlSeed.getParam))
+    }
   }
 
   // Get state from Zustand store
@@ -187,19 +202,23 @@ export function ListPage<TData>({
     [list.toolbar?.filters]
   )
 
-  // Seed for the toolbar selects, read from the URL once at mount (the hook
-  // keeps its own state afterwards)
-  const initialToolbarFilters = useMemo(() => {
-    if (!urlSync) return undefined
+  // The toolbar selects that are also URL filters, read from the URL: once at
+  // mount, and again when the URL changes from outside (the hook keeps its
+  // own state in between)
+  const toolbarUrlKeys = toolbarFilterKeys.filter(key => key in urlFilters)
+  const toolbarSeed = (getParam: (key: string) => string | null) => {
     const seed: Record<string, string> = {}
-    for (const key of toolbarFilterKeys) {
-      if (!(key in urlFilters)) continue
-      const value = urlSeed.getParam(key)
+    for (const key of toolbarUrlKeys) {
+      const value = getParam(key)
       if (value) seed[key] = value
     }
     return seed
+  }
+  const initialToolbarFilters = useMemo(
+    () => (urlSync ? toolbarSeed(urlSeed.getParam) : undefined),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    []
+  )
 
   // Embedded toolbar state (declarative filters + debounced search)
   const {
@@ -207,6 +226,7 @@ export function ListPage<TData>({
     localSearch,
     handleToolbarSearch,
     handleToolbarFilterChange,
+    resetToolbarFilters,
   } = useListPageToolbar({
     list,
     search,
@@ -234,7 +254,14 @@ export function ListPage<TData>({
     search,
     sorting,
     liveFilters,
-    pagination: list.infiniteScroll === false,
+    pagination,
+    // Back/Forward or a link to this same page: Next keeps it mounted
+    onUrlChange: getParam => {
+      useDataTableStore
+        .getState()
+        .applyTableState(tableId, tableStateAt(getParam))
+      resetToolbarFilters(toolbarUrlKeys, toolbarSeed(getParam))
+    },
   })
 
   // A toolbar-owned key must not be re-applied from the mount-time URL value
