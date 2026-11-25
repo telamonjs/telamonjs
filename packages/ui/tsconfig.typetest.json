@@ -1,0 +1,7 @@
+{
+  // Type-level tests: compile-time assertions that `vitest` alone doesn't check.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true, "composite": false, "incremental": false },
+  "include": ["src/types/crud.types.test.ts"],
+  "exclude": []
+}

@@ -191,7 +191,7 @@ mutations: {
 | `create.mutationFn` | the form values | `{ success, message?, data? }` |
 | `update.mutationFn` | `{ id, data }` | `{ success, message?, data? }` |
 | `delete.mutationFn` | `{ id }` | `{ success, message? }` |
-| `getForEdit` | `id` | the record the edit form needs (nested relations included) |
+| `getForEdit` | `id` | the record the edit form needs (nested relations included): the form data or the entity itself (`TFormData \| T`) |
 | `getForView` | `id` | the record the view dialog shows |
 
 What the library does around each mutation:

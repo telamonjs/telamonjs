@@ -89,7 +89,7 @@ first open, so a list that never opens one never pays for the form code.
 | `dialogClassName` | all | Extra classes, merged **over** the `size` preset |
 | `urlParam` | all | Deep link query param — see [Deep links](#deep-links) |
 | `useTabs` | create, edit | Force tabs on or off (default: automatic) |
-| `defaultValues` | create | Initial form values |
+| `defaultValues` | create | Initial form values; keys outside `T` (form-only fields such as `categoryId`) are accepted |
 | `lockedFields` | edit | Fields shown read-only on edit (e.g. the record's parent); create keeps them editable |
 | `renderContent` | view | The dialog body |
 | `portal` | view | Grid launcher + rail instead of `renderContent` — see [Portal view](#portal-view-6-sections) |
@@ -199,6 +199,8 @@ headerConfig: {
 
 `iconColor` and each stat's `color` take a preset (`blue`, `indigo`, `purple`, `violet`,
 `green`, `emerald`, `teal`, `cyan`, `orange`, `amber`, `red`, `rose`, `pink`, `gray`, `slate`).
+`iconColor` and `gradient` may also be functions of the record (`c => (c.active ? 'green' : 'gray')`);
+without a record (the create dialog) they fall back to `gray` and the default gradient.
 A stat can be hidden with `hidden` or turned into a link with `href`.
 
 <Callout type='info' title='Stats are view-only'>

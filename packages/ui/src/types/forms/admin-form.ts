@@ -2,6 +2,7 @@ import { z } from 'zod'
 import { FieldType } from '../../field-system/field-registry'
 import type { I18nText } from '../../i18n/msg'
 import type { DateLimit } from '../../field-system/date-limits'
+import type { SubListField } from '../../components/crud/sub-list'
 
 // ============================================================================
 // TYPES & INTERFACES - AdminForm
@@ -179,7 +180,8 @@ export interface FormField<TValue = unknown> {
   visibleWhen?: (values: Record<string, unknown>) => boolean
   // CRUD field properties
   fields?: FormField[]
-  listFields?: FormField[]
+  /** Columns of the sub-list: `{ header, accessorKey | accessorFn, cell? }` (`SubListField`) */
+  listFields?: (SubListField | FormField)[]
   manyToMany?: boolean
   listingFn?: CrudListingFn
   createFn?: CrudCreateFn

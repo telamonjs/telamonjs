@@ -116,8 +116,11 @@ export interface HeaderStatsConfig<T = any> {
 export interface DialogHeaderConfig<T = any> {
   /** Lucide icon name (e.g., 'Settings', 'User', 'Building') */
   icon: string
-  /** Color preset for the icon background */
-  iconColor: ColorPreset
+  /**
+   * Color preset for the icon background, or a function of the item (e.g. by
+   * status). Without an item (create dialog) the function form falls back to `'gray'`.
+   */
+  iconColor: ColorPreset | ((item: T) => ColorPreset)
   /** Title (I18nText or function that receives item; the function may return a MessageRef) */
   title: I18nText | ((item: T) => I18nText)
   /**
@@ -128,8 +131,11 @@ export interface DialogHeaderConfig<T = any> {
     | I18nText
     | ReactNode
     | ((item: T) => I18nText | ReactNode | null | undefined)
-  /** Tailwind gradient classes (e.g., 'from-purple-50 to-indigo-50') */
-  gradient?: string
+  /**
+   * Tailwind gradient classes (e.g., 'from-purple-50 to-indigo-50'), or a
+   * function of the item. Empty, or no item for the function form: the default gradient.
+   */
+  gradient?: string | ((item: T) => string | null | undefined)
   /** Badge configuration */
   badge?: HeaderBadgeConfig<T>
   /** Stats grid configuration */

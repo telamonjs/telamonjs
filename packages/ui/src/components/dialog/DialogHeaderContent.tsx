@@ -100,8 +100,15 @@ export function DialogHeaderContent<T extends Record<string, unknown>>({
 }: DialogHeaderProps<T>) {
   const t = useTelamonjsT()
   const text = useText()
-  const iconColors = getColorClasses(config.iconColor)
-  const gradient = config.gradient || DEFAULT_HEADER_GRADIENT
+  // iconColor/gradient may be functions of the item; without one (create) they fall back
+  const { iconColor, gradient: gradientConfig } = config
+  const iconColors = getColorClasses(
+    typeof iconColor === 'function' ? (item ? iconColor(item) : 'gray') : iconColor
+  )
+  const gradient =
+    (typeof gradientConfig === 'function'
+      ? item && gradientConfig(item)
+      : gradientConfig) || DEFAULT_HEADER_GRADIENT
 
   // Resolve title and subtitle
   const title = resolveString(item, config.title, text)

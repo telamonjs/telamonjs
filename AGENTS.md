@@ -87,6 +87,7 @@ a type definition, a test. When there is no evidence, ask instead of guessing.
 5. **`config.tsx` must start with `'use client'`** — React Query hooks need it.
 6. **`queryFn` must resolve `PaginatedResponse<T>`** (`page`/`total`/`totalPages`),
    not a bare array: infinite scroll is the default and misbehaves silently.
+   A client whose params type `sortBy?: string` goes through `asQueryFn(api.list)`.
 7. **`mutationFn` must resolve `{ success, data? }`** — adapt inside the
    mutationFn, not in your REST client.
 8. **The app shell is `AdminShell`** — there is no `AdminLayout`, `CrudLayout`,

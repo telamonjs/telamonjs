@@ -316,6 +316,7 @@ ship silently broken:
 | `helperText`        | `description`                                      |
 | `options` on `relationship`/`multiselect` | `loadField: async () => IOption[]` — `options` does not exist |
 | array return from `queryFn` | `PaginatedResponse<T>` (`page`, `totalPages`, `total`) |
+| `as any` on `queryFn` (client typed `sortBy?: string`) | `queryFn: asQueryFn(api.list)` from `@telamonjs/ui` |
 | raw entity from mutations | `{ success: boolean, data? }` |
 | no `'use client'` in `config.tsx` | required — React Query hooks need it |
 | `className: 'w-full'` on a field | ignored — BaseForm is CSS Grid, use `span` (must match the section's `grid`, default `'2'`) |
@@ -413,7 +414,7 @@ The source of truth is the `FieldType` union in
 | `dialogs.*.urlParam` | `'view'` / `'edit'` / `'create'` (in a hub tab: the module name, e.g. `'usuario'`) | deep link + Back closes the dialog |
 | `form.sections[].grid` | `'2'` | 2-column CSS grid |
 | `form.sections[].fields[].span` | `'1' \| '2' \| '3' \| '12' \| 'full'` | column span (BaseForm emits `col-span-${span}`; `'2'` = full width on a `grid: '2'`) |
-| `mutations.getForView` / `getForEdit` | `api.getById` / mapper to `TFormData` | record fetched when the dialog opens |
+| `mutations.getForView` / `getForEdit` | `api.getById` (`getForEdit` may also map to `TFormData`) | record fetched when the dialog opens |
 
 **`<XDetail/>`** (`_components/`): `'use client'`, `memo`, `ContentTabs
 tabs={tabs} variant="default" defaultValue="info" flush`. Every tab body is

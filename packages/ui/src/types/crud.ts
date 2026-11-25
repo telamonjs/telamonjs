@@ -416,8 +416,12 @@ export interface MutationsConfig<T, TFormData = T> {
     { id: string },
     { success: boolean; message?: string }
   >
-  /** Get record for editing (optional - can use query with ID) */
-  getForEdit?: (id: string) => Promise<TFormData>
+  /**
+   * Get record for editing (optional - can use query with ID). May resolve the
+   * form data or the entity itself (e.g. the API's `getById`): the edit form
+   * reads the fields it declares by name.
+   */
+  getForEdit?: (id: string) => Promise<TFormData | T>
   /** Get record for viewing (optional - can use query with ID) */
   getForView?: (id: string) => Promise<T>
 }
@@ -436,8 +440,11 @@ export interface DialogConfig<T> {
    * them editable
    */
   lockedFields?: readonly string[]
-  /** Default values for form */
-  defaultValues?: Partial<T>
+  /**
+   * Default values for form. Keys of `T` keep their type; other keys (form-only
+   * fields of a create dialog, e.g. `categoryId`) are accepted as is.
+   */
+  defaultValues?: Partial<T> & Record<string, unknown>
   /**
    * Custom render function for dialog header.
    * When provided, replaces the default DialogHeader with custom content.
