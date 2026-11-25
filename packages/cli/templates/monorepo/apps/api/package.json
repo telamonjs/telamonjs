@@ -18,7 +18,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@telamonjs/auth": "^1.4.0",
     "@telamonjs/permissions": "^1.3.0",
-    "@telamonjs/data": "^1.2.0",
+    "@telamonjs/data": "^1.3.0",
     "{{scope}}/shared": "workspace:*",
     "@prisma/client": "6.2.0",
     "bcryptjs": "2.4.3",

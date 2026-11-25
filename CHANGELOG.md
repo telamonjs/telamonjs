@@ -1,5 +1,22 @@
 # Changelog
 
+## cli 1.3.0 (2026-11-25)
+
+`@telamonjs/cli`:
+- `telamonjs add admin <audit|parameters> [--dry-run] [--cwd]` scaffolds admin-kit modules into an app
+  generated from the templates (single app or monorepo).
+  - The Prisma model is added as a marked block.
+  - The permissions go into the `rbac.ts` catalog.
+  - It adds the menu entry, pt-BR/en/es messages, the API (Route Handlers, or a Nest module) and the
+    admin page.
+  - `audit` uses `createAuditInterceptor` in the monorepo and audit calls in the single app's routes,
+    plus `AuditChangesViewer`.
+  - `parameters` adds typed key/value settings and a public endpoint.
+  - Re-runs change nothing, and it never migrates. Hand-rolled apps should adopt the runtime pieces
+    instead.
+- The templates revoke a user's sessions when their password changes.
+- In the monorepo template, the web API client shows the API's error message.
+
 ## ui 1.13.0, data 1.3.0 (2026-11-25)
 
 - `@telamonjs/ui`: `PermissionMatrix` permissions take a `badge`, a short tag next to the name such as the
