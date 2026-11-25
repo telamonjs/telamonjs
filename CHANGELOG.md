@@ -1,5 +1,23 @@
 # Changelog
 
+## cli 1.2.0 (2026-11-25)
+
+`@telamonjs/cli`: new apps ship database-backed roles and permissions.
+- The Prisma schema has `Role`, `Permission`, `RolePermission` and `UserRole` instead of the
+  `RoleName` enum. `User` gains `active`, `accessChangedAt` and `sessionsRevokedAt`.
+- The seed syncs a code-defined permission catalog with `diffPermissionCatalog` and creates an `admin`
+  system role holding every permission.
+- Sign-in materializes roles and permissions into the session. Changing a user's roles or a role's
+  permissions marks the session stale, so it refreshes on the next request without a new login.
+  Deactivating a user revokes their sessions.
+- `/admin/papeis` has role CRUD and a `PermissionMatrix`. `/admin/usuarios` assigns several roles and
+  activates or deactivates users. The shell uses `PermissionsProvider`, the menu items and CrudConfigs
+  carry permissions, and every route checks them.
+- In the monorepo, `AdminGuard` gives way to a global `PermissionsGuard` and `@Permissions(...)`, plus a
+  `roles` module.
+
+Existing apps are not affected.
+
 ## ui 1.12.0, data 1.2.0, permissions 1.3.0, cli 1.1.9 (2026-11-25)
 
 `@telamonjs/ui`:
