@@ -344,10 +344,24 @@ export function createPaginationContext(context: PaginationContext) {
       return service
     }
 
+    /**
+     * With `visibility`, each user sees different rows, so the key carries the
+     * user's id. `null` means nobody is signed in: skip the cache and let the
+     * service answer the unauthenticated case.
+     */
+    async function userKeyPart(): Promise<string | null> {
+      if (!config.visibility) return ''
+      const session = await auth()
+      return session?.user ? `user:${session.user.id}_` : null
+    }
+
     // Wrap list function with caching
     const originalList = service.list
     async function cachedList(params?: PaginationParams) {
-      const cacheKey = `${model}_paginated_${JSON.stringify(params || {})}`
+      const userPart = await userKeyPart()
+      if (userPart === null) return originalList(params)
+
+      const cacheKey = `${model}_paginated_${userPart}${JSON.stringify(params || {})}`
 
       return cache!.cacheEntity(model, cacheKey, () => originalList(params))
     }
@@ -359,7 +373,10 @@ export function createPaginationContext(context: PaginationContext) {
         return {}
       }
 
-      const cacheKey = `${model}_filter_options_${locale ?? ''}`
+      const userPart = await userKeyPart()
+      if (userPart === null) return originalGetFilterOptions(locale)
+
+      const cacheKey = `${model}_filter_options_${userPart}${locale ?? ''}`
 
       return cache!.cacheEntity(model, cacheKey, () =>
         originalGetFilterOptions(locale)

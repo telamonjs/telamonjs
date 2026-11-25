@@ -124,7 +124,18 @@ describe('createPaginatedService sorting', () => {
 describe('getFilterOptions labels', () => {
   function withRecords(records: Record<string, unknown>[], context: object = {}) {
     const { createPaginatedService } = createPaginationContext({
-      prisma: { user: { findMany: vi.fn().mockResolvedValue(records), count: vi.fn() } },
+      prisma: {
+        user: {
+          // groupBy rows: one per distinct value of the grouped field
+          groupBy: vi.fn(async ({ by: [field] }: { by: string[] }) => {
+            const counts = new Map<unknown, number>()
+            for (const r of records) counts.set(r[field], (counts.get(r[field]) ?? 0) + 1)
+            return [...counts].map(([value, n]) => ({ [field]: value, _count: { _all: n } }))
+          }),
+          findMany: vi.fn(),
+          count: vi.fn(),
+        },
+      },
       auth: async () => null,
       ...context,
     })
@@ -167,5 +178,88 @@ describe('createCachedPaginatedService without cache', () => {
     const service = createCachedPaginatedService({ model: 'user' })
     expect(onWarning).toHaveBeenCalledWith(expect.stringContaining('Cache not configured'))
     expect(typeof service.list).toBe('function')
+  })
+})
+
+describe('createCachedPaginatedService cache keys', () => {
+  function setupCached(config: Partial<PaginatedServiceConfig> = {}) {
+    const store = new Map<string, unknown>()
+    const cache = {
+      invalidateEntity: vi.fn(),
+      cacheEntity: vi.fn(async <T,>(_entity: string, key: string, fetcher: () => Promise<T>) => {
+        if (!store.has(key)) store.set(key, await fetcher())
+        return store.get(key) as T
+      }),
+    }
+    let currentUser: string | null = 'alice'
+    const findMany = vi.fn(async () => [{ ownerId: currentUser }])
+    const groupBy = vi.fn(async () => [{ ownerId: currentUser, _count: { _all: 1 } }])
+    const { createCachedPaginatedService } = createPaginationContext({
+      prisma: { item: { findMany, count: vi.fn().mockResolvedValue(1), groupBy } },
+      auth: async () => (currentUser ? { user: { id: currentUser } } : null),
+      cache,
+    })
+    const service = createCachedPaginatedService({
+      model: 'item',
+      filters: { ownerId: 'string' },
+      ...config,
+    })
+    return {
+      service,
+      cache,
+      store,
+      as: (user: string | null) => {
+        currentUser = user
+      },
+    }
+  }
+
+  const params = { page: 1, pageSize: 10 }
+  const visibility = (user: { id: string }) => ({ ownerId: user.id })
+
+  it("does not serve one user's cached page to another when visibility is set", async () => {
+    const { service, as } = setupCached({ visibility })
+
+    as('alice')
+    expect((await service.list(params)).data).toEqual([{ ownerId: 'alice' }])
+    as('bob')
+    expect((await service.list(params)).data).toEqual([{ ownerId: 'bob' }])
+    as('alice')
+    expect((await service.list(params)).data).toEqual([{ ownerId: 'alice' }])
+  })
+
+  it("does not serve one user's cached filter options to another when visibility is set", async () => {
+    const { service, as } = setupCached({ visibility })
+
+    as('alice')
+    expect((await service.getFilterOptions!()).ownerId[0].value).toBe('alice')
+    as('bob')
+    expect((await service.getFilterOptions!()).ownerId[0].value).toBe('bob')
+  })
+
+  it('does not cache when visibility is set and nobody is signed in', async () => {
+    const { service, as, cache } = setupCached({ visibility })
+
+    as(null)
+    expect(await service.list(params)).toEqual({
+      data: [],
+      total: 0,
+      page: 1,
+      pageSize: 10,
+      totalPages: 0,
+    })
+    expect(await service.getFilterOptions!()).toEqual({})
+    expect(cache.cacheEntity).not.toHaveBeenCalled()
+  })
+
+  it('keeps the shared key when there is no visibility rule', async () => {
+    const { service, store } = setupCached()
+
+    await service.list(params)
+    await service.getFilterOptions!('en')
+    expect([...store.keys()]).toEqual([
+      `item_paginated_${JSON.stringify(params)}`,
+      'item_filter_options_en',
+    ])
   })
 })

@@ -215,30 +215,29 @@ export async function getFilterOptionsForField(
   // Combine where conditions
   const where = buildWhereClause(undefined, [], baseWhere, visibilityWhere)
 
-  // Get all records with just the field we need
-  const findMany = (model as Record<string, unknown>).findMany as
-    ((args: unknown) => Promise<Record<string, unknown>[]>) | undefined
+  // Count distinct values in the database, one row per value
+  const groupBy = (model as Record<string, unknown>).groupBy as
+    | ((args: unknown) => Promise<Array<Record<string, unknown> & { _count: { _all: number } }>>)
+    | undefined
 
-  if (!findMany) {
-    throw new Error(`Model ${modelName} does not support findMany operation`)
+  if (!groupBy) {
+    throw new Error(`Model ${modelName} does not support groupBy operation`)
   }
 
-  const records = await findMany({
+  const groups = await groupBy({
+    by: [field],
     where,
-    select: {
-      [field]: true,
-    },
+    _count: { _all: true },
   })
 
-  // Count unique values
   const valueMap = new Map<string, number>()
 
-  for (const record of records) {
-    const value = record[field]
+  for (const group of groups) {
+    const value = group[field]
 
     if (value !== null && value !== undefined && value !== '') {
       const stringValue = String(value)
-      valueMap.set(stringValue, (valueMap.get(stringValue) || 0) + 1)
+      valueMap.set(stringValue, (valueMap.get(stringValue) || 0) + group._count._all)
     }
   }
 
@@ -269,7 +268,8 @@ export function buildIncludeClause(
   include?: PrismaIncludeClause,
   counts?: string[]
 ): PrismaIncludeClause | undefined {
-  const includeClause: PrismaIncludeClause = include || {}
+  // Copy: the caller's config.include is shared by every request
+  const includeClause: PrismaIncludeClause = { ...include }
 
   // Add count fields
   if (counts && counts.length > 0) {

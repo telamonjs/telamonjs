@@ -55,6 +55,8 @@ export function createPaginatedResponse<T>(
 /**
  * Clamps client-supplied paging: `page` ≥ 1, `1 ≤ pageSize ≤ maxPageSize`
  * (default 100), both floored; a missing `pageSize` is `defaultPageSize` (10).
+ * Non-numeric or non-finite values (`?page=abc`) fall back to page 1 and the
+ * default page size instead of reaching the query as `NaN`.
  */
 export function sanitizePaginationParams(params: {
   page?: number
@@ -62,14 +64,16 @@ export function sanitizePaginationParams(params: {
   maxPageSize?: number
   defaultPageSize?: number
 }): { page: number; pageSize: number } {
-  const {
-    page = 1,
-    pageSize = params.defaultPageSize || 10,
-    maxPageSize = 100,
-  } = params
+  const fallbackPageSize = params.defaultPageSize || 10
+  const { page = 1, pageSize = fallbackPageSize, maxPageSize = 100 } = params
+  const finitePage = Math.floor(Number(page))
+  const finitePageSize = Math.floor(Number(pageSize))
 
   return {
-    page: Math.max(1, Math.floor(page)),
-    pageSize: Math.min(maxPageSize, Math.max(1, Math.floor(pageSize))),
+    page: Number.isFinite(finitePage) ? Math.max(1, finitePage) : 1,
+    pageSize: Math.min(
+      maxPageSize,
+      Math.max(1, Number.isFinite(finitePageSize) ? finitePageSize : fallbackPageSize)
+    ),
   }
 }

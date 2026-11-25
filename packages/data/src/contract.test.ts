@@ -25,4 +25,23 @@ describe('sanitizePaginationParams', () => {
       pageSize: 1,
     })
   })
+
+  it('falls back on non-finite values instead of passing NaN to the query', () => {
+    expect(sanitizePaginationParams({ page: NaN, pageSize: NaN, defaultPageSize: 25 })).toEqual({
+      page: 1,
+      pageSize: 25,
+    })
+    expect(sanitizePaginationParams({ page: Infinity, pageSize: Infinity })).toEqual({
+      page: 1,
+      pageSize: 10,
+    })
+    expect(sanitizePaginationParams({ page: -Infinity, pageSize: -Infinity })).toEqual({
+      page: 1,
+      pageSize: 10,
+    })
+    const abc = 'abc' as unknown as number
+    expect(sanitizePaginationParams({ page: abc, pageSize: abc })).toEqual({ page: 1, pageSize: 10 })
+    const two = '2' as unknown as number
+    expect(sanitizePaginationParams({ page: two, pageSize: two })).toEqual({ page: 2, pageSize: 2 })
+  })
 })
