@@ -11,9 +11,4 @@ import type { PrismaClient } from '@prisma/client'
 @Injectable()
 export class PrismaService {
   readonly client: PrismaClient = prisma
-
-  async healthCheck(): Promise<boolean> {
-    await this.client.$queryRaw`SELECT 1`
-    return true
-  }
 }

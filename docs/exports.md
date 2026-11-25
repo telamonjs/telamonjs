@@ -941,6 +941,26 @@ Types:
 - `PrismaWhereClause` (type)
 - `SearchCondition` (type)
 
+### `@telamonjs/data/nest`
+
+Runtime:
+
+- `HealthModule`
+- `PrismaExceptionFilter`
+- `isPrismaKnownRequestError`
+- `isPrismaValidationError`
+
+Types:
+
+- `HealthCheck` (type)
+- `HealthChecks` (type)
+- `HealthModuleOptions` (type)
+- `HealthResponse` (type)
+- `PrismaErrorMessage` (type)
+- `PrismaExceptionFilterOptions` (type)
+- `PrismaKnownRequestErrorLike` (type)
+- `PrismaValidationErrorLike` (type)
+
 ## @telamonjs/auth
 
 ### `@telamonjs/auth`

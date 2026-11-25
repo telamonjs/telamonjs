@@ -19,10 +19,10 @@ if (envPath) {
 
 import { NestFactory } from '@nestjs/core'
 import { ValidationPipe } from '@nestjs/common'
+import { PrismaExceptionFilter } from '@telamonjs/data/nest'
 import cookieParser from 'cookie-parser'
 import helmet from 'helmet'
 import { AppModule } from './app.module'
-import { PrismaExceptionFilter } from './common/filters/prisma-exception.filter'
 import { superJsonMiddleware } from './common/middleware/superjson.middleware'
 
 async function bootstrap() {
@@ -39,6 +39,7 @@ async function bootstrap() {
   app.use(superJsonMiddleware) // before any handler — overrides res.json
   app.use(cookieParser()) // required to read the NextAuth session cookie
 
+  // Prisma errors → 409/404/400/503 (English messages; pass `messages` to translate)
   app.useGlobalFilters(new PrismaExceptionFilter())
   app.useGlobalPipes(
     new ValidationPipe({

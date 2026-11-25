@@ -2,9 +2,11 @@ import { Module } from '@nestjs/common'
 import { ConfigModule } from '@nestjs/config'
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler'
 import { APP_GUARD } from '@nestjs/core'
+import { Public } from '@telamonjs/auth/nest'
+import { HealthModule } from '@telamonjs/data/nest'
 import { PrismaModule } from './common/prisma/prisma.module'
+import { PrismaService } from './common/prisma/prisma.service'
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard'
-import { HealthModule } from './modules/health/health.module'
 import { UsuariosModule } from './modules/usuarios/usuarios.module'
 
 /**
@@ -21,7 +23,12 @@ import { UsuariosModule } from './modules/usuarios/usuarios.module'
       { name: 'long', ttl: 60000, limit: 300 },
     ]),
     PrismaModule,
-    HealthModule,
+    // GET /v1/health — 200, or 503 when the database does not answer
+    HealthModule.forRoot({
+      decorators: [Public()],
+      inject: [PrismaService],
+      checks: (prisma: PrismaService) => ({ database: () => prisma.client.$queryRaw`SELECT 1` }),
+    }),
     UsuariosModule,
   ],
   providers: [

@@ -1,6 +1,6 @@
 ---
 title: Data
-description: The server half of a list — the ListPage wire contract, sort and paging sanitizers, and a Prisma adapter with scope-safe where and paginated services
+description: The server half of a list — the ListPage wire contract, sort and paging sanitizers, a Prisma adapter with scope-safe where and paginated services, and NestJS plumbing
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -8,7 +8,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
 `@telamonjs/data` (current version: <PkgVersion pkg='data' />) is what an endpoint runs on what a
 [`ListPage`](/docs/patterns/listpage-pattern) sends: page, page size, search, sort and filters.
 It has no dependencies and imports neither React, Next nor Prisma, so a NestJS or plain Node API
-installs it alone.
+installs it alone. A NestJS API also gets the [Prisma exception filter and health
+endpoint](#nestjs) every API repeats.
 
 ```bash
 pnpm add @telamonjs/data
@@ -18,6 +19,7 @@ pnpm add @telamonjs/data
 | --- | --- | --- |
 | `@telamonjs/data` | The wire contract (`PaginationParams`, `PaginatedResponse`, `SortField`, `createPaginatedResponse`), `sanitizePaginationParams`, `resolveSort`, `resolveSortPath` | No |
 | `@telamonjs/data/prisma` | `buildPrismaOrderBy`, `buildPrismaOrderByMulti`, `buildSearchConditions`, `buildFilterConditions`, `buildWhereClause`, `createPaginationContext` | Builds Prisma's object shape; never imports `@prisma/client` |
+| `@telamonjs/data/nest` | `PrismaExceptionFilter`, `HealthModule`, `isPrismaKnownRequestError`, `isPrismaValidationError` | Needs `@nestjs/common` (optional peer); never imports `@prisma/client` |
 
 ## Sort
 
@@ -96,3 +98,74 @@ export const customers = createPaginatedService({
 `filterLabels` receives the `locale` passed to `getFilterOptions` and returns the labels of
 boolean filter options; without it they are in English. Configuration warnings go to
 `onWarning` (default `console.warn`).
+
+## NestJS
+
+`@telamonjs/data/nest` needs `@nestjs/common`, an optional peer that only this entry imports:
+
+<PeerDeps pkg='data' />
+
+### Prisma errors as HTTP statuses
+
+`PrismaExceptionFilter` answers Prisma errors with a status instead of a 500. It matches
+Prisma's known-request and validation errors by shape (`code` + `name`/`clientVersion`), so it
+works with any `@prisma/client` copy, and it never claims other errors: your own filters and
+Nest's default handling still get them.
+
+```ts
+import { PrismaExceptionFilter } from '@telamonjs/data/nest'
+
+app.useGlobalFilters(new PrismaExceptionFilter())
+```
+
+| Prisma | HTTP |
+| --- | --- |
+| `P2002` unique | 409, `field` = first `target` field |
+| `P2003` foreign key | 400, `field` = constraint |
+| `P2025` not found | 404 |
+| `P2011`, `P2012`, `P2014`, `PrismaClientValidationError` | 400 |
+| `P1000`–`P1003` connection | 503 |
+| any other code | 500, logged with Nest's `Logger` |
+
+The body is `{ statusCode, message, error, field?, timestamp, path }`, written with Express's
+`res.status().json()`. Outside HTTP (RPC, WebSocket, GraphQL) the error is rethrown. Messages are
+English; replace them (in your app's language, say) per code, `validation` or `default`, with a
+string or a function of the reported fields:
+
+```ts
+new PrismaExceptionFilter({
+  messages: {
+    P2025: 'Nothing here',
+    P2002: (fields) => `${fields.join(', ')} is already taken`,
+  },
+})
+```
+
+To change one case (say, `P2003` on a `DELETE` as 409), subclass it, handle that case in `catch`
+and call `super.catch(exception, host)` for the rest.
+
+### Health endpoint
+
+`HealthModule.forRoot()` serves `GET /health`. It runs the checks in parallel and answers 200, or
+503 with `status: 'error'` when any check is down, so Docker and load balancers can read the
+status code:
+
+```ts
+import { Public } from '@telamonjs/auth/nest'
+import { HealthModule } from '@telamonjs/data/nest'
+
+HealthModule.forRoot({
+  decorators: [Public()],             // class decorators for the controller
+  inject: [PrismaService, REDIS],
+  checks: (prisma: PrismaService, redis: Redis) => ({
+    database: () => prisma.$queryRaw`SELECT 1`,
+    redis: () => redis.ping(),
+  }),
+})
+// GET /health → { status: 'ok', timestamp, uptime, database: 'connected', redis: 'connected' }
+```
+
+A check is down when it throws, rejects or resolves `false`. `path` changes the route (default
+`'health'`); `imports` brings in the modules of the `inject` tokens when they are not global.
+The package imports no auth: pass the auth package's [`@Public()`](/docs/packages/auth#nestjs-setup)
+in `decorators` when a global guard protects every route.

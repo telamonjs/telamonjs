@@ -1,7 +1,7 @@
 {
   "name": "@telamonjs/data",
   "version": "1.0.1",
-  "description": "The server half of a TelamonJS list: the ListPage wire contract, sort and paging sanitizers, and a Prisma adapter (orderBy, scope-safe where, paginated services). Zero dependencies",
+  "description": "The server half of a TelamonJS list: the ListPage wire contract, sort and paging sanitizers, a Prisma adapter (orderBy, scope-safe where, paginated services) and NestJS plumbing (Prisma exception filter, health module). Zero dependencies",
   "main": "dist/index.js",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,12 +16,20 @@
       "types": "./dist/prisma/index.d.ts",
       "import": "./dist/prisma/index.js",
       "require": "./dist/prisma/index.js"
+    },
+    "./nest": {
+      "types": "./dist/nest/index.d.ts",
+      "import": "./dist/nest/index.js",
+      "require": "./dist/nest/index.js"
     }
   },
   "typesVersions": {
     "*": {
       "prisma": [
         "./dist/prisma/index.d.ts"
+      ],
+      "nest": [
+        "./dist/nest/index.d.ts"
       ]
     }
   },
@@ -42,17 +50,34 @@
     "prisma",
     "orderby",
     "data-provider",
+    "nestjs",
     "admin",
     "telamonjs",
     "typescript"
   ],
   "author": "Marcos Tullyo (https://github.com/mtullyoc)",
   "license": "MIT",
+  "peerDependencies": {
+    "@nestjs/common": "^10.0.0 || ^11.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@nestjs/common": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@nestjs/common": "^11.1.19",
+    "@nestjs/core": "^11.1.19",
+    "@nestjs/platform-express": "^11.1.19",
+    "@nestjs/testing": "^11.1.19",
+    "@prisma/client": "6.2.0",
     "@types/node": "catalog:",
+    "@types/supertest": "^7.2.1",
     "@vitest/coverage-v8": "catalog:",
     "eslint": "^9.37.0",
     "prettier": "^3.10.1",
+    "reflect-metadata": "^0.2.2",
+    "supertest": "^7.3.2",
     "typescript": "catalog:",
     "vitest": "catalog:"
   },
