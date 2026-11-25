@@ -13,9 +13,8 @@ import { Callout } from 'fumadocs-ui/components/callout'
   sampling and lazy updates for high-throughput environments, with fewer Redis
   calls and less CPU per event
 
-Import them from `@telamonjs/queue/metrics`. `prom-client` (a dependency of the
-package, nothing to install) loads when you construct a collector, never on
-import. `@telamonjs/queue/monitoring` also exports both, next to the health
+Import them from `@telamonjs/queue/metrics`. `prom-client` is a dependency of
+the package, nothing to install. `@telamonjs/queue/monitoring` also exports both, next to the health
 checks; the root entry still re-exports them for compatibility, marked
 `@deprecated`.
 

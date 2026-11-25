@@ -1,8 +1,7 @@
 /**
  * @telamonjs/queue/metrics
  *
- * Prometheus metrics collectors. prom-client is loaded when one of them is
- * constructed, never by importing an entry point.
+ * Prometheus metrics collectors (QueueMetrics, OptimizedQueueMetrics).
  */
 
 export { QueueMetrics } from '../monitoring/metrics.js'

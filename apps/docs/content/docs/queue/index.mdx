@@ -39,10 +39,9 @@ pnpm add @telamonjs/queue
 Requires Node.js 22.12+ and Redis 6+ (`docker run -d -p 6379:6379 redis:7-alpine`).
 
 Every dependency comes with the package; what loads depends on the import. The
-root entry is the lean core (BullMQ, ioredis, the job engine), with no Express,
-Bull Board or `prom-client`. `@telamonjs/queue/dashboard` loads Express and the
-Bull Board UI; `@telamonjs/queue/metrics` holds the Prometheus collectors, which
-load `prom-client` when constructed.
+root entry is the core (BullMQ, ioredis, the job engine), with no Express or
+Bull Board. `@telamonjs/queue/dashboard` loads Express and the Bull Board UI;
+`@telamonjs/queue/metrics` holds the Prometheus collectors.
 
 </Step>
 <Step>

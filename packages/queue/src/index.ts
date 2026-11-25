@@ -135,7 +135,7 @@ export {
 export type { DashboardConfig } from './dashboard/index.js'
 
 // Metrics exports, kept for compatibility: import them from
-// `@telamonjs/queue/metrics`. prom-client loads only when one is constructed.
+// `@telamonjs/queue/metrics`.
 export {
   /** @deprecated Import from `@telamonjs/queue/metrics` instead. */
   QueueMetrics,

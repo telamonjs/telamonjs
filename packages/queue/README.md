@@ -32,10 +32,10 @@ actually loads at runtime:
 
 | Import | Loads |
 | --- | --- |
-| `@telamonjs/queue` (root) | The lean core: BullMQ, ioredis, the job/worker/registry engine. No Express, no Bull Board, no prom-client |
+| `@telamonjs/queue` (root) | The core: BullMQ, ioredis, the job/worker/registry engine, plus `prom-client` for the deprecated metrics re-export. No Express, no Bull Board |
 | `@telamonjs/queue/dashboard` | Express, `express-basic-auth` and the Bull Board UI |
-| `@telamonjs/queue/metrics` | The Prometheus collectors; `prom-client` loads when you construct one |
-| `@telamonjs/queue/monitoring` | Health checks and `getRedisConnectionMetrics`, plus the collectors (same lazy `prom-client`) |
+| `@telamonjs/queue/metrics` | The Prometheus collectors and `prom-client` |
+| `@telamonjs/queue/monitoring` | Health checks and `getRedisConnectionMetrics`, plus the collectors (and `prom-client`) |
 | `@telamonjs/queue/nestjs` | The Nest binding; needs the optional Nest peers |
 
 The Nest peers are only needed for `@telamonjs/queue/nestjs`.
@@ -117,7 +117,7 @@ empty. `startDashboard` installs no signal handlers: close `dashboard.server` fr
 your own shutdown sequence.
 
 `@telamonjs/queue/metrics` exposes the Prometheus collectors, `QueueMetrics` and
-`OptimizedQueueMetrics`; `prom-client` loads when you construct one, not on import.
+`OptimizedQueueMetrics`.
 The root still re-exports both for compatibility, marked `@deprecated`: import
 them from `@telamonjs/queue/metrics`. `@telamonjs/queue/monitoring` has the
 health checks and `getRedisConnectionMetrics(redis)`, a pure function for a
