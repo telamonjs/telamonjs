@@ -1,5 +1,21 @@
 # Changelog
 
+## ui 1.7.0, cli 1.1.5 (2026-11-25)
+
+`@telamonjs/ui`:
+- `ListPage` gets a `header` slot for bars, alerts or status panels above the toolbar. In the embedded
+  and infinite-scroll layouts it keeps its own height, the table fills the rest and the footer stays
+  at the bottom. No wrapper is needed.
+- `CrudConfig` accepts shapes apps cast with `as any` today:
+  - `getForEdit` may resolve the entity itself;
+  - a create dialog's `defaultValues` may carry form-only keys;
+  - `headerConfig.iconColor` and `gradient` may be functions of the record (they were ignored before
+    and now work);
+  - a `crud` field's `listFields` takes sub-list columns (`{ header, accessorFn }`).
+
+`@telamonjs/cli`:
+- The generated `AGENTS.md` points `queryFn` adapters to `asQueryFn`.
+
 ## ui 1.6.0, queue 1.4.0, cli 1.1.4 (2026-11-25)
 
 `@telamonjs/ui`:
