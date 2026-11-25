@@ -1,5 +1,12 @@
 # Changelog
 
+## ui 1.10.0 (2026-11-25)
+
+`@telamonjs/ui`:
+- New `@telamonjs/ui/menu` entry point: `filterMenuByPermission` and the menu types, with no React or
+  Next.js import, for menu configs in plain modules and their unit tests.
+- `useCrudMutations` takes a `CrudConfig<T, TFormData, TResult>` directly, like `ListPage`.
+
 ## ui 1.9.0, auth 1.3.0, queue 1.4.1, cli 1.1.7 (2026-11-25)
 
 `@telamonjs/queue` 1.4.1:
