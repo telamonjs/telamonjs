@@ -1,5 +1,15 @@
 # Changelog
 
+## ui 1.5.0 (2026-11-25)
+
+`@telamonjs/ui`:
+- New `useUrlFilters(defs, { omit, fixed })` hook: builds the `ListPage` "Filters" panel from filter
+  definitions (`'options'` with a local list or a server `load` and `dependsOn` cascades, `'dateRange'`,
+  `'text'`), with the URL as the single source of truth. Returns `filtersPanel`, `activeFilters`,
+  `onClearFilters`, the stable `values` for `config.query`, and `params`.
+- The "Filters" popover stays open while the person works in it (typing in a field, or a selector or
+  calendar opened from it). Hovering in and out still closes it.
+
 ## queue 1.3.2 (2026-11-25)
 
 `@telamonjs/queue`:
