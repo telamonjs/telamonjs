@@ -2673,6 +2673,23 @@ always applies, and `'all'`/`'todos'` are ordinary values:
 }
 ```
 
+### Active / inactive preset
+
+For a boolean "active" column, `activeFilter(key = 'active', overrides?)` returns that filter
+ready-made: All / Active / Inactive, labelled by the library messages (every locale), with
+`allValue: 'all'`. "Active" sends `?<key>=true`, "Inactive" `?<key>=false` and "All" sends
+nothing, which is what a `'boolean'` filter of
+[`@telamonjs/data`](/docs/packages/data) parses. The overrides are `label`, `defaultValue`,
+`displayMode` and `className`:
+
+```tsx
+import { activeFilter } from '@telamonjs/ui'
+
+toolbar: {
+  filters: [activeFilter('ativo', { defaultValue: 'true' })], // opens on the active rows
+},
+```
+
 ### Filters in the URL
 
 With `urlSync`, a toolbar filter whose `key` is also in `urlFilters` round-trips with the URL:

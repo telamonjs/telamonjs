@@ -61,6 +61,8 @@ export { VirtualDataTable } from '../data/VirtualDataTable'
 
 export { withScope } from '../utils/with-scope'
 export type { CrudScope } from '../utils/with-scope'
+export { activeFilter } from '../utils/active-filter'
+export type { ActiveFilterOptions } from '../utils/active-filter'
 export { SubList } from '../components/crud/sub-list'
 export type { SubListField, SubListProps } from '../components/crud/sub-list'
 export { EmptyState } from '../components/crud/empty-state'

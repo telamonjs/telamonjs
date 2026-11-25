@@ -285,6 +285,7 @@ Runtime:
 - `WheelSlider`
 - `ZustandForm`
 - `ZustandFormServer`
+- `activeFilter`
 - `arrayQueryFn`
 - `asQueryFn`
 - `buildPrismaOrderBy`
@@ -369,6 +370,7 @@ Types:
 - `ActionContext` (type)
 - `ActionsDisplayConfig` (type)
 - `ActiveFilterChip` (type)
+- `ActiveFilterOptions` (type)
 - `AdminFormField` (type)
 - `AdminFormProps` (type)
 - `AdminFormRendererProps` (type)
