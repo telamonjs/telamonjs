@@ -1,0 +1,17 @@
+// System parameters: settings editable at runtime. `value` is text, read
+// through `type`; `public` ones are served without a session at
+// GET /parameters/public.
+model Parameter {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  type        String   @default("STRING") // STRING, NUMBER, BOOLEAN, JSON
+  description String?
+  group       String?
+  public      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([group])
+  @@map("parameters")
+}

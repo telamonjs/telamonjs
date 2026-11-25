@@ -1,0 +1,38 @@
+{
+  "nav": {
+    "audit": "Auditoría"
+  },
+  "auditoria": {
+    "title": "Auditoría",
+    "description": "Quién cambió qué, y cuándo",
+    "counter": "{count, plural, one {# registro} other {# registros}}",
+    "searchPlaceholder": "Buscar por entidad, registro o ruta...",
+    "allActions": "Todas las acciones",
+    "anonymous": "Anónimo",
+    "columns": {
+      "when": "Cuándo",
+      "who": "Quién",
+      "action": "Acción",
+      "entity": "Entidad",
+      "entityId": "Registro"
+    },
+    "detail": {
+      "actor": "Autor",
+      "impersonatedBy": "Suplantado por",
+      "ip": "Dirección IP",
+      "userAgent": "Navegador",
+      "request": "Solicitud",
+      "status": "Estado",
+      "changes": "Cambios",
+      "noChanges": "Sin contenido registrado"
+    },
+    "dialogs": {
+      "view": {
+        "title": "Registro de Auditoría"
+      }
+    },
+    "actions": {
+      "view": "Ver registro"
+    }
+  }
+}

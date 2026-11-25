@@ -9,6 +9,7 @@ import { generateCommand } from './commands/generate/index.js'
 import { dbCommand } from './commands/db/index.js'
 import { analyzeCommand } from './commands/analyze/index.js'
 import { lintCommand } from './commands/lint/index.js'
+import { addCommand } from './commands/add/index.js'
 import { runLink, runUnlink } from './commands/link.js'
 import { readFileSync } from 'fs'
 import { join } from 'path'
@@ -65,6 +66,9 @@ program.addCommand(analyzeCommand)
 
 // Convention lint (CrudConfig / dialogs / hubs)
 program.addCommand(lintCommand)
+
+// Admin kit: audit, parameters
+program.addCommand(addCommand)
 
 // Link mode: @telamonjs/ui from a local TelamonJS checkout
 program

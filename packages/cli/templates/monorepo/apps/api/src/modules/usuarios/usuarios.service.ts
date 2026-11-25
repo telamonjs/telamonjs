@@ -104,7 +104,8 @@ export class UsuariosService {
       where: { id },
       data: {
         ...rest,
-        ...(password ? { password: await bcrypt.hash(password, 10) } : {}),
+        // New password: every open session ends, like a deactivation
+        ...(password ? { password: await bcrypt.hash(password, 10), sessionsRevokedAt: now } : {}),
         // New roles: the user's token goes stale and is refreshed on the next request
         ...(roleIds
           ? { roles: { deleteMany: {}, create: roleIds.map((roleId) => ({ roleId })) }, accessChangedAt: now }

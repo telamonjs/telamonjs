@@ -39,7 +39,7 @@ modules/<name>/
   roles (`system`) are read-only.
 - Any change to what a token says marks the affected users stale: a role's
   permissions/name/code or its deletion (`markRoleHoldersStale`), a user's
-  `roleIds` (`accessChangedAt`); deactivating a user sets
+  `roleIds` (`accessChangedAt`); deactivating a user or changing their password sets
   `sessionsRevokedAt`. New permission: add it to the catalog, guard the route
   with `@Permissions`, run `pnpm db:seed`.
 

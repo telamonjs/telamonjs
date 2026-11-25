@@ -555,6 +555,7 @@ pnpm build            # production build
 pnpm type-check       # TypeScript check
 pnpm lint:telamonjs     # telamonjs lint src/app/admin (conventions above)
 pnpm telamonjs generate crud <module> --model <Model>  # new module in this same pattern, from prisma/schema.prisma
+pnpm telamonjs add admin audit       # admin kit: audit log (also: parameters); then db:migrate + db:seed
 pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345 (idempotent)
 pnpm telamonjs link   # @telamonjs/ui from a local checkout (../telamonjs); `pnpm telamonjs unlink` before committing
 docker compose up -d  # database only, for pnpm dev
@@ -604,11 +605,19 @@ newer than the login) is signed out; a token older than `accessChangedAt` gets
 its roles/permissions recomputed (only `accessAt` moves, never `authTime`). So
 every write that changes what a token says must stamp it: a user's roles
 (`accessChangedAt` on that user), a role's permissions, name, code or deletion
-(`markRoleHoldersStale(prisma, roleId)`), deactivation (`sessionsRevokedAt`).
+(`markRoleHoldersStale(prisma, roleId)`), deactivation or a new password (`sessionsRevokedAt`).
 The Route Handlers in `src/app/api/{usuarios,roles}` already do.
 
 Built-in roles (`system: true`) are read-only in the API and locked in the
 matrix; the seed keeps `admin` complete.
+
+**Admin kit.** `pnpm telamonjs add admin audit` adds an audit log (`AuditLog`
+model, `audit.read`, `/admin/auditoria`, `src/lib/audit.ts` called by the users
+and roles Route Handlers); `pnpm telamonjs add admin parameters` adds system
+parameters (`Parameter` model, `parameters.read`/`parameters.write`,
+`/admin/parametros`, `getParameter(key, fallback)` in `src/lib/parameters.ts`).
+Both are idempotent and never migrate: run `pnpm db:migrate --name <name>` and
+`pnpm db:seed` afterwards. New mutating Route Handlers should call `audit()` too.
 
 ---
 

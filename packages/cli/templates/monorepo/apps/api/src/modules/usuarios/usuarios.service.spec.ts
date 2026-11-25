@@ -80,4 +80,13 @@ describe('UsuariosService', () => {
     expect(data.active).toBe(false)
     expect(data.sessionsRevokedAt).toBeInstanceOf(Date)
   })
+
+  it('update() with a new password revokes the user sessions', async () => {
+    const prisma = makePrisma()
+    await new UsuariosService(prisma).update('u2', { password: 'new-secret' }, 'u1')
+
+    const { data } = (prisma.client.user.update as jest.Mock).mock.calls[0][0]
+    expect(data.password).not.toBe('new-secret')
+    expect(data.sessionsRevokedAt).toBeInstanceOf(Date)
+  })
 })

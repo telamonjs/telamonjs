@@ -1,0 +1,68 @@
+{
+  "nav": {
+    "parameters": "Parâmetros"
+  },
+  "parametros": {
+    "title": "Parâmetros",
+    "description": "Configurações do sistema, editáveis sem deploy",
+    "counter": "{count, plural, one {# parâmetro} other {# parâmetros}}",
+    "searchPlaceholder": "Buscar por chave, grupo ou descrição...",
+    "public": "Público",
+    "private": "Privado",
+    "types": {
+      "STRING": "Texto",
+      "NUMBER": "Número",
+      "BOOLEAN": "Sim/Não",
+      "JSON": "JSON"
+    },
+    "sections": {
+      "parameter": {
+        "label": "Parâmetro",
+        "description": "Como o código o encontra, e quem pode lê-lo"
+      },
+      "value": {
+        "label": "Valor",
+        "description": "O campo segue o tipo"
+      }
+    },
+    "columns": {
+      "key": "Chave",
+      "value": "Valor",
+      "type": "Tipo",
+      "group": "Grupo",
+      "visibility": "Visibilidade"
+    },
+    "fields": {
+      "key": "Chave",
+      "keyPlaceholder": "ex.: uploads.maxMb",
+      "keyDescription": "Letras, dígitos, ., - e _. O código lê o parâmetro por esta chave",
+      "group": "Grupo",
+      "groupPlaceholder": "ex.: uploads",
+      "description": "Descrição",
+      "public": "Público",
+      "publicDescription": "Legível sem login, via GET …/parameters/public",
+      "type": "Tipo",
+      "value": "Valor",
+      "valueJsonDescription": "JSON válido (objeto, array, texto, número...)"
+    },
+    "dialogs": {
+      "edit": {
+        "title": "Editar Parâmetro"
+      },
+      "create": {
+        "title": "Novo Parâmetro",
+        "description": "Crie uma configuração que o app lê em tempo de execução"
+      }
+    },
+    "actions": {
+      "edit": "Editar parâmetro",
+      "delete": "Excluir parâmetro"
+    },
+    "confirmDelete": {
+      "title": "Excluir {name}?",
+      "description": "O código que o lê passa a usar o valor padrão.",
+      "confirmText": "Excluir",
+      "cancelText": "Cancelar"
+    }
+  }
+}

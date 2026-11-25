@@ -1,0 +1,22 @@
+// Audit trail: one row per successful, authenticated mutation. `userId` is a
+// plain column, not a relation, so entries outlive the users they name.
+model AuditLog {
+  id             String   @id @default(cuid())
+  userId         String?
+  impersonatedBy String?
+  action         String // CREATE, UPDATE, DELETE, ACTIVATE, GRANT...
+  entityType     String // the resource, as its route names it: "usuarios", "roles"...
+  entityId       String?
+  changes        Json? // the request body or the field diff, secrets redacted
+  ipAddress      String?
+  userAgent      String?
+  method         String?
+  path           String?
+  statusCode     Int?
+  createdAt      DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}

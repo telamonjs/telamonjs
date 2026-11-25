@@ -1,0 +1,68 @@
+{
+  "nav": {
+    "parameters": "Parameters"
+  },
+  "parametros": {
+    "title": "Parameters",
+    "description": "System settings, editable without a deploy",
+    "counter": "{count, plural, one {# parameter} other {# parameters}}",
+    "searchPlaceholder": "Search by key, group or description...",
+    "public": "Public",
+    "private": "Private",
+    "types": {
+      "STRING": "Text",
+      "NUMBER": "Number",
+      "BOOLEAN": "Yes/No",
+      "JSON": "JSON"
+    },
+    "sections": {
+      "parameter": {
+        "label": "Parameter",
+        "description": "How code finds it, and who can read it"
+      },
+      "value": {
+        "label": "Value",
+        "description": "The input follows the type"
+      }
+    },
+    "columns": {
+      "key": "Key",
+      "value": "Value",
+      "type": "Type",
+      "group": "Group",
+      "visibility": "Visibility"
+    },
+    "fields": {
+      "key": "Key",
+      "keyPlaceholder": "e.g. uploads.maxMb",
+      "keyDescription": "Letters, digits, ., - and _. Code reads the parameter by this key",
+      "group": "Group",
+      "groupPlaceholder": "e.g. uploads",
+      "description": "Description",
+      "public": "Public",
+      "publicDescription": "Readable without signing in, through GET …/parameters/public",
+      "type": "Type",
+      "value": "Value",
+      "valueJsonDescription": "Valid JSON (object, array, string, number...)"
+    },
+    "dialogs": {
+      "edit": {
+        "title": "Edit Parameter"
+      },
+      "create": {
+        "title": "New Parameter",
+        "description": "Create a setting the app reads at runtime"
+      }
+    },
+    "actions": {
+      "edit": "Edit parameter",
+      "delete": "Delete parameter"
+    },
+    "confirmDelete": {
+      "title": "Delete {name}?",
+      "description": "Code that reads it falls back to its default value.",
+      "confirmText": "Delete",
+      "cancelText": "Cancel"
+    }
+  }
+}

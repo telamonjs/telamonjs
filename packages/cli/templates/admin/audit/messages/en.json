@@ -1,0 +1,38 @@
+{
+  "nav": {
+    "audit": "Audit log"
+  },
+  "auditoria": {
+    "title": "Audit log",
+    "description": "Who changed what, and when",
+    "counter": "{count, plural, one {# entry} other {# entries}}",
+    "searchPlaceholder": "Search by entity, record or path...",
+    "allActions": "All actions",
+    "anonymous": "Anonymous",
+    "columns": {
+      "when": "When",
+      "who": "Who",
+      "action": "Action",
+      "entity": "Entity",
+      "entityId": "Record"
+    },
+    "detail": {
+      "actor": "Actor",
+      "impersonatedBy": "Impersonated by",
+      "ip": "IP address",
+      "userAgent": "User agent",
+      "request": "Request",
+      "status": "Status",
+      "changes": "Changes",
+      "noChanges": "No payload recorded"
+    },
+    "dialogs": {
+      "view": {
+        "title": "Audit Entry"
+      }
+    },
+    "actions": {
+      "view": "View entry"
+    }
+  }
+}

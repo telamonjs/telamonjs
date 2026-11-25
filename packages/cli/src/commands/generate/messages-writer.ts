@@ -9,7 +9,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 
-const LOCALES = ['pt-BR', 'en', 'es'] as const
+export const LOCALES = ['pt-BR', 'en', 'es'] as const
 
 /**
  * Walks up from `startDir` (inclusive) through at most `maxLevels` ancestors,
@@ -72,4 +72,26 @@ export function writeModuleMessages(
     data[i][moduleKey] = block
     writeFileSync(file, `${JSON.stringify(data[i], null, 2)}\n`, 'utf-8')
   })
+}
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * Copies into `target` every key of `source` it lacks, recursing into nested
+ * objects; an existing key is never overwritten, so a translated or edited
+ * message survives a re-run. Mutates `target`; returns true when it added
+ * anything.
+ */
+export function mergeMissingKeys(target: Record<string, unknown>, source: Record<string, unknown>): boolean {
+  let added = false
+  for (const [key, value] of Object.entries(source)) {
+    if (!(key in target)) {
+      target[key] = value
+      added = true
+    } else if (isRecord(target[key]) && isRecord(value)) {
+      added = mergeMissingKeys(target[key] as Record<string, unknown>, value) || added
+    }
+  }
+  return added
 }
