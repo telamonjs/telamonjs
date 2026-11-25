@@ -23867,7 +23867,7 @@ failing later inside BullMQ.
 | --- | --- | --- |
 | `QueueManager` config | `new QueueManager()` | `ConfigurationError` |
 | Job name | `register()` | `InvalidJobNameError` |
-| Job options (merged) | `add()` / `addBulk()` | `InvalidJobOptionsError` |
+| Job options (merged) | `add()` / `addBulk()` / `FlowProducer.add()` | `InvalidJobOptionsError` |
 | Worker config | `createWorkers()` | `InvalidWorkerConfigError` |
 
 ## What gets validated

@@ -17,6 +17,7 @@ import {
 } from '../test/fixtures/test-helpers'
 import { SimpleJob, JobWithOptions } from '../test/fixtures/test-jobs'
 import { isRedisAvailable, TEST_REDIS } from '../test/redis-availability'
+import { InvalidJobOptionsError } from '../utils/errors'
 
 // Integration suite against real BullMQ/Redis. No Redis reachable (e.g. CI
 // without a Redis service) -> skip instead of hanging on ioredis retries.
@@ -194,6 +195,26 @@ describe.skipIf(!redisAvailable)('FlowProducer', () => {
       await flow.add({ name: 'defaults', job: 'flow-child-a', data: {}, options: { jobId: 'flow-6' } })
 
       expect((await flow.getFlow('flow-6', 'flow-child-a')).job.opts.priority).toBe(7)
+    })
+
+    it('rejects invalid options on any node before adding anything, like add() does', async () => {
+      await expect(
+        flow.add({
+          name: 'bad-opts',
+          job: SimpleJob,
+          data: { message: 'root' },
+          options: { jobId: 'flow-7' },
+          children: [{ job: SimpleJob, data: { message: 'child' }, options: { attempts: -1 } }],
+        })
+      ).rejects.toThrow(InvalidJobOptionsError)
+
+      const queue = new BullQueue('simple-job', {
+        connection: { ...TEST_REDIS, maxRetriesPerRequest: null },
+        prefix: manager['config'].prefix,
+      })
+      const root = await queue.getJob('flow-7')
+      await queue.close()
+      expect(root).toBeUndefined()
     })
   })
 
