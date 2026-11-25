@@ -307,8 +307,8 @@ failure — see [ConfirmActionDialog](/docs/components/confirm-action-dialog), w
 available for your own buttons.
 
 `permission` is checked against `actionsConfig.userPermissions` by exact name. Set
-`actionsConfig.can` (or `config.permissions.can`, see
-[Permissions](/docs/getting-started/crud-config#permissions)) to decide it with your own
+`actionsConfig.can` (or `config.permissions.can`, or once for the app a `PermissionsProvider`,
+see [Permissions](/docs/getting-started/crud-config#permissions)) to decide it with your own
 checker instead, so a bypass role with no listed permissions still sees the actions.
 
 ---

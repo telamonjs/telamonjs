@@ -146,7 +146,8 @@ auth package satisfies it by shape, with no dependency between the packages.
 
 A `CrudConfig` takes the same checker: `permissions: { can: p => can(session?.user, p), create:
 'clientes.create', … }` gates the list's "New" button, row actions and dialogs (see
-[Permissions](/docs/getting-started/crud-config#permissions)).
+[Permissions](/docs/getting-started/crud-config#permissions)). To give it once for every list
+and the `AdminShell` menu, wrap the shell in `<PermissionsProvider can={…}>`.
 
 </Step>
 </Steps>

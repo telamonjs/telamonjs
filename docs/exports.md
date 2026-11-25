@@ -190,6 +190,7 @@ Runtime:
 - `MultiSelect`
 - `PageContent`
 - `PageSkeleton`
+- `PermissionsProvider`
 - `PieChart`
 - `PieChartLazy`
 - `Popover`
@@ -529,6 +530,7 @@ Types:
 - `PagesConfig` (type)
 - `PaginatedResponse` (type)
 - `PaginationParams` (type)
+- `PermissionsProviderProps` (type)
 - `PieChartProps` (type)
 - `PopoverSelectorLabels` (type)
 - `PopoverSelectorMultiProps` (type)

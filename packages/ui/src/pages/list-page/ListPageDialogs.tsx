@@ -17,6 +17,7 @@ import {
 } from '../../components/data/action-access'
 import { resolveDialogTitle } from '../../components/dialog/resolve-dialog-title'
 import { withComponent } from '../../utils/logger'
+import { usePermissionChecker } from '../../providers/PermissionsProvider'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
 import type { I18nText } from '../../i18n/msg'
 import type {
@@ -180,6 +181,7 @@ export function ListPageDialogs<TData>({
   // `enabled` per record — against the list row, or the fetched record on a
   // deep link outside the loaded page.
   const standard = actionsConfig?.standard
+  const providerCan = usePermissionChecker()
   const footerAction = (
     offered: boolean,
     action: ActionConfig<TData> | boolean | undefined
@@ -191,7 +193,8 @@ export function ListPageDialogs<TData>({
         actionGranted(
           cfg?.permission,
           actionsConfig?.userPermissions,
-          actionsConfig?.can
+          actionsConfig?.can,
+          providerCan
         ),
       can: cfg
         ? (item: DialogData) => {

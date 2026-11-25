@@ -31,7 +31,7 @@ reads it all from a single prop.
 | `actionsConfig` | `DataTableActionsConfig<T> \| false` | No | Row action buttons: `standard: { view, edit, delete }` + custom actions |
 | `dialogs` | `DialogsConfig<T>` | No | View/edit/create dialogs: rich headers, the view body, deep links via `urlParam` |
 | `pages` | `PagesConfig<T>` | No | Dedicated pages instead of dialogs (see [Standalone form pages](/docs/patterns/edit-page)) |
-| `permissions` | `CrudPermissions` | No | Who may create, edit, delete and view (see [Permissions](#permissions)) |
+| `permissions` | `CrudPermissions` | No | Who may create, edit, delete, view and export (see [Permissions](#permissions)) |
 
 `create`, `update` and `delete` are each optional: an omitted one resolves
 `{ success: false }` instead of throwing, so a read-only module needs no stub
@@ -72,15 +72,17 @@ export function usuariosConfigFor(user: AuthUser): CrudConfig<Usuario, UsuarioFo
 | `edit` | the row edit, the view dialog's Edit, the edit dialog and `dialogs.view.portal.onSaveSection` |
 | `delete` | the row delete and the view dialog's Delete |
 | `view` | the row view and the view dialog (row click included) |
+| `export` | the toolbar export menu (`list.enableExport` / `list.onExport`) |
 
 The checker is `can` when set, so bypass roles and wildcards work as your
 checker defines them. Without `can`, the names are looked up in
-`actionsConfig.userPermissions`. The row view/edit/delete inherit the
-operation's permission unless their own `ActionConfig` declares a `permission`,
-and `permissions.can` also decides the `permission` of custom actions (it
-becomes `actionsConfig.can`).
+`actionsConfig.userPermissions`; without either, the `can` of a
+[`PermissionsProvider`](#one-checker-for-the-whole-app) above the list decides.
+The row view/edit/delete inherit the operation's permission unless their own
+`ActionConfig` declares a `permission`, and the same checker decides the
+`permission` of custom actions (`permissions.can` becomes `actionsConfig.can`).
 
-With neither `can` nor `userPermissions`, everything is allowed: the gate is
+With no checker at all, everything is allowed: the gate is
 fail-open, so a config that forgot the checker shows every write button. In
 development the list warns once per config when that happens. Set
 `failClosed: true` (same meaning as in `@telamonjs/permissions`) to deny every
@@ -94,6 +96,40 @@ permissions: {
   create: 'usuarios.create',
 },
 ```
+
+#### One checker for the whole app
+
+Instead of injecting `can` into every config, give it once to a
+`PermissionsProvider` where the session is readable (inside the app's
+`SessionProvider`, around the `AdminShell`). Every `ListPage` below uses it for
+`permissions.*` and action `permission`s, and `AdminShell` filters the menu with
+it. A config then only names its permissions:
+
+```tsx title="components/providers/LayoutProviders.tsx"
+'use client'
+
+import { useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { AdminShell, PermissionsProvider } from '@telamonjs/ui'
+
+export function LayoutProviders({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession()
+  const can = useCallback((perm: string) => checker.can(session?.user, perm), [session])
+  return (
+    <PermissionsProvider can={can}>
+      <AdminShell menuConfig={menuConfig}>{children}</AdminShell>
+    </PermissionsProvider>
+  )
+}
+```
+
+```tsx title="config.tsx"
+permissions: { create: 'usuarios.create', edit: 'usuarios.update', export: 'usuarios.export' },
+```
+
+A checker the config declares itself (`permissions.can`, `actionsConfig.can` or
+`actionsConfig.userPermissions`) wins over the provider's, and so does
+`AdminShell`'s own `can` for the menu. Without a provider, nothing changes.
 
 ---
 

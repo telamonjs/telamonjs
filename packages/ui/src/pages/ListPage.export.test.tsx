@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ListPage } from './ListPage'
 import type { CrudConfig } from '../types/crud'
 import type { PaginationParams } from '../types/pagination'
+import { PermissionsProvider } from '../providers/PermissionsProvider'
 
 // Avoid loading @telamonjs/logger (published dist breaks Node ESM resolution)
 vi.mock('../utils/logger', () => {
@@ -128,11 +129,13 @@ function makeConfig(list: Partial<CrudConfig<User>['list']>, queryFn = pagedQuer
   }
 }
 
-function renderList(config: CrudConfig<User>) {
+function renderList(config: CrudConfig<User>, providerCan?: (permission: string) => boolean) {
   const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={queryClient}>
-      <ListPage<User> config={config} />
+      <PermissionsProvider can={providerCan}>
+        <ListPage<User> config={config} />
+      </PermissionsProvider>
     </QueryClientProvider>
   )
 }
@@ -194,6 +197,25 @@ describe('ListPage - export', () => {
         'excel'
       )
       expect(exportToCSV).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('permissions.export', () => {
+    it('a denied export hides the export menu (enableExport and onExport)', async () => {
+      renderList({
+        ...makeConfig({ enableExport: true, onExport: vi.fn() }),
+        permissions: { export: 'users.export', can: () => false },
+      })
+      await screen.findByText(/5 resultados/)
+      expect(screen.queryByTestId('export-menu-trigger')).not.toBeInTheDocument()
+    })
+
+    it("a granted export keeps it — here through the PermissionsProvider's `can`", async () => {
+      renderList(
+        { ...makeConfig({ enableExport: true }), permissions: { export: 'users.export' } },
+        perm => perm === 'users.export'
+      )
+      expect(await screen.findByTestId('export-menu-trigger')).toBeInTheDocument()
     })
   })
 })

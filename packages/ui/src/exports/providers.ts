@@ -3,6 +3,9 @@
 // ============================================================================
 export { AppProviders } from '../providers/AppProviders'
 export type { ProvidersConfig } from '../providers/AppProviders'
+// The session's permission checker, once for every CrudConfig and the AdminShell menu
+export { PermissionsProvider } from '../providers/PermissionsProvider'
+export type { PermissionsProviderProps } from '../providers/PermissionsProvider'
 export { SystemConfigProvider, useSystemConfig } from '../providers/ConfigProvider'
 // NOTE: ConfigProvider (alias of SystemConfigProvider) lives in deprecated-aliases.ts
 

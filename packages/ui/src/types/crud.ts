@@ -629,11 +629,12 @@ export interface PagesConfig<T> {
  *
  * Checked with `can` when set (bypass roles, wildcards: pass
  * `perm => checker.can(user, perm)` from `@telamonjs/permissions`), else against
- * `actionsConfig.userPermissions`; with neither, everything is allowed (and a
- * development warning says so) — unless `failClosed` is set.
+ * `actionsConfig.userPermissions`, else with the `can` of a `PermissionsProvider`
+ * above the list (set once for the whole app); with none, everything is allowed
+ * (and a development warning says so) — unless `failClosed` is set.
  */
 export interface CrudPermissions {
-  /** Permission checker; wins over `actionsConfig.userPermissions` */
+  /** Permission checker; wins over `actionsConfig.userPermissions` and the `PermissionsProvider` */
   can?: (permission: string) => boolean
   /**
    * Deny instead of allow when there is no way to check: with neither `can` nor
@@ -650,6 +651,8 @@ export interface CrudPermissions {
   delete?: ActionConfig['permission']
   /** The row view and the view dialog (row click included) */
   view?: ActionConfig['permission']
+  /** The toolbar export menu (`list.enableExport` / `list.onExport`) */
+  export?: ActionConfig['permission']
 }
 
 /**

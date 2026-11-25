@@ -26,6 +26,7 @@ import { ImpersonationBanner } from '../components/impersonation/ImpersonationBa
 import { useStopImpersonation } from '../components/impersonation/use-stop-impersonation'
 import { cn } from '../utils'
 import { filterMenuByPermission } from '../utils/menu-helpers'
+import { usePermissionChecker } from '../providers/PermissionsProvider'
 import { getIcon } from '../utils/icon'
 import type {
   MenuItem,
@@ -58,7 +59,9 @@ export interface AdminShellProps {
    * Permission checker for `MenuItem.permission` (any of them grants). When set,
    * the sidebar and the command palette show only the items it grants (see
    * `filterMenuByPermission`); the breadcrumb still labels routes from the full
-   * menu, since a page may be reached by link. Without it every item shows.
+   * menu, since a page may be reached by link. Without it, the `can` of a
+   * `PermissionsProvider` above the shell filters instead; without either every
+   * item shows.
    *
    * @example
    * ```tsx
@@ -279,9 +282,11 @@ export function AdminShell({
   }, [])
 
   // What the user may navigate to; the breadcrumb keeps the full menu
+  const providerCan = usePermissionChecker()
+  const menuCan = can ?? providerCan
   const visibleMenu = useMemo(
-    () => (can ? filterMenuByPermission(menuConfig, can) : menuConfig),
-    [menuConfig, can]
+    () => (menuCan ? filterMenuByPermission(menuConfig, menuCan) : menuConfig),
+    [menuConfig, menuCan]
   )
 
   // Flatten menu into CommandPaletteItems for navigation

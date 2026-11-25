@@ -34,6 +34,7 @@ import {
   TooltipConfig,
 } from '../../types/actions'
 import { actionEnabled, actionGranted, actionVisible } from './action-access'
+import { usePermissionChecker } from '../../providers/PermissionsProvider'
 import { getIconFromName } from '../../utils/icon'
 import { TEST_IDS, getActionAccessibilityAttrs } from '../../utils/test-ids'
 import { useTelamonjsT, useText } from '../../i18n/use-t'
@@ -542,20 +543,22 @@ export function DataTableActions<TData>({
   )
 
   // Permission filtering runs once per actions config, not on every render of
-  // every row; the Set makes each lookup O(1).
+  // every row; the Set makes each lookup O(1). The PermissionsProvider checker
+  // applies when the config has neither `can` nor `userPermissions`.
+  const providerCan = usePermissionChecker()
   const { filteredInlineActions, filteredDropdownActions } = useMemo(() => {
     const granted = config.userPermissions
       ? new Set(config.userPermissions)
       : undefined
     const allowed = (action: ActionConfig<TData>) =>
-      actionGranted(action.permission, granted, config.can)
+      actionGranted(action.permission, granted, config.can, providerCan)
     return {
       filteredInlineActions: allActions.inline.filter(a => allowed(a.config)),
       filteredDropdownActions: allActions.dropdown.filter(a =>
         allowed(a.config)
       ),
     }
-  }, [allActions, config.userPermissions, config.can])
+  }, [allActions, config.userPermissions, config.can, providerCan])
 
   // Menu action awaiting confirmation. Its dialog lives outside the
   // DropdownMenu: the menu unmounts its content as soon as an item is picked.

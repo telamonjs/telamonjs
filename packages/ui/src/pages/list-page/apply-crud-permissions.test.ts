@@ -85,6 +85,68 @@ describe('applyCrudPermissions', () => {
     })
   })
 
+  describe('PermissionsProvider checker (third argument)', () => {
+    it('checks the operations and becomes actionsConfig.can when the config has no checker', () => {
+      const can = (p: string) => p === 'rows.view'
+      const out = applyCrudPermissions(
+        config({ permissions: { create: 'rows.create', view: 'rows.view' } }),
+        { standard: { delete: true } },
+        can
+      )
+      expect(out.dialogs?.create).toBeUndefined()
+      expect(out.dialogs?.view).toBe(dialogs.view)
+      expect(out.actionsConfig?.can).toBe(can)
+    })
+
+    it('the config wins: permissions.can, actionsConfig.can and userPermissions', () => {
+      const deny = () => false
+      const own = () => true
+      expect(
+        applyCrudPermissions(config({ permissions: { create: 'rows.create', can: own } }), undefined, deny)
+          .dialogs?.create
+      ).toBe(dialogs.create)
+      expect(
+        applyCrudPermissions(config({ permissions: { create: 'rows.create' } }), { can: own }, deny)
+          .actionsConfig?.can
+      ).toBe(own)
+      const out = applyCrudPermissions(
+        config({ permissions: { create: 'rows.create' } }),
+        { userPermissions: ['rows.create'] },
+        deny
+      )
+      expect(out.dialogs?.create).toBe(dialogs.create)
+      expect(out.actionsConfig?.can).toBeUndefined()
+    })
+
+    it('without config.permissions everything comes back untouched', () => {
+      const actions: DataTableActionsConfig<Row> = { standard: { delete: true } }
+      const cfg = config()
+      const out = applyCrudPermissions(cfg, actions, () => false)
+      expect(out.dialogs).toBe(dialogs)
+      expect(out.actionsConfig).toBe(actions)
+      expect(out.list).toBe(cfg.list)
+    })
+  })
+
+  describe('permissions.export', () => {
+    const exporting = { enableExport: true, onExport: () => undefined }
+
+    it('a denied export turns off list.enableExport and list.onExport', () => {
+      const cfg = config({ permissions: { export: 'rows.export', can: () => false } })
+      const out = applyCrudPermissions({ ...cfg, list: { ...cfg.list, ...exporting } }, undefined)
+      expect(out.list.enableExport).toBe(false)
+      expect(out.list.onExport).toBeUndefined()
+      expect(out.list.title).toBe('Rows')
+    })
+
+    it('a granted (or undeclared) export keeps the list as is', () => {
+      const granted = config({ permissions: { export: 'rows.export', can: () => true } })
+      expect(applyCrudPermissions(granted, undefined).list).toBe(granted.list)
+      const undeclared = config({ permissions: { create: 'rows.create', can: () => false } })
+      expect(applyCrudPermissions(undeclared, undefined).list).toBe(undeclared.list)
+    })
+  })
+
   describe('Edge Cases', () => {
     it('no form (read-only list): drops the create/edit dialogs, keeps view', () => {
       const out = applyCrudPermissions(config({ form: undefined }), undefined)
@@ -166,6 +228,7 @@ describe('applyCrudPermissions', () => {
       applyCrudPermissions(config({ permissions: { create: 'rows.create' } }), { userPermissions: [] })
       applyCrudPermissions(config({ permissions: { create: 'rows.create' } }), { can: () => true })
       applyCrudPermissions(config({ permissions: {} }), undefined)
+      applyCrudPermissions(config({ permissions: { create: 'rows.create' } }), undefined, () => true)
       applyCrudPermissions(config({ permissions: { create: 'rows.create', failClosed: true } }), undefined)
       expect(warn).not.toHaveBeenCalled()
     })

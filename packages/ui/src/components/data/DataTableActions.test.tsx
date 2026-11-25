@@ -25,6 +25,7 @@ import * as axeMatchers from 'vitest-axe/matchers'
 import type { AxeMatchers } from 'vitest-axe/matchers'
 
 import { DataTableActions } from './DataTableActions'
+import { PermissionsProvider } from '../../providers/PermissionsProvider'
 import { TEST_IDS } from '../../utils/test-ids'
 import type { DataTableActionsConfig } from '../../types/actions'
 import { markToasted } from '../../utils/toasted-error'
@@ -408,6 +409,30 @@ describe('DataTableActions', () => {
 
       expect(screen.getByText('Priv')).toBeInTheDocument()
       expect(screen.queryByText('No')).not.toBeInTheDocument()
+    })
+
+    it("PermissionsProvider's `can` checks `permission` when the config has neither `can` nor userPermissions", () => {
+      const custom = [
+        { id: 'priv', label: 'Priv', onClick: vi.fn(), permission: 'items:admin' },
+        { id: 'open', label: 'Open', onClick: vi.fn(), permission: 'items:read' },
+      ]
+      const { unmount } = render(
+        <PermissionsProvider can={perm => perm === 'items:read'}>
+          <DataTableActions<Item> row={makeRow(item)} config={{ custom }} />
+        </PermissionsProvider>
+      )
+      expect(screen.queryByText('Priv')).not.toBeInTheDocument()
+      expect(screen.getByText('Open')).toBeInTheDocument()
+      unmount()
+
+      // the config's userPermissions win over the provider
+      render(
+        <PermissionsProvider can={() => false}>
+          <DataTableActions<Item> row={makeRow(item)} config={{ custom, userPermissions: ['items:admin'] }} />
+        </PermissionsProvider>
+      )
+      expect(screen.getByText('Priv')).toBeInTheDocument()
+      expect(screen.queryByText('Open')).not.toBeInTheDocument()
     })
 
     it('display.mode=dropdown moves ALL inline actions into the overflow menu', () => {

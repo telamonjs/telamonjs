@@ -11,6 +11,7 @@ import type {
 import type { ViewPortalDialog as ViewPortalDialogType } from './view-portal-dialog'
 import { resolveDialogTitle } from './resolve-dialog-title'
 import { crudGranted } from '../data/action-access'
+import { usePermissionChecker } from '../../providers/PermissionsProvider'
 
 const logger = withComponent('CrudViewDialog')
 
@@ -68,6 +69,7 @@ export function CrudViewDialog<TData>({
   footer,
 }: CrudViewDialogProps<TData>) {
   const text = useText()
+  const providerCan = usePermissionChecker()
   const { dialogs, mutations, form } = config
   const view = dialogs?.view
   const fetchAction = useCallback(
@@ -113,7 +115,9 @@ export function CrudViewDialog<TData>({
           columns={view.portal.columns}
           validation={form?.validation}
           onSaveSection={
-            crudGranted(config, 'edit') ? view.portal.onSaveSection : undefined
+            crudGranted(config, 'edit', providerCan)
+              ? view.portal.onSaveSection
+              : undefined
           }
         />
       ) : (

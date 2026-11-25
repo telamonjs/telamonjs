@@ -242,6 +242,20 @@ Main props: `menuConfig`, `session?`, `systemName?`, `logoUrl?`/`compactLogoUrl?
 `showImpersonationBanner?`, `headerActions?`, `commandActions?`, `breadcrumbProps?`,
 `profileHref?`, `localeSwitcher?`. See [AdminShell](/docs/components/admin-shell) for the full list.
 
+### Permissions (optional)
+
+To gate menus, lists and actions with the session's permissions, wrap the shell in
+`PermissionsProvider` with your checker. It lives here, not in `AppProviders`, because the
+checker usually reads the session through a hook that only works inside `SessionProvider`:
+
+```tsx
+<PermissionsProvider can={can}>
+  <AdminShell menuConfig={menuConfig}>{children}</AdminShell>
+</PermissionsProvider>
+```
+
+See [One checker for the whole app](/docs/getting-started/crud-config#one-checker-for-the-whole-app).
+
 ---
 
 ## Provider Hierarchy
@@ -250,8 +264,9 @@ Main props: `menuConfig`, `session?`, `systemName?`, `logoUrl?`/`compactLogoUrl?
 QueryClientProvider (the app's QueryClient)
   └── AppProviders (i18n, theme, session, same QueryClient, maps)
        └── app/admin/layout.tsx (Server Component: session + redirect)
-            └── AdminShell (ModernSidebar + CommandPalette + Breadcrumb, 'use client')
-                 └── {children}
+            └── PermissionsProvider (optional: the session's `can`)
+                 └── AdminShell (ModernSidebar + CommandPalette + Breadcrumb, 'use client')
+                      └── {children}
 ```
 
 ---

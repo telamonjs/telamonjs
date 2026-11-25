@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, beforeAll, afterAll } from 'vites
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ListPage } from './ListPage'
 import type { CrudConfig } from '../types/crud'
+import { PermissionsProvider } from '../providers/PermissionsProvider'
 
 // Avoid loading @telamonjs/logger (published dist breaks Node ESM resolution)
 vi.mock('../utils/logger', () => {
@@ -130,13 +131,18 @@ function makeConfig(
   }
 }
 
-function renderList(config: CrudConfig<User, Partial<User>>) {
+function renderList(
+  config: CrudConfig<User, Partial<User>>,
+  providerCan?: (permission: string) => boolean
+) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   })
   return render(
     <QueryClientProvider client={queryClient}>
-      <ListPage<User> config={config} />
+      <PermissionsProvider can={providerCan}>
+        <ListPage<User> config={config} />
+      </PermissionsProvider>
     </QueryClientProvider>
   )
 }
@@ -206,6 +212,39 @@ describe('ListPage - CrudConfig.permissions', () => {
       await waitFor(() => expect(viewProps().open).toBe(true))
       expect(viewProps().onEdit).toBeUndefined()
       expect(viewProps().onDelete).toBeTypeOf('function')
+    })
+  })
+
+  describe('PermissionsProvider', () => {
+    it("the provider's `can` checks a config without its own checker", async () => {
+      renderList(makeConfig({ permissions: { create: 'users.create' } }), () => false)
+      await waitFor(() =>
+        expect(screen.queryByTestId('toolbar-add-button')).not.toBeInTheDocument()
+      )
+    })
+
+    it("the config's own `can` wins over the provider's", async () => {
+      renderList(
+        makeConfig({ permissions: { create: 'users.create', can: () => true } }),
+        () => false
+      )
+      expect(await screen.findByTestId('toolbar-add-button')).toBeInTheDocument()
+    })
+
+    it("view footer: Edit follows the provider's `can`", async () => {
+      currentSearch = 'view=42'
+      renderList(
+        makeConfig({ permissions: { edit: 'users.edit', delete: 'users.delete' } }),
+        perm => perm !== 'users.edit'
+      )
+      await waitFor(() => expect(viewProps().open).toBe(true))
+      expect(viewProps().onEdit).toBeUndefined()
+      expect(viewProps().onDelete).toBeTypeOf('function')
+    })
+
+    it('a provider without `can` changes nothing', async () => {
+      renderList(makeConfig({ permissions: { create: 'users.create' } }))
+      expect(await screen.findByTestId('toolbar-add-button')).toBeInTheDocument()
     })
   })
 })

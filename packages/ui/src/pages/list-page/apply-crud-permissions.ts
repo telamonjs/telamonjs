@@ -11,7 +11,7 @@ import type {
 
 type Operation = Exclude<keyof CrudPermissions, 'can' | 'failClosed'>
 
-const OPERATIONS = ['create', 'edit', 'delete', 'view'] as const
+const OPERATIONS = ['create', 'edit', 'delete', 'view', 'export'] as const
 
 // Configs already warned about (dev only): once per config object, not per render.
 const warned = new WeakSet<object>()
@@ -31,7 +31,7 @@ function warnUnchecked<TData>(
   warned.add(config)
   console.warn(
     `[telamonjs] CrudConfig "${config.module.name}" declares permissions but has no way to check them ` +
-      '(neither permissions.can, actionsConfig.can nor actionsConfig.userPermissions): every operation is allowed. ' +
+      '(neither permissions.can, actionsConfig.can, actionsConfig.userPermissions nor a PermissionsProvider can): every operation is allowed. ' +
       'Pass a checker, or set permissions.failClosed to deny until one exists.'
   )
 }
@@ -45,35 +45,40 @@ function warnUnchecked<TData>(
  *   edit/view injection, no footer Edit, no `?create=1` / `?edit=` deep link;
  * - the row view/edit/delete (configured, or injected by a dialog) inherit
  *   `permissions.<op>` unless they declare their own `permission`;
+ * - a denied export turns off `list.enableExport` and `list.onExport`;
  * - `permissions.can` becomes `actionsConfig.can` unless that one is set;
+ * - with neither (nor `userPermissions`), `fallback` — the
+ *   `PermissionsProvider` checker — takes that place;
  * - with no checker at all, `permissions.failClosed` makes that `can` deny
  *   everything; without `failClosed` the gate stays open and a development
  *   warning names the config (once).
  *
- * With a form and without `config.permissions` both inputs come back untouched.
+ * With a form and without `config.permissions` the inputs come back untouched.
  *
  * @internal
  */
 export function applyCrudPermissions<TData>(
   config: CrudConfigWithAnyForm<TData>,
-  actionsConfig: DataTableActionsConfig<TData> | undefined
+  actionsConfig: DataTableActionsConfig<TData> | undefined,
+  fallback?: (permission: string) => boolean
 ): {
   dialogs: DialogsConfig<TData> | undefined
   actionsConfig: DataTableActionsConfig<TData> | undefined
+  list: CrudConfigWithAnyForm<TData>['list']
 } {
-  const { permissions, form, dialogs: allDialogs } = config
+  const { permissions, form, dialogs: allDialogs, list } = config
   // No form = read-only list: no create/edit dialog to open
   const withForm =
     form || !allDialogs
       ? allDialogs
       : { ...allDialogs, create: undefined, edit: undefined }
-  if (!permissions) return { dialogs: withForm, actionsConfig }
+  if (!permissions) return { dialogs: withForm, actionsConfig, list }
 
   // Checked against the actionsConfig this list actually uses
   const access = { permissions, actionsConfig }
-  const can = crudChecker(access)
+  const can = crudChecker(access, fallback)
   warnUnchecked(config, permissions, Boolean(can || actionsConfig?.userPermissions))
-  const allowed = (op: Operation) => crudGranted(access, op)
+  const allowed = (op: Operation) => crudGranted(access, op, fallback)
   const dialogs = withForm && {
     ...withForm,
     create: allowed('create') ? withForm.create : undefined,
@@ -94,6 +99,9 @@ export function applyCrudPermissions<TData>(
 
   return {
     dialogs,
+    list: allowed('export')
+      ? list
+      : { ...list, enableExport: false, onExport: undefined },
     actionsConfig: {
       ...actionsConfig,
       standard,

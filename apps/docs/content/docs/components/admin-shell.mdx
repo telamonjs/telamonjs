@@ -77,6 +77,8 @@ export const menuConfig: MenuItem[] = [
 Give a menu item a `permission` (a string, or an array where any of them grants, the same rule as
 a CrudConfig action's `permission`) and pass `AdminShell` a `can` checker. The sidebar and the
 Cmd+K palette then show only the items `can` grants. Items without a `permission` always show.
+Without the prop, the `can` of a [`PermissionsProvider`](/docs/getting-started/crud-config#one-checker-for-the-whole-app)
+above the shell filters instead, so one checker gates the menu and every list.
 
 ```tsx
 // src/config/menu.ts
@@ -117,7 +119,7 @@ For a menu rendered outside `AdminShell`, the same rule is exported as a pure fu
     },
     can: {
       description:
-        'Permission checker for MenuItem.permission; when set, the sidebar and CommandPalette show only granted items (breadcrumb keeps the full menu)',
+        'Permission checker for MenuItem.permission; when set, the sidebar and CommandPalette show only granted items (breadcrumb keeps the full menu). Defaults to the PermissionsProvider can',
       type: '(permission: string) => boolean',
     },
     session: {

@@ -31,6 +31,7 @@ import { ListPageTable } from './list-page/ListPageTable'
 import { ListPageDialogs } from './list-page/ListPageDialogs'
 import { useListPageExport } from './list-page/useListPageExport'
 import { applyCrudPermissions } from './list-page/apply-crud-permissions'
+import { usePermissionChecker } from '../providers/PermissionsProvider'
 import { toSortParam } from '../data/datatable/sort-field'
 import { toListQueryParams } from '../types/pagination'
 
@@ -108,19 +109,21 @@ export function ListPage<TData>({
   header,
 }: ListPageProps<TData>) {
   // Destructure config for easier access
-  const { module, list, form, mutations, actionsConfig: rawActionsConfig } =
-    config
+  const { module, form, mutations, actionsConfig: rawActionsConfig } = config
   const actionsDisabled = rawActionsConfig === false
+  // Checks what the config has no checker for (config.permissions/actionsConfig win)
+  const providerCan = usePermissionChecker()
   // `config.permissions` and a missing `form` applied once: denied (or
   // formless create/edit) dialogs dropped, row actions carrying the
-  // operation's permission (identity when there is neither)
-  const { dialogs, actionsConfig } = useMemo(
+  // operation's permission, a denied export off (identity when there is neither)
+  const { dialogs, actionsConfig, list } = useMemo(
     () =>
       applyCrudPermissions(
         config,
-        actionsDisabled ? undefined : rawActionsConfig
+        actionsDisabled ? undefined : rawActionsConfig,
+        providerCan
       ),
-    [config, actionsDisabled, rawActionsConfig]
+    [config, actionsDisabled, rawActionsConfig, providerCan]
   )
 
   // FormConfig accepts `FormSection | FormSection[]`; the integrated dialogs
@@ -341,7 +344,8 @@ export function ListPage<TData>({
   // Export menu (toolbar + paginated DataTable): loaded rows by default,
   // every page with `list.exportAll`, the app's handler with `list.onExport`
   const exportMenu = useListPageExport({
-    config,
+    // `list` with a denied `permissions.export` already off
+    config: { ...config, list },
     listQuery,
     total: effectiveTotal,
   })

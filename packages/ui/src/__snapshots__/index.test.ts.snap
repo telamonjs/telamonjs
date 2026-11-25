@@ -179,6 +179,7 @@ exports[`index.ts (public barrel) > Export surface > pins the full sorted list o
   "MultiSelect",
   "PageContent",
   "PageSkeleton",
+  "PermissionsProvider",
   "PieChart",
   "PieChartLazy",
   "Popover",

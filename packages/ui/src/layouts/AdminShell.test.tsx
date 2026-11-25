@@ -8,6 +8,7 @@ import React from 'react'
 import { act, render, screen } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { AdminShell } from './AdminShell'
+import { PermissionsProvider } from '../providers/PermissionsProvider'
 import type { MenuItem } from '../types/menu'
 import type { CommandPaletteItem } from '../navigation/CommandPalette'
 
@@ -348,6 +349,27 @@ describe('AdminShell', () => {
       )
       expect(screen.getByTestId('menu-item-dashboard')).toBeInTheDocument()
       expect(can).toHaveBeenCalledWith('dashboard.view')
+    })
+
+    it("falls back to the PermissionsProvider's `can`; its own `can` wins", () => {
+      const { unmount } = render(
+        <PermissionsProvider can={() => false}>
+          <AdminShell menuConfig={guardedMenu}>
+            <div />
+          </AdminShell>
+        </PermissionsProvider>
+      )
+      expect(screen.queryByTestId('menu-item-dashboard')).not.toBeInTheDocument()
+      unmount()
+
+      render(
+        <PermissionsProvider can={() => false}>
+          <AdminShell menuConfig={guardedMenu} can={() => true}>
+            <div />
+          </AdminShell>
+        </PermissionsProvider>
+      )
+      expect(screen.getByTestId('menu-item-dashboard')).toBeInTheDocument()
     })
 
     it('shows every item when can is not set', () => {

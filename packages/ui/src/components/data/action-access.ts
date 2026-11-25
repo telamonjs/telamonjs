@@ -9,16 +9,19 @@ import type { CrudConfig, CrudPermissions } from '../../types/crud'
 
 /**
  * `permission` (any of them) against `can` when given, else against
- * `userPermissions`. Neither = everything allowed.
+ * `userPermissions`, else against `fallback` (the `PermissionsProvider`
+ * checker). None = everything allowed.
  */
 export function actionGranted(
   permission: ActionConfig['permission'],
   userPermissions: readonly string[] | ReadonlySet<string> | undefined,
-  can?: (permission: string) => boolean
+  can?: (permission: string) => boolean,
+  fallback?: (permission: string) => boolean
 ): boolean {
   if (!permission) return true
   const required = Array.isArray(permission) ? permission : [permission]
-  if (can) return required.some(perm => can(perm))
+  const check = can ?? (userPermissions ? undefined : fallback)
+  if (check) return required.some(perm => check(perm))
   if (!userPermissions) return true
   const granted =
     userPermissions instanceof Set ? userPermissions : new Set(userPermissions)
@@ -30,15 +33,18 @@ const denyAll = (): boolean => false
 /**
  * The permission checker a CrudConfig resolves to: `actionsConfig.can`, else
  * `permissions.can`. With neither and no `actionsConfig.userPermissions`, it is
+ * `fallback` (the `PermissionsProvider` checker); without one either, it is
  * `undefined` (everything allowed) — or a checker that denies everything when
  * `permissions.failClosed` is set.
  */
 export function crudChecker(
-  config: Pick<CrudConfig, 'permissions' | 'actionsConfig'>
+  config: Pick<CrudConfig, 'permissions' | 'actionsConfig'>,
+  fallback?: (permission: string) => boolean
 ): ((permission: string) => boolean) | undefined {
   const actions = config.actionsConfig || undefined
   const can = actions?.can ?? config.permissions?.can
   if (can || actions?.userPermissions) return can
+  if (fallback) return fallback
   return config.permissions?.failClosed ? denyAll : undefined
 }
 
@@ -49,12 +55,13 @@ export function crudChecker(
  */
 export function crudGranted(
   config: Pick<CrudConfig, 'permissions' | 'actionsConfig'>,
-  operation: Exclude<keyof CrudPermissions, 'can' | 'failClosed'>
+  operation: Exclude<keyof CrudPermissions, 'can' | 'failClosed'>,
+  fallback?: (permission: string) => boolean
 ): boolean {
   return actionGranted(
     config.permissions?.[operation],
     (config.actionsConfig || undefined)?.userPermissions,
-    crudChecker(config)
+    crudChecker(config, fallback)
   )
 }
 

@@ -63,6 +63,24 @@ describe('action-access', () => {
     expect(crudGranted({ permissions: { ...failClosed, can: () => true } }, 'create')).toBe(true)
   })
 
+  it('fallback checker (PermissionsProvider): used only when the config has neither `can` nor userPermissions', () => {
+    const deny = () => false
+    expect(actionGranted('a', undefined, undefined, deny)).toBe(false)
+    expect(actionGranted(undefined, undefined, undefined, deny)).toBe(true)
+    // the config wins: its `can`, or its userPermissions
+    expect(actionGranted('a', undefined, () => true, deny)).toBe(true)
+    expect(actionGranted('a', ['a'], undefined, deny)).toBe(true)
+
+    expect(crudGranted({ permissions: { create: 'x' } }, 'create', deny)).toBe(false)
+    expect(crudGranted({ permissions: { create: 'x', can: () => true } }, 'create', deny)).toBe(true)
+    expect(crudGranted({ permissions: { create: 'x' }, actionsConfig: { can: () => true } }, 'create', deny)).toBe(true)
+    expect(
+      crudGranted({ permissions: { create: 'x' }, actionsConfig: { userPermissions: ['x'] } }, 'create', deny)
+    ).toBe(true)
+    // a fallback is a checker: failClosed does not deny
+    expect(crudGranted({ permissions: { create: 'x', failClosed: true } }, 'create', () => true)).toBe(true)
+  })
+
   it('actionVisible / actionEnabled: undefined = true; boolean; function of the row', () => {
     const row = { ativo: false }
     expect(actionVisible({}, row)).toBe(true)

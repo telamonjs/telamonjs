@@ -984,7 +984,7 @@ reads it all from a single prop.
 | `actionsConfig` | `DataTableActionsConfig<T> \| false` | No | Row action buttons: `standard: { view, edit, delete }` + custom actions |
 | `dialogs` | `DialogsConfig<T>` | No | View/edit/create dialogs: rich headers, the view body, deep links via `urlParam` |
 | `pages` | `PagesConfig<T>` | No | Dedicated pages instead of dialogs (see [Standalone form pages](/docs/patterns/edit-page)) |
-| `permissions` | `CrudPermissions` | No | Who may create, edit, delete and view (see [Permissions](#permissions)) |
+| `permissions` | `CrudPermissions` | No | Who may create, edit, delete, view and export (see [Permissions](#permissions)) |
 
 `create`, `update` and `delete` are each optional: an omitted one resolves
 `{ success: false }` instead of throwing, so a read-only module needs no stub
@@ -1025,15 +1025,17 @@ export function usuariosConfigFor(user: AuthUser): CrudConfig<Usuario, UsuarioFo
 | `edit` | the row edit, the view dialog's Edit, the edit dialog and `dialogs.view.portal.onSaveSection` |
 | `delete` | the row delete and the view dialog's Delete |
 | `view` | the row view and the view dialog (row click included) |
+| `export` | the toolbar export menu (`list.enableExport` / `list.onExport`) |
 
 The checker is `can` when set, so bypass roles and wildcards work as your
 checker defines them. Without `can`, the names are looked up in
-`actionsConfig.userPermissions`. The row view/edit/delete inherit the
-operation's permission unless their own `ActionConfig` declares a `permission`,
-and `permissions.can` also decides the `permission` of custom actions (it
-becomes `actionsConfig.can`).
+`actionsConfig.userPermissions`; without either, the `can` of a
+[`PermissionsProvider`](#one-checker-for-the-whole-app) above the list decides.
+The row view/edit/delete inherit the operation's permission unless their own
+`ActionConfig` declares a `permission`, and the same checker decides the
+`permission` of custom actions (`permissions.can` becomes `actionsConfig.can`).
 
-With neither `can` nor `userPermissions`, everything is allowed: the gate is
+With no checker at all, everything is allowed: the gate is
 fail-open, so a config that forgot the checker shows every write button. In
 development the list warns once per config when that happens. Set
 `failClosed: true` (same meaning as in `@telamonjs/permissions`) to deny every
@@ -1047,6 +1049,40 @@ permissions: {
   create: 'usuarios.create',
 },
 ```
+
+#### One checker for the whole app
+
+Instead of injecting `can` into every config, give it once to a
+`PermissionsProvider` where the session is readable (inside the app's
+`SessionProvider`, around the `AdminShell`). Every `ListPage` below uses it for
+`permissions.*` and action `permission`s, and `AdminShell` filters the menu with
+it. A config then only names its permissions:
+
+```tsx title="components/providers/LayoutProviders.tsx"
+'use client'
+
+import { useCallback } from 'react'
+import { useSession } from 'next-auth/react'
+import { AdminShell, PermissionsProvider } from '@telamonjs/ui'
+
+export function LayoutProviders({ children }: { children: React.ReactNode }) {
+  const { data: session } = useSession()
+  const can = useCallback((perm: string) => checker.can(session?.user, perm), [session])
+  return (
+    <PermissionsProvider can={can}>
+      <AdminShell menuConfig={menuConfig}>{children}</AdminShell>
+    </PermissionsProvider>
+  )
+}
+```
+
+```tsx title="config.tsx"
+permissions: { create: 'usuarios.create', edit: 'usuarios.update', export: 'usuarios.export' },
+```
+
+A checker the config declares itself (`permissions.can`, `actionsConfig.can` or
+`actionsConfig.userPermissions`) wins over the provider's, and so does
+`AdminShell`'s own `can` for the menu. Without a provider, nothing changes.
 
 ---
 
@@ -2547,8 +2583,8 @@ failure — see [ConfirmActionDialog](/docs/components/confirm-action-dialog), w
 available for your own buttons.
 
 `permission` is checked against `actionsConfig.userPermissions` by exact name. Set
-`actionsConfig.can` (or `config.permissions.can`, see
-[Permissions](/docs/getting-started/crud-config#permissions)) to decide it with your own
+`actionsConfig.can` (or `config.permissions.can`, or once for the app a `PermissionsProvider`,
+see [Permissions](/docs/getting-started/crud-config#permissions)) to decide it with your own
 checker instead, so a bypass role with no listed permissions still sees the actions.
 
 ---
@@ -4575,6 +4611,20 @@ Main props: `menuConfig`, `session?`, `systemName?`, `logoUrl?`/`compactLogoUrl?
 `showImpersonationBanner?`, `headerActions?`, `commandActions?`, `breadcrumbProps?`,
 `profileHref?`, `localeSwitcher?`. See [AdminShell](/docs/components/admin-shell) for the full list.
 
+### Permissions (optional)
+
+To gate menus, lists and actions with the session's permissions, wrap the shell in
+`PermissionsProvider` with your checker. It lives here, not in `AppProviders`, because the
+checker usually reads the session through a hook that only works inside `SessionProvider`:
+
+```tsx
+<PermissionsProvider can={can}>
+  <AdminShell menuConfig={menuConfig}>{children}</AdminShell>
+</PermissionsProvider>
+```
+
+See [One checker for the whole app](/docs/getting-started/crud-config#one-checker-for-the-whole-app).
+
 ---
 
 ## Provider Hierarchy
@@ -4583,8 +4633,9 @@ Main props: `menuConfig`, `session?`, `systemName?`, `logoUrl?`/`compactLogoUrl?
 QueryClientProvider (the app's QueryClient)
   └── AppProviders (i18n, theme, session, same QueryClient, maps)
        └── app/admin/layout.tsx (Server Component: session + redirect)
-            └── AdminShell (ModernSidebar + CommandPalette + Breadcrumb, 'use client')
-                 └── {children}
+            └── PermissionsProvider (optional: the session's `can`)
+                 └── AdminShell (ModernSidebar + CommandPalette + Breadcrumb, 'use client')
+                      └── {children}
 ```
 
 ---
@@ -20988,7 +21039,8 @@ auth package satisfies it by shape, with no dependency between the packages.
 
 A `CrudConfig` takes the same checker: `permissions: { can: p => can(session?.user, p), create:
 'clientes.create', … }` gates the list's "New" button, row actions and dialogs (see
-[Permissions](/docs/getting-started/crud-config#permissions)).
+[Permissions](/docs/getting-started/crud-config#permissions)). To give it once for every list
+and the `AdminShell` menu, wrap the shell in `<PermissionsProvider can={…}>`.
 
 </Step>
 </Steps>
@@ -21433,10 +21485,9 @@ pnpm add @telamonjs/queue
 Requires Node.js 22.12+ and Redis 6+ (`docker run -d -p 6379:6379 redis:7-alpine`).
 
 Every dependency comes with the package; what loads depends on the import. The
-root entry is the lean core (BullMQ, ioredis, the job engine), with no Express,
-Bull Board or `prom-client`. `@telamonjs/queue/dashboard` loads Express and the
-Bull Board UI; `@telamonjs/queue/metrics` holds the Prometheus collectors, which
-load `prom-client` when constructed.
+root entry is the core (BullMQ, ioredis, the job engine), with no Express or
+Bull Board. `@telamonjs/queue/dashboard` loads Express and the Bull Board UI;
+`@telamonjs/queue/metrics` holds the Prometheus collectors.
 
 </Step>
 <Step>
@@ -23697,9 +23748,8 @@ Source: apps/docs/content/docs/queue/metrics.mdx
   sampling and lazy updates for high-throughput environments, with fewer Redis
   calls and less CPU per event
 
-Import them from `@telamonjs/queue/metrics`. `prom-client` (a dependency of the
-package, nothing to install) loads when you construct a collector, never on
-import. `@telamonjs/queue/monitoring` also exports both, next to the health
+Import them from `@telamonjs/queue/metrics`. `prom-client` is a dependency of
+the package, nothing to install. `@telamonjs/queue/monitoring` also exports both, next to the health
 checks; the root entry still re-exports them for compatibility, marked
 `@deprecated`.
 
