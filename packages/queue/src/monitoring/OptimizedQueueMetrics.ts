@@ -1,4 +1,5 @@
-import { Registry, Counter, Gauge, Histogram } from 'prom-client'
+import type { Registry, Counter, Gauge, Histogram } from 'prom-client'
+import { promClient } from './promClient.js'
 import type { QueueManager } from '../core/QueueManager.js'
 import type { ILogger } from '@telamonjs/logger'
 import { NoOpLogger } from '@telamonjs/logger'
@@ -103,6 +104,7 @@ export class OptimizedQueueMetrics {
     registry?: Registry,
     logger?: ILogger
   ) {
+    const { Registry, Counter, Gauge, Histogram } = promClient()
     this.queueManager = queueManager
     this.registry = registry || new Registry()
     this.logger = logger || new NoOpLogger()

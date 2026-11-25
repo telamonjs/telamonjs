@@ -1203,6 +1203,17 @@ Types:
 - `MetricsConfig` (type)
 - `RedisConnectionMetrics` (type)
 
+### `@telamonjs/queue/metrics`
+
+Runtime:
+
+- `OptimizedQueueMetrics`
+- `QueueMetrics`
+
+Types:
+
+- `MetricsConfig` (type)
+
 ### `@telamonjs/queue/utils`
 
 Runtime:

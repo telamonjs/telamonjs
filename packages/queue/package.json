@@ -32,6 +32,11 @@
       "import": "./dist/monitoring/index.js",
       "require": "./dist/monitoring/index.js"
     },
+    "./metrics": {
+      "types": "./dist/metrics/index.d.ts",
+      "import": "./dist/metrics/index.js",
+      "require": "./dist/metrics/index.js"
+    },
     "./utils": {
       "types": "./dist/utils/index.d.ts",
       "import": "./dist/utils/index.js",

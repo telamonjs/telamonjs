@@ -134,9 +134,18 @@ export {
 // Dashboard exports (re-export from /dashboard entrypoint)
 export type { DashboardConfig } from './dashboard/index.js'
 
-// Monitoring exports (re-export from /monitoring entrypoint)
-export { QueueMetrics, OptimizedQueueMetrics } from './monitoring/index.js'
-export type { MetricsConfig } from './monitoring/index.js'
+// Metrics exports, kept for compatibility: import them from
+// `@telamonjs/queue/metrics`. prom-client loads only when one is constructed.
+export {
+  /** @deprecated Import from `@telamonjs/queue/metrics` instead. */
+  QueueMetrics,
+  /** @deprecated Import from `@telamonjs/queue/metrics` instead. */
+  OptimizedQueueMetrics,
+} from './metrics/index.js'
+export type {
+  /** @deprecated Import from `@telamonjs/queue/metrics` instead. */
+  MetricsConfig,
+} from './metrics/index.js'
 
 // BullMQ direct re-exports
 export { Queue } from 'bullmq'

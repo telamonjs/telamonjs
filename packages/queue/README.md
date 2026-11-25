@@ -25,8 +25,20 @@ pnpm add @telamonjs/queue
 | `@nestjs/core` (optional) | `^10.0.0 \|\| ^11.0.0` |
 <!-- /generated:peers -->
 
-`bullmq` and `ioredis` come as dependencies. The Nest peers are only needed for
-`@telamonjs/queue/nestjs`.
+Installing it also installs its dependencies: `bullmq`, `ioredis`, `cron-parser`,
+`zod`, `@telamonjs/logger`, `express`, `@types/express`, `express-basic-auth`,
+`@bull-board/api`, `@bull-board/express` and `prom-client`. What each import
+actually loads at runtime:
+
+| Import | Loads |
+| --- | --- |
+| `@telamonjs/queue` (root) | The lean core: BullMQ, ioredis, the job/worker/registry engine. No Express, no Bull Board, no prom-client |
+| `@telamonjs/queue/dashboard` | Express, `express-basic-auth` and the Bull Board UI |
+| `@telamonjs/queue/metrics` | The Prometheus collectors; `prom-client` loads when you construct one |
+| `@telamonjs/queue/monitoring` | Health checks and `getRedisConnectionMetrics`, plus the collectors (same lazy `prom-client`) |
+| `@telamonjs/queue/nestjs` | The Nest binding; needs the optional Nest peers |
+
+The Nest peers are only needed for `@telamonjs/queue/nestjs`.
 
 ## Define a job and run a worker
 
@@ -104,11 +116,12 @@ throw a `ConfigurationError` at startup if `username` or `password` is missing o
 empty. `startDashboard` installs no signal handlers: close `dashboard.server` from
 your own shutdown sequence.
 
-`@telamonjs/queue/monitoring` exposes Prometheus collectors (`prom-client`) and
-`getRedisConnectionMetrics(redis)`, a pure function for a Redis pool panel.
-Import the collectors from there: the root still re-exports `QueueMetrics` and
-`OptimizedQueueMetrics` for compatibility, but that loads `prom-client` for
-every root import.
+`@telamonjs/queue/metrics` exposes the Prometheus collectors, `QueueMetrics` and
+`OptimizedQueueMetrics`; `prom-client` loads when you construct one, not on import.
+The root still re-exports both for compatibility, marked `@deprecated`: import
+them from `@telamonjs/queue/metrics`. `@telamonjs/queue/monitoring` has the
+health checks and `getRedisConnectionMetrics(redis)`, a pure function for a
+Redis pool panel.
 
 ## HTTP backend for the ui dashboard
 
@@ -212,6 +225,7 @@ pub/sub by `JobEventPublisher`; consume them through the SSE stream in your web 
 - `@telamonjs/queue/contracts`
 - `@telamonjs/queue/dashboard`
 - `@telamonjs/queue/monitoring`
+- `@telamonjs/queue/metrics`
 - `@telamonjs/queue/utils`
 - `@telamonjs/queue/scheduler`
 - `@telamonjs/queue/http`
