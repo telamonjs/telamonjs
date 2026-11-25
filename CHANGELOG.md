@@ -1,5 +1,14 @@
 # Changelog
 
+## ui 1.14.0, data 1.3.1 (2026-11-25)
+
+- `@telamonjs/ui`:
+  - `SignInForm` `errorMessages` values may be React nodes, such as a message with an action link.
+  - Both auth forms take `autoFocus`, a placeholder for each field and `submitClassName`.
+  - `ForgotPasswordForm` `onSubmit` may resolve any value.
+- `@telamonjs/data`: fix: `HealthModule` crashed a Nest 10 app at boot when it used `@nestjs/swagger` 7.
+  The controller now declares its route param types.
+
 ## cli 1.4.0 (2026-11-25)
 
 `@telamonjs/cli`: `telamonjs add admin invitations`.

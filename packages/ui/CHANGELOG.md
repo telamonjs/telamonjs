@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.14.0
+
+### Minor Changes
+
+- 5074019: `SignInForm`: `errorMessages` values may be React nodes (a message with an action link), plus `autoFocus`, `passwordPlaceholder` and `submitClassName`. `ForgotPasswordForm`: `emailPlaceholder`, `autoFocus`, `submitClassName`, and `onSubmit` may resolve any value (a server action's `{ success }`).
+
+### Patch Changes
+
+- Updated dependencies [37733ee]
+  - @telamonjs/data@1.3.1
+
 ## 1.13.1
 
 ### Patch Changes
