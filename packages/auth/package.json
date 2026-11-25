@@ -1,6 +1,6 @@
 {
   "name": "@telamonjs/auth",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "NextAuth v5 <-> NestJS auth bridge: the JWE session-token contract, a Nest guard, Next callbacks and revocable impersonation",
   "main": "dist/index.cjs",
   "module": "dist/index.js",

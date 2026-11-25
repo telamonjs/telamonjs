@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.11.0
+
+### Minor Changes
+
+- 879cf7b: Shell, tabs, breadcrumb, page content and charts follow the theme in dark mode. Hardcoded light
+  neutrals became theme tokens with the same light look: the `AdminShell` content column
+  (`bg-slate-50/50` → `bg-muted/30`) and header border (`border-border/60`), the mobile breadcrumb
+  home link, `PageContent`'s card, the `ContentTabs` underline/pill/glass/gradient variants and the
+  `TabsList` track (`bg-border`). `LineChart`, `AreaChart`, `BarChart`, `PieChart` and `ChartWidget`
+  paint axes and ticks with `--muted-foreground`, grid lines with `--border` and the tooltip with
+  `--background`/`--border`, instead of Recharts' light-only defaults. App CSS that re-tinted these
+  under `.dark` with `!important` can go.
+
+  New `ThemeToggle` (light/dark button on next-themes, translated `shell.toggleTheme` label) and an
+  opt-in `AdminShell` `themeToggle` prop that shows it in the header (default `false`).
+
+- 5f84e3d: `activeFilter(key = 'active', overrides?)`: a ready-made All / Active / Inactive toolbar filter for a boolean column, labelled by the library messages, sending `?<key>=true|false` (nothing for "All", `allValue: 'all'`).
+
+  `date` fields: `minDate`/`maxDate` also take another field, `{ field, offsetDays? }` (`{ field: 'start', offsetDays: 1 }` = strictly after it). The calendar follows that field as it changes, and the form rejects a typed day outside.
+
 ## 1.10.1
 
 ### Patch Changes

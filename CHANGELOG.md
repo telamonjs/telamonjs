@@ -1,5 +1,26 @@
 # Changelog
 
+## ui 1.11.0, auth 1.4.0, permissions 1.2.0 (2026-11-25)
+
+`@telamonjs/ui`:
+- The shell, breadcrumb, content tabs, page content and charts take their colors from the theme
+  tokens, so dark mode needs no app overrides. Chart axes, grid and tooltip follow `--muted-foreground`,
+  `--border` and `--background`.
+- `ThemeToggle`, and `AdminShell` `themeToggle` to show it in the header. It uses next-themes, which
+  `AppProviders` already mounts.
+- `activeFilter(key, overrides?)`: an All / Active / Inactive toolbar filter preset.
+- Date fields: `minDate` and `maxDate` accept `{ field, offsetDays? }`, relative to another field's
+  value, and follow it as it changes.
+
+`@telamonjs/auth`:
+- Service-to-service API keys: `createApiKeyGuard`, the `staticApiKey` verifier (constant-time
+  compare), `@AllowServiceToken()` with the JWT guard's `apiKey` option (session or key on a route),
+  and `generateApiKey` / `hashApiKey`.
+
+`@telamonjs/permissions`:
+- `createPermissionChecker` (and the Nest guard) take `rolePermissions`, permissions granted by role and
+  merged with the user's own, and `wildcard`, a permission that grants everything.
+
 ## ui 1.10.1 (2026-11-25)
 
 `@telamonjs/ui`:
