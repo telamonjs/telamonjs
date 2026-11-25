@@ -92,7 +92,9 @@ The impersonation token **is** the API credential: the callbacks swap
 `accessToken` too, so impersonation is not cosmetic. Wire the cookies through
 `createAuthCallbacks({ getImpersonationCookies, clearImpersonationCookies })`.
 For immediate revocation, pass `isImpersonationActive` to the guard; tokens
-without a `logId` are then rejected:
+without a `logId` are then rejected. Without the hook an impersonation token
+stays valid until it expires, and the guard logs a one-time warning (Nest
+`Logger`) the first time it accepts one:
 
 ```ts
 createJwtAuthGuard({

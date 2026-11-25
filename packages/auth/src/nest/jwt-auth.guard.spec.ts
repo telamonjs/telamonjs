@@ -1,11 +1,11 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import {
   UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
   type Type,
 } from '@nestjs/common'
-import { Injectable } from '@nestjs/common'
+import { Injectable, Logger } from '@nestjs/common'
 import type { Reflector } from '@nestjs/core'
 import { createJwtAuthGuard } from './jwt-auth.guard'
 import { createJwtAuthGuard as createFromBarrel, type RequestLike } from './index'
@@ -273,6 +273,38 @@ describe('createJwtAuthGuard — impersonation revocation', () => {
     await expect(
       g.canActivate(ctx({ headers: { authorization: `Bearer ${token}` } }))
     ).rejects.toThrow(UnauthorizedException)
+  })
+
+  describe('irrevocable impersonation warning', () => {
+    afterEach(() => {
+      vi.restoreAllMocks()
+    })
+
+    it('without the hook, warns once through the Nest Logger on the first impersonation token', async () => {
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined)
+      const g = guard({ secret: SECRET })
+      const normal = await encodeSessionToken(payload, { secret: SECRET })
+
+      // a normal session does not warn
+      await g.canActivate(ctx({ headers: { authorization: `Bearer ${normal}` } }))
+      expect(warn).not.toHaveBeenCalled()
+
+      expect(await g.canActivate(ctx(await impersonationRequest()))).toBe(true)
+      expect(await g.canActivate(ctx(await impersonationRequest()))).toBe(true)
+      expect(warn).toHaveBeenCalledTimes(1)
+      expect(String(warn.mock.calls[0]?.[0])).toMatch(/isImpersonationActive/)
+    })
+
+    it('with the hook, never warns', async () => {
+      const warn = vi
+        .spyOn(Logger.prototype, 'warn')
+        .mockImplementation(() => undefined)
+      const g = guard({ secret: SECRET, isImpersonationActive: () => true })
+      expect(await g.canActivate(ctx(await impersonationRequest()))).toBe(true)
+      expect(warn).not.toHaveBeenCalled()
+    })
   })
 })
 

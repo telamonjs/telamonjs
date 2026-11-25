@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   type CanActivate,
   type ExecutionContext,
@@ -77,7 +78,9 @@ export interface JwtAuthGuardOptions extends Omit<TokenConfig, 'secret'> {
    *
    * With the hook configured, an impersonation token WITHOUT
    * `impersonationLogId` (issued before the contract, hence irrevocable)
-   * is rejected as well.
+   * is rejected as well. Without it, an impersonation token stays valid until
+   * it expires; the guard logs a one-time warning (Nest `Logger`) the first
+   * time it accepts one.
    */
   isImpersonationActive?: (
     logId: string,
@@ -167,6 +170,8 @@ export function createJwtAuthGuard<TUser = AuthUser>(
   const unauthorized = (message: string): Error =>
     options?.createException?.(401, message) ??
     new UnauthorizedException(message)
+  // Once per guard class: a warning per request would flood the logs
+  let warnedIrrevocable = false
 
   @Injectable()
   class JwtAuthGuard extends JwtAuthGuardBase<TUser> {
@@ -213,6 +218,18 @@ export function createJwtAuthGuard<TUser = AuthUser>(
             const user = await this.resolveUser(payload, context)
             if (user == null) {
               throw unauthorized('Session is no longer valid')
+            }
+            if (
+              payload.impersonatedUserId &&
+              !options?.isImpersonationActive &&
+              !warnedIrrevocable
+            ) {
+              warnedIrrevocable = true
+              new Logger('JwtAuthGuard').warn(
+                'Accepted an impersonation token without an isImpersonationActive hook: ' +
+                  'ending the impersonation cannot revoke it before it expires. ' +
+                  'Pass isImpersonationActive to createJwtAuthGuard().'
+              )
             }
             request.user = user
             return true
