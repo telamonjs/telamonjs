@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.13.1
+
+### Patch Changes
+
+- e007602: Fix: an indeterminate `Checkbox` (e.g. a `PermissionMatrix` group with only some permissions granted) drew a check, which read as "all granted". It now draws a dash.
+
 ## 1.13.0
 
 ### Minor Changes

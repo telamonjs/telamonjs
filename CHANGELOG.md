@@ -1,5 +1,10 @@
 # Changelog
 
+## ui 1.13.1 (2026-11-25)
+
+- `@telamonjs/ui`: an indeterminate `Checkbox`, such as a `PermissionMatrix` group with only some
+  permissions granted, draws a dash instead of a check.
+
 ## cli 1.3.0 (2026-11-25)
 
 `@telamonjs/cli`:
