@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.3.0
+
+### Minor Changes
+
+- d33c1fc: `HealthModule.forRoot({ downStatus })`: the status code when a check is down (default 503). `downStatus: 200` keeps 200 for Docker/CI health checks that read only the body.
+
 ## 1.2.0
 
 ### Minor Changes

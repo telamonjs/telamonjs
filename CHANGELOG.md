@@ -1,5 +1,12 @@
 # Changelog
 
+## ui 1.13.0, data 1.3.0 (2026-11-25)
+
+- `@telamonjs/ui`: `PermissionMatrix` permissions take a `badge`, a short tag next to the name such as the
+  action. `AuditChangesViewer` also reads per-field `{ from, to }` diffs.
+- `@telamonjs/data`: `HealthModule.forRoot({ downStatus })` sets the status code when a check is down
+  (default 503).
+
 ## cli 1.2.0 (2026-11-25)
 
 `@telamonjs/cli`: new apps ship database-backed roles and permissions.

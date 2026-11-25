@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.13.0
+
+### Minor Changes
+
+- d33c1fc: `PermissionMatrix` permissions take an optional `badge` (a short tag next to the name, e.g. Read / Write / Execute). `AuditChangesViewer` also reads per-field `{ from, to }` diffs.
+
+### Patch Changes
+
+- Updated dependencies [d33c1fc]
+  - @telamonjs/data@1.3.0
+
 ## 1.12.0
 
 ### Minor Changes
