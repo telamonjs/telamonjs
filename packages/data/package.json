@@ -1,6 +1,6 @@
 {
   "name": "@telamonjs/data",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "The server half of a TelamonJS list: the ListPage wire contract, sort and paging sanitizers, and a Prisma adapter (orderBy, scope-safe where, paginated services). Zero dependencies",
   "main": "dist/index.js",
   "module": "dist/index.js",

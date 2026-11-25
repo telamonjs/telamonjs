@@ -1,5 +1,41 @@
 # Changelog
 
+## data 1.0.1, queue 1.3.3, permissions 1.1.1, auth 1.2.1, ui 1.5.1 (2026-11-25)
+
+Security and correctness fixes. No API changes.
+
+`@telamonjs/data`:
+- `createCachedPaginatedService` with `visibility` keys the cache per user. Before, one user could be
+  served another user's cached page and filter options.
+- `?page=abc` and other non-finite paging values fall back to page 1 and the default page size instead
+  of reaching Prisma as `NaN`.
+- `buildIncludeClause` no longer mutates the shared `config.include`. Filter options are counted with
+  `groupBy` in the database instead of loading every row.
+
+`@telamonjs/queue`:
+- `createDashboardRouter` enforces `auth`. `auth.enabled` without a username and password throws at
+  startup instead of serving the board unprotected.
+- `startDashboard` no longer installs a SIGTERM handler that exited the process. It returns the app with
+  the HTTP `server` attached, so the app can close it from its own shutdown.
+- The HTTP routes reject an invalid `limit`, `offset`, `state` and invalid config bodies with 400, and an
+  unknown job with 404, instead of loading a whole set or answering 500.
+- `isValidCronPattern` uses BullMQ's own cron parser, so it accepts names such as `MON-FRI`.
+- An empty `readPermission`/`writePermission` list throws at boot.
+
+`@telamonjs/permissions`:
+- An empty permission list denies: `canAll(user, [])`, `canAny(user, [])` and a guard that sees `[]`.
+  `@Permissions()` with no clause throws when it is applied.
+
+`@telamonjs/auth`:
+- The Nest guard warns once when it accepts an impersonation token without `isImpersonationActive`,
+  because such a token can't be revoked before it expires.
+
+`@telamonjs/ui`:
+- A paginated `ListPage` (`infiniteScroll: false`) honors `defaultPageSize`, `defaultSortBy` and the
+  `urlSync` link. Before, it started at 10 rows with no sort.
+- With `urlSync`, Back/Forward and links to the same page update the list instead of keeping the
+  previous page, sort and search.
+
 ## ui 1.5.0 (2026-11-25)
 
 `@telamonjs/ui`:
