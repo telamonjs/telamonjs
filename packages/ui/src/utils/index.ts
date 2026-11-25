@@ -12,6 +12,7 @@ export { sanitizeSvg, sanitizeRichText } from './sanitize-html'
 
 // Menu Helpers
 export {
+  filterMenuByPermission,
   filterMenuByRole,
   findMenuItemById,
   findMenuItemByHref,

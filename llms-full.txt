@@ -6602,10 +6602,18 @@ export const menuConfig: MenuItem[] = [
   },
 ]
 ```
+```tsx
+// src/config/menu.ts
+{ id: 'users', type: 'single', title: 'Users', href: '/admin/users', permission: 'users.read' }
+
+// LayoutProviders.tsx, with @telamonjs/permissions
+<AdminShell menuConfig={menuConfig} can={perm => checker.can(session.user, perm)}>
+```
 ```typescript
 interface AdminShellProps {
   children: React.ReactNode
   menuConfig: MenuItem[]
+  can?: (permission: string) => boolean
   session?: ModernSidebarProps['session']
   systemName?: string
   logoUrl?: string

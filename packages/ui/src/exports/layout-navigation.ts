@@ -17,6 +17,8 @@ export type { AppShellProps } from '../layouts'
 // Canonical Admin Shell — replaces hand-rolled AdminLayout boilerplate in consumer apps
 export { AdminShell } from '../layouts'
 export type { AdminShellProps, AdminShellBreadcrumbProps } from '../layouts'
+// The menu a user may see (MenuItem.permission against a `can` checker)
+export { filterMenuByPermission } from '../utils/menu-helpers'
 
 // ============================================================================
 // NAVIGATION COMPONENTS

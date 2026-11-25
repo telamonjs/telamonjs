@@ -86,20 +86,42 @@ vi.mock('../navigation/CommandPalette', () => ({
   },
 }))
 
-// ResponsiveBreadcrumb mock
+// ResponsiveBreadcrumb mock — labels the current route ('/admin/dashboard')
+// from the menu it receives, like the real breadcrumb does
 vi.mock('../navigation/Breadcrumb', () => ({
-  ResponsiveBreadcrumb: ({ entityName }: { entityName?: string }) =>
-    React.createElement(
+  ResponsiveBreadcrumb: ({
+    entityName,
+    menuConfig,
+  }: {
+    entityName?: string
+    menuConfig?: MenuItem[]
+  }) => {
+    const current = (menuConfig ?? [])
+      .flatMap(item =>
+        item.type === 'group' ? [item, ...item.children] : [item]
+      )
+      .find(
+        item => item.type !== 'separator' && item.href === '/admin/dashboard'
+      )
+    return React.createElement(
       'nav',
       { 'data-testid': 'breadcrumb', 'aria-label': 'breadcrumb' },
+      current
+        ? React.createElement(
+            'span',
+            { key: 'current', 'data-testid': 'breadcrumb-current' },
+            current.title as string
+          )
+        : null,
       entityName
         ? React.createElement(
             'span',
-            { 'data-testid': 'breadcrumb-entity' },
+            { key: 'entity', 'data-testid': 'breadcrumb-entity' },
             entityName
           )
         : null
-    ),
+    )
+  },
 }))
 
 // ─── Fixtures ────────────────────────────────────────────────────────────────
@@ -277,6 +299,64 @@ describe('AdminShell', () => {
       expect(dashboardItem?.onSelect).toBeDefined()
       dashboardItem?.onSelect?.()
       expect(routerPushSpy).toHaveBeenCalledWith('/admin/dashboard')
+    })
+  })
+
+  // ── Permission filtering ───────────────────────────────────────────────────
+
+  describe('Permission filtering (can)', () => {
+    const guardedMenu: MenuItem[] = [
+      { ...singleItem, permission: 'dashboard.view' },
+      separatorItem,
+      groupItem,
+    ]
+
+    it('hides a denied item from the sidebar and the command palette', async () => {
+      render(
+        <AdminShell menuConfig={guardedMenu} can={() => false}>
+          <div />
+        </AdminShell>
+      )
+      expect(
+        screen.queryByTestId('menu-item-dashboard')
+      ).not.toBeInTheDocument()
+      expect(screen.getByTestId('menu-item-cadastro')).toBeInTheDocument()
+      await openPalette()
+      expect(capturedCommandItems.map(i => i.id)).toEqual([
+        'clientes',
+        'produtos',
+      ])
+    })
+
+    it('keeps labeling the current route in the breadcrumb from the full menu', () => {
+      render(
+        <AdminShell menuConfig={guardedMenu} can={() => false}>
+          <div />
+        </AdminShell>
+      )
+      expect(screen.getByTestId('breadcrumb-current')).toHaveTextContent(
+        'Dashboard'
+      )
+    })
+
+    it('shows a granted item', () => {
+      const can = vi.fn((p: string) => p === 'dashboard.view')
+      render(
+        <AdminShell menuConfig={guardedMenu} can={can}>
+          <div />
+        </AdminShell>
+      )
+      expect(screen.getByTestId('menu-item-dashboard')).toBeInTheDocument()
+      expect(can).toHaveBeenCalledWith('dashboard.view')
+    })
+
+    it('shows every item when can is not set', () => {
+      render(
+        <AdminShell menuConfig={guardedMenu}>
+          <div />
+        </AdminShell>
+      )
+      expect(screen.getByTestId('menu-item-dashboard')).toBeInTheDocument()
     })
   })
 

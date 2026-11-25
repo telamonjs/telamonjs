@@ -1,6 +1,7 @@
 import { LucideIcon } from 'lucide-react'
 import { ComponentType, SVGProps } from 'react'
 import type { I18nText } from '../i18n/msg'
+import type { ActionConfig } from './actions'
 
 export type MenuItemType = 'single' | 'group' | 'separator'
 export type MenuVariant = 'primary' | 'secondary' | 'accent' | 'neutral'
@@ -23,6 +24,13 @@ export interface BaseMenuItem {
   isFavorite?: boolean
   badge?: string
   shortcut?: string
+  /**
+   * Permission(s) needed to see this item (any of them grants, like an action's
+   * `permission`); without one the item is always visible. Applied by
+   * `AdminShell`'s `can` prop or `filterMenuByPermission`. Hiding a menu entry
+   * is not access control: the route itself must still check.
+   */
+  permission?: ActionConfig['permission']
 }
 
 export interface SingleMenuItem extends BaseMenuItem {

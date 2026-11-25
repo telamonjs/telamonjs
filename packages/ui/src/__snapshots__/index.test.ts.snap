@@ -287,6 +287,7 @@ exports[`index.ts (public barrel) > Export surface > pins the full sorted list o
   "exportToExcel",
   "exportToPDF",
   "fetchAllPages",
+  "filterMenuByPermission",
   "generateDefaultLayout",
   "getAvailableFieldTypes",
   "getFieldRenderer",

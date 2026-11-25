@@ -1,9 +1,53 @@
 import type { MenuItem, GroupMenuItem, SingleMenuItem } from '../types/menu'
+import { actionGranted } from '../components/data/action-access'
 
 /**
  * Menu Helper Utilities for telamonjs-v2
  * Provides helper functions for menu manipulation and filtering
  */
+
+/**
+ * The menu a user may see: items whose `permission` (any of them) `can` grants.
+ * Same check as a CrudConfig action's `permission`; an item without one stays.
+ *
+ * A denied group goes with its children; a group whose children are all denied
+ * goes too, unless it has its own `href` (then it stays as a link). Separators
+ * left leading, trailing or doubled by the filtering are dropped. The input is
+ * not mutated.
+ *
+ * @example
+ * ```ts
+ * // with @telamonjs/permissions
+ * const visible = filterMenuByPermission(menuConfig, perm =>
+ *   checker.can(session.user, perm)
+ * )
+ * ```
+ */
+export function filterMenuByPermission(
+  menu: MenuItem[],
+  can: (permission: string) => boolean
+): MenuItem[] {
+  const granted = (item: MenuItem) =>
+    actionGranted(item.permission, undefined, can)
+  const kept: MenuItem[] = []
+
+  for (const item of menu) {
+    if (!granted(item)) continue
+    if (item.type === 'group') {
+      const children = item.children.filter(granted) as SingleMenuItem[]
+      if (children.length > 0 || item.href) kept.push({ ...item, children })
+    } else if (item.type === 'separator') {
+      if (kept.length > 0 && kept[kept.length - 1].type !== 'separator') {
+        kept.push(item)
+      }
+    } else {
+      kept.push(item)
+    }
+  }
+
+  if (kept[kept.length - 1]?.type === 'separator') kept.pop()
+  return kept
+}
 
 // Filter menu by user role
 export function filterMenuByRole<TRole extends string>(

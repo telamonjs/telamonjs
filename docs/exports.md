@@ -298,6 +298,7 @@ Runtime:
 - `exportToExcel`
 - `exportToPDF`
 - `fetchAllPages`
+- `filterMenuByPermission`
 - `generateDefaultLayout`
 - `getAvailableFieldTypes`
 - `getFieldRenderer`

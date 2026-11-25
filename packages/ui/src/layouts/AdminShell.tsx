@@ -25,6 +25,7 @@ import type { BreadcrumbCustomSegments } from '../navigation/Breadcrumb'
 import { ImpersonationBanner } from '../components/impersonation/ImpersonationBanner'
 import { useStopImpersonation } from '../components/impersonation/use-stop-impersonation'
 import { cn } from '../utils'
+import { filterMenuByPermission } from '../utils/menu-helpers'
 import { getIcon } from '../utils/icon'
 import type {
   MenuItem,
@@ -51,8 +52,21 @@ export interface AdminShellProps {
   contentClassName?: string
 
   // ── Menu & Navigation ───────────────────────────────────────────────────
-  /** Menu tree passed to ModernSidebar, breadcrumb and CommandPalette */
+  /** Menu tree passed to ModernSidebar, breadcrumb and CommandPalette (filtered by `can` when set) */
   menuConfig: MenuItem[]
+  /**
+   * Permission checker for `MenuItem.permission` (any of them grants). When set,
+   * the sidebar and the command palette show only the items it grants (see
+   * `filterMenuByPermission`); the breadcrumb still labels routes from the full
+   * menu, since a page may be reached by link. Without it every item shows.
+   *
+   * @example
+   * ```tsx
+   * // with @telamonjs/permissions
+   * <AdminShell menuConfig={menuConfig} can={perm => checker.can(session.user, perm)}>
+   * ```
+   */
+  can?: (permission: string) => boolean
 
   // ── Sidebar passthrough ─────────────────────────────────────────────────
   /** Session data forwarded to ModernSidebar (user name/email/role, impersonation) */
@@ -209,6 +223,7 @@ export function AdminShell({
   className,
   contentClassName,
   menuConfig,
+  can,
   session,
   systemName,
   logoUrl,
@@ -263,10 +278,16 @@ export function AdminShell({
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [])
 
+  // What the user may navigate to; the breadcrumb keeps the full menu
+  const visibleMenu = useMemo(
+    () => (can ? filterMenuByPermission(menuConfig, can) : menuConfig),
+    [menuConfig, can]
+  )
+
   // Flatten menu into CommandPaletteItems for navigation
   const navigationItems = useMemo(
-    () => flattenMenuToCommandItems(menuConfig, resolveIcon, router, text),
-    [menuConfig, resolveIcon, router, text]
+    () => flattenMenuToCommandItems(visibleMenu, resolveIcon, router, text),
+    [visibleMenu, resolveIcon, router, text]
   )
 
   // Merge navigation items with app-provided command actions
@@ -279,7 +300,7 @@ export function AdminShell({
     <div className='flex h-screen overflow-hidden bg-background'>
       {/* Sidebar — manages mobile drawer and desktop compact/expanded state internally */}
       <ModernSidebar
-        menuConfig={menuConfig}
+        menuConfig={visibleMenu}
         session={session}
         systemName={systemName}
         logoUrl={logoUrl}

@@ -72,6 +72,35 @@ export const menuConfig: MenuItem[] = [
 
 ---
 
+## Filtering by permission
+
+Give a menu item a `permission` (a string, or an array where any of them grants, the same rule as
+a CrudConfig action's `permission`) and pass `AdminShell` a `can` checker. The sidebar and the
+Cmd+K palette then show only the items `can` grants. Items without a `permission` always show.
+
+```tsx
+// src/config/menu.ts
+{ id: 'users', type: 'single', title: 'Users', href: '/admin/users', permission: 'users.read' }
+
+// LayoutProviders.tsx, with @telamonjs/permissions
+<AdminShell menuConfig={menuConfig} can={perm => checker.can(session.user, perm)}>
+```
+
+- A group whose own `permission` is denied goes with its children. A group whose children are all
+  denied goes too, unless it has its own `href` (then it stays as a link).
+- Separators left at the start, at the end or doubled by the filtering are dropped.
+- The breadcrumb keeps labeling routes from the full menu: a user can still land on a page by link.
+
+For a menu rendered outside `AdminShell`, the same rule is exported as a pure function,
+`filterMenuByPermission(menu, can)`, which returns a new array and leaves the input untouched.
+
+<Callout type="warn">
+  Hiding a menu item is not access control. The page and the API behind it must check the
+  permission themselves.
+</Callout>
+
+---
+
 ## Props
 
 <TypeTable
@@ -85,6 +114,11 @@ export const menuConfig: MenuItem[] = [
       description: 'Menu tree passed to ModernSidebar, breadcrumb and CommandPalette',
       type: 'MenuItem[]',
       required: true,
+    },
+    can: {
+      description:
+        'Permission checker for MenuItem.permission; when set, the sidebar and CommandPalette show only granted items (breadcrumb keeps the full menu)',
+      type: '(permission: string) => boolean',
     },
     session: {
       description: 'Session data forwarded to ModernSidebar (user name/email/role, impersonation)',
@@ -149,6 +183,7 @@ project's `iconRegistry` (see [Provider Setup Pattern](/docs/patterns/provider-s
 interface AdminShellProps {
   children: React.ReactNode
   menuConfig: MenuItem[]
+  can?: (permission: string) => boolean
   session?: ModernSidebarProps['session']
   systemName?: string
   logoUrl?: string

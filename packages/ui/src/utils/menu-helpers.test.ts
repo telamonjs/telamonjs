@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  filterMenuByPermission,
   filterMenuByRole,
   findMenuItemById,
   findMenuItemByHref,
@@ -585,5 +586,133 @@ describe('menu-helpers', () => {
       expect(result.valid).toBe(false)
       expect(result.errors.some(e => e.includes('Missing href'))).toBe(true)
     })
+  })
+})
+
+describe('filterMenuByPermission', () => {
+  const granted = new Set(['users.read', 'reports.read'])
+  const can = (permission: string) => granted.has(permission)
+
+  const single = (
+    id: string,
+    permission?: string | string[]
+  ): SingleMenuItem => ({
+    id,
+    type: 'single',
+    title: id,
+    href: `/admin/${id}`,
+    ...(permission ? { permission } : {}),
+  })
+  const separator = (id: string): MenuItem => ({ id, type: 'separator' })
+  const ids = (menu: MenuItem[]) => menu.map(item => item.id)
+
+  it('keeps items without a permission and removes denied ones', () => {
+    const menu: MenuItem[] = [
+      single('home'),
+      single('users', 'users.read'),
+      single('billing', 'billing.read'),
+    ]
+    expect(ids(filterMenuByPermission(menu, can))).toEqual(['home', 'users'])
+  })
+
+  it('grants an item when any of its listed permissions is granted', () => {
+    const menu: MenuItem[] = [
+      single('any', ['billing.read', 'reports.read']),
+      single('none', ['billing.read', 'billing.write']),
+    ]
+    expect(ids(filterMenuByPermission(menu, can))).toEqual(['any'])
+  })
+
+  it('filters group children', () => {
+    const menu: MenuItem[] = [
+      {
+        id: 'admin',
+        type: 'group',
+        title: 'Admin',
+        children: [
+          single('users', 'users.read'),
+          single('billing', 'billing.read'),
+        ],
+      },
+    ]
+    const [group] = filterMenuByPermission(menu, can) as GroupMenuItem[]
+    expect(ids(group.children)).toEqual(['users'])
+  })
+
+  it('removes a group whose own permission is denied, children included', () => {
+    const menu: MenuItem[] = [
+      {
+        id: 'admin',
+        type: 'group',
+        title: 'Admin',
+        permission: 'admin.access',
+        children: [single('home')],
+      },
+    ]
+    expect(filterMenuByPermission(menu, can)).toEqual([])
+  })
+
+  it('removes a group left with no children', () => {
+    const menu: MenuItem[] = [
+      {
+        id: 'billing',
+        type: 'group',
+        title: 'Billing',
+        children: [single('invoices', 'billing.read')],
+      },
+    ]
+    expect(filterMenuByPermission(menu, can)).toEqual([])
+  })
+
+  it('keeps an emptied group that has its own href, as a link', () => {
+    const menu: MenuItem[] = [
+      {
+        id: 'billing',
+        type: 'group',
+        title: 'Billing',
+        href: '/admin/billing',
+        children: [single('invoices', 'billing.read')],
+      },
+    ]
+    const result = filterMenuByPermission(menu, can) as GroupMenuItem[]
+    expect(ids(result)).toEqual(['billing'])
+    expect(result[0].children).toEqual([])
+  })
+
+  it('drops leading, trailing and consecutive separators left behind', () => {
+    const menu: MenuItem[] = [
+      single('billing', 'billing.read'),
+      separator('s1'),
+      single('home'),
+      separator('s2'),
+      single('invoices', 'billing.read'),
+      separator('s3'),
+      single('users', 'users.read'),
+      separator('s4'),
+      single('audit', 'audit.read'),
+    ]
+    expect(ids(filterMenuByPermission(menu, can))).toEqual([
+      'home',
+      's2',
+      'users',
+    ])
+  })
+
+  it('does not mutate the input', () => {
+    const menu: MenuItem[] = [
+      separator('s0'),
+      {
+        id: 'admin',
+        type: 'group',
+        title: 'Admin',
+        children: [
+          single('users', 'users.read'),
+          single('billing', 'billing.read'),
+        ],
+      },
+    ]
+    const snapshot = structuredClone(menu)
+    filterMenuByPermission(menu, can)
+    expect(menu).toEqual(snapshot)
   })
 })
