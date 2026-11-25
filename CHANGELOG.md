@@ -1,5 +1,21 @@
 # Changelog
 
+## ui 1.8.0, cli 1.1.6 (2026-11-25)
+
+`@telamonjs/ui`:
+- `queryFn` takes `ListQueryParams` (new exported type). This is what `ListPage` actually passes: one
+  `sortBy` column as a string, filters under `filters`. An API client typed `sortBy?: string` fits
+  directly (`queryFn: api.list`), with no `asQueryFn`. `ListQueryState.params` (given to
+  `toolbarContent` and `onExport`) now carries the same string `sortBy` instead of an array.
+- `CrudConfig` takes a third generic, `TResult`, for what create and update resolve in `data`, for
+  example `CrudConfig<Row, Form, { id: string }>` for actions that return only the id. It defaults to
+  the entity, so typed `onSuccess` callbacks are unchanged.
+- Upgrading: code that calls `queryFn` itself and typed its parameter `PaginationParams` (for example a
+  `withExternalFilters` helper) types it `ListQueryParams` instead.
+
+`@telamonjs/cli`:
+- The generated `AGENTS.md` documents `ListQueryParams` and `TResult`.
+
 ## ui 1.7.0, cli 1.1.5 (2026-11-25)
 
 `@telamonjs/ui`:
