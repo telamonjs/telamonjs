@@ -1,4 +1,8 @@
+<a href="https://github.com/telamonjs/telamonjs"><img alt="TelamonJS" src="https://cdn.jsdelivr.net/gh/telamonjs/telamonjs@main/.github/assets/logo-mark.svg" height="40"></a>
+
 # @telamonjs/data
+
+[![npm](https://img.shields.io/npm/v/@telamonjs/data.svg)](https://www.npmjs.com/package/@telamonjs/data) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/telamonjs/telamonjs/blob/main/LICENSE)
 
 The server half of a TelamonJS list. A `ListPage` sends page, page size, search, sort and filters.
 This package reads them on the endpoint and turns them into a query, with no dependencies and

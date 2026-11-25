@@ -1,4 +1,8 @@
+<a href="https://github.com/telamonjs/telamonjs"><img alt="TelamonJS" src="https://cdn.jsdelivr.net/gh/telamonjs/telamonjs@main/.github/assets/logo-mark.svg" height="40"></a>
+
 # @telamonjs/auth
+
+[![npm](https://img.shields.io/npm/v/@telamonjs/auth.svg)](https://www.npmjs.com/package/@telamonjs/auth) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/telamonjs/telamonjs/blob/main/LICENSE)
 
 The NextAuth v5 ↔ NestJS bridge. This package owns the **shape of the session
 token** (an `@auth/core` JWE), not your login flow: your app's `authorize()`

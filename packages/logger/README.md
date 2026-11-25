@@ -1,4 +1,8 @@
+<a href="https://github.com/telamonjs/telamonjs"><img alt="TelamonJS" src="https://cdn.jsdelivr.net/gh/telamonjs/telamonjs@main/.github/assets/logo-mark.svg" height="40"></a>
+
 # @telamonjs/logger
+
+[![npm](https://img.shields.io/npm/v/@telamonjs/logger.svg)](https://www.npmjs.com/package/@telamonjs/logger) [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://github.com/telamonjs/telamonjs/blob/main/LICENSE)
 
 Structured logging with **one `ILogger` interface across browser, server and
 worker**. Beyond the standard levels it adds three domain extensions

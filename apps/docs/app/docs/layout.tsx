@@ -1,4 +1,5 @@
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
+import Image from 'next/image'
 import type { ReactNode } from 'react'
 import { pageTree } from '@/lib/source'
 
@@ -7,7 +8,12 @@ export default function Layout({ children }: { children: ReactNode }) {
     <DocsLayout
       tree={pageTree}
       nav={{
-        title: 'TelamonJS',
+        title: (
+          <>
+            <Image src="/logo-icon.svg" alt="" width={22} height={22} unoptimized />
+            TelamonJS
+          </>
+        ),
         enabled: true,
         transparentMode: 'top',
       }}

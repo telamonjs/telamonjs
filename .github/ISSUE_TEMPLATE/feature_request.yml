@@ -1,0 +1,27 @@
+name: Feature request
+description: Propose something TelamonJS should do
+labels: [enhancement]
+body:
+  - type: dropdown
+    id: package
+    attributes:
+      label: Package
+      options: ['@telamonjs/ui', '@telamonjs/data', '@telamonjs/auth', '@telamonjs/permissions', '@telamonjs/logger', '@telamonjs/queue', '@telamonjs/cli', 'Not sure']
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: What are you trying to do, and what gets in the way today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API or behavior
+      render: tsx
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you do today instead

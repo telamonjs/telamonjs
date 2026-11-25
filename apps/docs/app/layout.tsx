@@ -7,12 +7,13 @@ import { ThemeProvider } from '@/components/theme-provider'
 import { DocsI18nProvider } from '@/components/i18n-provider'
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://telamonjs.com'),
   title: {
     template: '%s | TelamonJS',
-    default: 'TelamonJS - Modern Admin Framework',
+    default: 'TelamonJS · The admin framework for Next.js',
   },
   description:
-    'Professional React components and patterns for building modern admin dashboards with Next.js',
+    'Declare what a module is, and TelamonJS holds up the list, the forms, the dialogs, the permissions and the data layer around it.',
   keywords: [
     'react',
     'nextjs',
@@ -33,21 +34,22 @@ export const metadata: Metadata = {
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    title: 'TelamonJS - Modern Admin Framework',
+    title: 'TelamonJS · The admin framework for Next.js',
     description:
-      'Professional React components and patterns for building modern admin dashboards',
+      'Declare what a module is, and TelamonJS holds up the list, the forms, the dialogs, the permissions and the data layer around it.',
     siteName: 'TelamonJS Docs',
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'TelamonJS - Modern Admin Framework',
+    title: 'TelamonJS · The admin framework for Next.js',
     description:
-      'Professional React components and patterns for building modern admin dashboards',
+      'Declare what a module is, and TelamonJS holds up the list, the forms, the dialogs, the permissions and the data layer around it.',
   },
   robots: {
     index: true,
     follow: true,
   },
+  icons: { icon: '/logo-icon.svg' },
 }
 
 export default function RootLayout({

@@ -1,16 +1,50 @@
-# TelamonJS
+<div align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset=".github/assets/logo-dark.svg">
+    <img alt="TelamonJS" src=".github/assets/logo-light.svg" height="64">
+  </picture>
 
-[![CI](https://github.com/telamonjs/telamonjs/actions/workflows/ci.yml/badge.svg)](https://github.com/telamonjs/telamonjs/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@telamonjs/ui.svg)](https://www.npmjs.com/package/@telamonjs/ui)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](./LICENSE)
+  <p><strong>The admin framework that holds your systems up.</strong></p>
 
-> **The admin framework that holds your systems up.**
+  <a href="https://github.com/telamonjs/telamonjs/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/telamonjs/telamonjs/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://www.npmjs.com/package/@telamonjs/ui"><img alt="npm" src="https://img.shields.io/npm/v/@telamonjs/ui.svg"></a>
+  <a href="./LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+
+  <p>
+    <a href="#get-started">Get started</a> ·
+    <a href="./apps/docs/content/docs">Docs</a> ·
+    <a href="./apps/example">Example app</a> ·
+    <a href="./CHANGELOG.md">Changelog</a> ·
+    <a href="./CONTRIBUTING.md">Contributing</a>
+  </p>
+</div>
+
+<p align="center">
+  <a href="./apps/example"><img alt="The example app's users list with the edit dialog open, inside the admin shell" src=".github/assets/screenshot.png" width="900"></a>
+</p>
 
 In classical architecture, a *telamon* is the sculpted figure that carries the
 weight of the building. TelamonJS does the same for admin systems: declare what
 a module is, and it holds up the list, the forms, the dialogs, the permissions
 and the data layer around it. Built for Next.js on TanStack Query, Radix UI,
 Tailwind CSS, Zod and React Hook Form.
+
+## What you get
+
+- **One object per module.** A `CrudConfig` declares the list, the form, the
+  queries and the mutations; `ListPage` renders all of it.
+- **Lists that hold up.** A virtualized table with infinite scroll, search,
+  filters, sorting, exports and URL deep-linking.
+- **Forms and dialogs.** Create, edit and view dialogs on a field system
+  validated with Zod and React Hook Form.
+- **Permissions with no query per request.** RBAC is materialized into the JWT,
+  so every check is an array lookup.
+- **A complete app shell.** Sidebar, Cmd+K command palette, dashboards, charts
+  and pt-BR/en/es messages.
+- **An API you can trust.** Accessibility is asserted with axe against real
+  primitives, and the public API is pinned by a snapshot test and follows semver.
+- **From zero in one command.** The CLI scaffolds an app and generates CRUD
+  modules from your Prisma schema.
 
 ## Get started
 
@@ -50,6 +84,25 @@ export const config: CrudConfig<User, UserFormData> = {
 
 You get a virtualized table with infinite scroll, toolbar, filters,
 create/edit/view dialogs, exports and URL deep-linking.
+
+## Built with TelamonJS
+
+Screens from systems in production on TelamonJS, with their data blurred.
+
+<table>
+  <tr>
+    <td width="50%"><img alt="Fleet tracking: a live map with vehicle clusters and the fleet list" src=".github/assets/showcase/topikos-monitoramento.jpg"><br><sub>Fleet tracking: live map and fleet list</sub></td>
+    <td width="50%"><img alt="Vehicle detail dialog with position history and the recorded route on a map" src=".github/assets/showcase/topikos-veiculo.jpg"><br><sub>Vehicle detail dialog with the recorded route</sub></td>
+  </tr>
+  <tr>
+    <td><img alt="Program dashboard with headline numbers, a choropleth map of Brazil and pending items" src=".github/assets/showcase/dtm-painel.jpg"><br><sub>Program dashboard with a choropleth map</sub></td>
+    <td><img alt="Entity portal with a section rail, KPI cards and grouped detail cards" src=".github/assets/showcase/dtm-portal.jpg"><br><sub>Entity portal: section rail, KPIs and detail cards</sub></td>
+  </tr>
+  <tr>
+    <td><img alt="A ListPage with search, status filter buttons, two-line cells, badges and row actions" src=".github/assets/showcase/dtm-projetos.jpg"><br><sub>A <code>ListPage</code> with status filters and row actions</sub></td>
+    <td><img alt="Selection process dashboard with an alert, KPI cards and a quota breakdown" src=".github/assets/showcase/meritux-dashboard.jpg"><br><sub>Selection process dashboard with alerts and breakdowns</sub></td>
+  </tr>
+</table>
 
 ## Packages
 
