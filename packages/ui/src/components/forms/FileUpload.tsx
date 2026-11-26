@@ -16,7 +16,7 @@
 
 'use client'
 
-import React, { useCallback, useState, useRef } from 'react'
+import React, { useCallback, useEffect, useState, useRef } from 'react'
 import {
   Upload,
   X,
@@ -318,6 +318,12 @@ export function FileUpload({
     error
   )
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // Pending simulated uploads, cancelled on unmount so none fires afterwards
+  const simulatedUploads = useRef(new Set<ReturnType<typeof setTimeout>>())
+  useEffect(() => {
+    const timers = simulatedUploads.current
+    return () => timers.forEach(clearTimeout)
+  }, [])
 
   // Convert value to files on change (React "adjusting state when a prop
   // changes" pattern — avoids an extra effect + render; mount is covered by
@@ -472,11 +478,13 @@ export function FileUpload({
         } else {
           // Fallback: simulate upload (backward compatibility)
           fileWithPreview.progress = 0
-          setTimeout(() => {
+          const timer = setTimeout(() => {
+            simulatedUploads.current.delete(timer)
             fileWithPreview.progress = 100
             fileWithPreview.uploaded = true
             setFiles(prev => [...prev])
           }, 500)
+          simulatedUploads.current.add(timer)
         }
 
         return fileWithPreview
