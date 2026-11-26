@@ -106,10 +106,13 @@ temp/
 *.db-wal
 
 # Backups & Dumps
+/database/dumps/
 *.sql
 *.dump
 *.backup
 *.bak
+# ...but Prisma migrations are code: commit them
+!/prisma/migrations/**/*.sql
 
 # OS specific
 desktop.ini

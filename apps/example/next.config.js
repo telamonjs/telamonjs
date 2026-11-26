@@ -19,12 +19,11 @@ const nextConfig = {
   reactStrictMode: true,
   output: 'standalone',
   images: {
-    remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: '**',
-      },
-    ],
+    // Hosts next/image may optimize remote images from. /_next/image is
+    // public: the server fetches whatever host is listed here, so name each
+    // one (e.g. { protocol: 'https', hostname: 'cdn.example.com' }) and never
+    // use a wildcard like '**'.
+    remotePatterns: [],
   },
   // Explicit transpilation of telamonjs-ui (client-side only)
   transpilePackages: ['@telamonjs/ui'],

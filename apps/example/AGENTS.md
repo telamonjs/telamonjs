@@ -556,10 +556,10 @@ pnpm type-check       # TypeScript check
 pnpm lint:telamonjs     # telamonjs lint src/app/admin (conventions above)
 pnpm telamonjs generate crud <module> --model <Model>  # new module in this same pattern, from prisma/schema.prisma
 pnpm telamonjs add admin audit       # admin kit: audit log (also: parameters, invitations); then db:migrate + db:seed
-pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345 (idempotent)
+pnpm db:seed          # permission catalog + admin role (idempotent); on an empty database, admin@example.com / 12345
 pnpm telamonjs link   # @telamonjs/ui from a local checkout (../telamonjs); `pnpm telamonjs unlink` before committing
 docker compose up -d  # database only, for pnpm dev
-docker compose -f docker-compose.prod.yml up --build  # database + app (production build)
+docker compose -f docker-compose.prod.yml up --build  # database + app (production build; needs NEXTAUTH_SECRET, DB_PASSWORD, and SEED_ADMIN_PASSWORD on an empty database)
 ```
 
 ## Authentication
@@ -576,7 +576,9 @@ docker compose -f docker-compose.prod.yml up --build  # database + app (producti
 - Client hook: `src/hooks/use-session.ts`
 - Middleware: `src/middleware.ts` (Node runtime) protects `/admin/*`; `/api/*` is not matched —
   each Route Handler checks its own permission (`requirePermission`, below)
-- Seed user: `admin@example.com` / `12345`, with the built-in `admin` role
+- Seed user: `admin@example.com` / `12345`, with the built-in `admin` role —
+  created on an empty database only (a re-run never touches existing accounts);
+  in production the password comes from `SEED_ADMIN_PASSWORD`
 
 ## Roles and permissions (RBAC)
 
@@ -586,8 +588,8 @@ sign-in, so every check is a lookup in `session.user.permissions` — no query.
 | Piece | File |
 | --- | --- |
 | Tables `Role`, `Permission`, `RolePermission`, `UserRole` (the `@telamonjs/permissions` fragment); `User.active`, `accessChangedAt`, `sessionsRevokedAt` | `prisma/schema.prisma` |
-| The permission catalog (`PERMISSIONS`), `loadAccess()`, `markRoleHoldersStale()` | `src/rbac.ts` |
-| Syncs the catalog (`diffPermissionCatalog`), the built-in `admin` role (every permission, `system: true`) and the admin user | `prisma/seed.ts` |
+| The permission catalog (`PERMISSIONS`), `loadAccess()`, `markRoleHoldersStale()`, `canGrant()` (the privilege ceiling) | `src/rbac.ts` |
+| Syncs the catalog (`diffPermissionCatalog`), the built-in `admin` role (every permission, `system: true`) and, on an empty database, the first admin user | `prisma/seed.ts` |
 | The client-safe checker (`can`, `canAny`; no bypass role) | `src/lib/permissions.ts` |
 | `requirePermission(...codes)` for Route Handlers (401/403 response, else the user) | `src/lib/auth.ts` |
 | Roles CRUD + `PermissionMatrix` tab; user ↔ roles (`roleIds` multiselect), activate/deactivate | `src/app/admin/papeis/`, `src/app/admin/usuarios/` |
@@ -606,14 +608,25 @@ its roles/permissions recomputed (only `accessAt` moves, never `authTime`). So
 every write that changes what a token says must stamp it: a user's roles
 (`accessChangedAt` on that user), a role's permissions, name, code or deletion
 (`markRoleHoldersStale(prisma, roleId)`), deactivation or a new password (`sessionsRevokedAt`).
-The Route Handlers in `src/app/api/{usuarios,roles}` already do.
+Stamp after the change commits, never before (a role's deletion stamps its holders in
+the same transaction, after the delete). The Route Handlers in `src/app/api/{usuarios,roles}` already do.
+
+**Privilege ceiling.** Holding `users.write`, `roles.write` or `invitations.write`
+is not enough to grant: every grant goes through `canGrant(prisma, user, { roleIds,
+permissionIds })` in `src/rbac.ts` and answers 403 when it would confer a
+permission the acting user doesn't hold, or the built-in `admin` role to someone
+who isn't an admin. Editing a user also checks the roles they already hold, so a
+password or email change can't act on an account with more access. A new
+Route Handler that assigns roles or permissions calls it too.
 
 Built-in roles (`system: true`) are read-only in the API and locked in the
 matrix; the seed keeps `admin` complete.
 
 **Admin kit.** `pnpm telamonjs add admin audit` adds an audit log (`AuditLog`
 model, `audit.read`, `/admin/auditoria`, `src/lib/audit.ts` called by the users
-and roles Route Handlers); `pnpm telamonjs add admin parameters` adds system
+and roles Route Handlers; the IP is the `X-Forwarded-For` entry added by your
+reverse proxy, `TRUSTED_PROXY_HOPS` from the right, default 1, `0` when Next is
+reached directly); `pnpm telamonjs add admin parameters` adds system
 parameters (`Parameter` model, `parameters.read`/`parameters.write`,
 `/admin/parametros`, `getParameter(key, fallback)` in `src/lib/parameters.ts`);
 `pnpm telamonjs add admin invitations` adds email invitations (`Invitation`

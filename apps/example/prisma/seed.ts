@@ -46,29 +46,32 @@ async function main() {
   })
   if (granted.count > 0 || toDelete.length > 0) await markRoleHoldersStale(prisma, admin.id)
 
-  // 3. The admin user, with the admin role
-  const user = await prisma.user.upsert({
-    where: { email: 'admin@example.com' },
-    update: {},
-    create: {
-      email: 'admin@example.com',
-      name: 'Administrator',
-      password: await bcrypt.hash('12345', 10),
-      active: true,
-      emailVerified: new Date(),
-    },
-  })
-  await prisma.userRole.upsert({
-    where: { userId_roleId: { userId: user.id, roleId: admin.id } },
-    update: {},
-    create: { userId: user.id, roleId: admin.id },
-  })
-  console.log('✅ Admin user:', { email: user.email, role: admin.code })
+  // 3. The first admin: on an empty database only. A re-run (catalog sync,
+  //    container start) never touches existing accounts, so an admin the
+  //    operator renamed, demoted or gave a new password stays that way.
+  if ((await prisma.user.count()) === 0) {
+    const password =
+      process.env.SEED_ADMIN_PASSWORD || (process.env.NODE_ENV === 'production' ? '' : '12345')
+    if (!password) {
+      throw new Error('Set SEED_ADMIN_PASSWORD to create the first admin in production')
+    }
+    const user = await prisma.user.create({
+      data: {
+        email: 'admin@example.com',
+        name: 'Administrator',
+        password: await bcrypt.hash(password, 10),
+        active: true,
+        emailVerified: new Date(),
+        roles: { create: { roleId: admin.id } },
+      },
+    })
+    console.log('✅ Admin user:', { email: user.email, role: admin.code })
+    if (!process.env.SEED_ADMIN_PASSWORD) {
+      console.log(`\n📝 Sign in as ${user.email} / ${password} and change the password`)
+    }
+  }
 
   console.log('\n🎉 Seeding completed!')
-  console.log('\n📝 Login credentials:')
-  console.log('   Email: admin@example.com')
-  console.log('   Password: 12345')
 }
 
 main()

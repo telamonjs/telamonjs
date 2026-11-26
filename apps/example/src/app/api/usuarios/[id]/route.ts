@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requirePermission } from '@/lib/auth'
+import { canGrant } from '@/rbac'
 
 const updateSchema = z.object({
   name: z.string().min(1).optional(),
@@ -59,6 +60,14 @@ export async function PATCH(
 
   if (currentUser.id === id && parsed.data.active === false) {
     return NextResponse.json({ message: "You can't deactivate yourself" }, { status: 400 })
+  }
+
+  // The ceiling covers the roles the user already holds too: no password or
+  // email change takes over an account with more access than yours
+  const held = await prisma.userRole.findMany({ where: { userId: id }, select: { roleId: true } })
+  const roleIdsInReach = [...held.map(({ roleId }) => roleId), ...(parsed.data.roleIds ?? [])]
+  if (!(await canGrant(prisma, currentUser, { roleIds: roleIdsInReach }))) {
+    return NextResponse.json({ message: 'You can only grant roles and permissions you hold' }, { status: 403 })
   }
 
   if (parsed.data.email) {

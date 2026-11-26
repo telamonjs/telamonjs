@@ -78,8 +78,16 @@ export async function DELETE(_request: NextRequest, { params }: Params) {
   const found = await findEditable((await params).id)
   if (found instanceof NextResponse) return found
 
-  // Holders lose the role's permissions: mark them before the rows go (cascade)
-  await markRoleHoldersStale(prisma, found.id)
-  await prisma.role.delete({ where: { id: found.id } })
+  // Holders lose the role's permissions. Stamp them after the rows go (cascade),
+  // in the same transaction: a mark committed before the delete would let a
+  // refresh in between store the deleted role's claims as fresh
+  await prisma.$transaction(async (tx) => {
+    const holders = await tx.userRole.findMany({ where: { roleId: found.id }, select: { userId: true } })
+    await tx.role.delete({ where: { id: found.id } })
+    await tx.user.updateMany({
+      where: { id: { in: holders.map(({ userId }) => userId) } },
+      data: { accessChangedAt: new Date() },
+    })
+  })
   return new NextResponse(null, { status: 204 })
 }

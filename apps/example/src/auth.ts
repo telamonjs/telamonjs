@@ -85,7 +85,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   callbacks: {
     async jwt(args) {
       const token = await base.jwt(args)
-      if (args.user) return token // fresh login: claims and times just stamped
+      if (args.user) {
+        // Fresh login. authorize() read the claims before base.jwt stamped
+        // `accessAt` with the clock, so a role change committing in between would
+        // look older than them: count them as older than any mark instead.
+        // ponytail: a user with an access mark pays one recompute after signing in
+        token.accessAt = 0
+        return token
+      }
       const marks = await loadMarks(token.id as string)
       if (!marks?.active) return null // deleted or deactivated: signs out
       const state = sessionState(token, {
@@ -98,7 +105,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         // them (same source as authorize) and move only `accessAt` — never
         // `authTime`, or a revoked session would come back.
         Object.assign(token, await loadAccess(prisma, token.id as string), {
-          accessAt: Date.now(),
+          // As new as the mark read above, never the clock: a change that
+          // commits while loadAccess runs leaves the token stale
+          accessAt: marks.accessChangedAt?.getTime() ?? 0,
         })
       }
       return token
