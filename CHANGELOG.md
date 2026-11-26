@@ -1,5 +1,10 @@
 # Changelog
 
+## ui 1.15.4 (2026-11-26)
+
+- `@telamonjs/ui`: a menu item's `permission` accepts readonly arrays (`string | readonly string[]`). An app
+  can narrow it to its own permission union, `as const` arrays included, without `Omit`.
+
 ## ui 1.15.3 (2026-11-26)
 
 - `@telamonjs/ui`: `FileUpload` cancels its pending simulated uploads (no `uploadEndpoint`) when it

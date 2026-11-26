@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.15.4
+
+### Patch Changes
+
+- ff03092: A menu item's `permission` accepts readonly arrays (`string | readonly string[]`), so an app can narrow it to its own permission union, `as const` arrays included, without `Omit`.
+
 ## 1.15.3
 
 ### Patch Changes
