@@ -16,7 +16,12 @@ export interface FilterFieldConfig {
   field?: string // Override field name if different from key
   operator?: 'equals' | 'contains' | 'gte' | 'lte' | 'in' | 'not' // Default: equals for most, contains for string
   mode?: 'insensitive' | 'default' // For string searches
-  transform?: (value: FilterValue) => FilterValue // Transform value before applying
+  /**
+   * Transforms the value before it is applied. A `'boolean'` filter may return
+   * a where fragment (`v => (v === 'true' ? { some: {} } : { none: {} })`),
+   * applied as is; its options are then a fixed Yes/No pair.
+   */
+  transform?: (value: FilterValue) => FilterValue | Record<string, unknown>
 }
 
 /** A filter's value, before and after `FilterFieldConfig.transform`. */

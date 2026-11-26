@@ -118,8 +118,12 @@ export function buildFilterConditions(
         break
 
       case 'equals':
-        // Handle boolean conversion
-        if (parsedConfig.type === 'boolean') {
+        // Handle boolean conversion; an object a transform returns (a
+        // relation filter such as `{ some: {} }`) goes through as is
+        if (
+          parsedConfig.type === 'boolean' &&
+          !(typeof transformedValue === 'object' && transformedValue !== null)
+        ) {
           condition[fieldName] =
             transformedValue === 'true' || transformedValue === true
         } else {

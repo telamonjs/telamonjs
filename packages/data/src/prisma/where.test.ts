@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
+  buildFilterConditions,
   buildIncludeClause,
   buildSearchConditions,
   buildWhereClause,
@@ -112,6 +113,33 @@ describe('getFilterOptionsForField', () => {
     expect(options).toEqual([
       { value: 'true', label: 'Active', count: 6 },
       { value: 'false', label: 'Inactive', count: 4 },
+    ])
+  })
+})
+
+describe('buildFilterConditions', () => {
+  it('turns a boolean filter value into a boolean', () => {
+    expect(buildFilterConditions({ active: 'true' }, { active: 'boolean' })).toEqual([
+      { active: true },
+    ])
+    expect(buildFilterConditions({ active: 'false' }, { active: 'boolean' })).toEqual([
+      { active: false },
+    ])
+  })
+
+  it('keeps the relation filter a boolean transform returns', () => {
+    const filters = {
+      hasOrders: {
+        type: 'boolean' as const,
+        transform: (v: unknown) => (v === 'true' ? { some: {} } : { none: {} }),
+      },
+    }
+
+    expect(buildFilterConditions({ hasOrders: 'true' }, filters)).toEqual([
+      { hasOrders: { some: {} } },
+    ])
+    expect(buildFilterConditions({ hasOrders: 'false' }, filters)).toEqual([
+      { hasOrders: { none: {} } },
     ])
   })
 })
