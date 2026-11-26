@@ -22,6 +22,25 @@ export interface AuditInput {
   statusCode?: number
 }
 
+/**
+ * The client address as the trusted reverse proxy saw it. Each proxy that
+ * appends to X-Forwarded-For (nginx `$proxy_add_x_forwarded_for`, Traefik, a
+ * load balancer) adds the address it received from on the right; whatever is
+ * left of those entries came from the client, not the proxy. So the IP is
+ * the TRUSTED_PROXY_HOPS-th entry from the right — default 1, one proxy in
+ * front of Next (like `trust proxy` 1 on the monorepo API). Reached directly
+ * with no proxy? Set TRUSTED_PROXY_HOPS=0: no header is trusted, ipAddress is null.
+ */
+function clientIp(request: Request): string | null {
+  const hops = Number(process.env.TRUSTED_PROXY_HOPS || 1)
+  if (!Number.isInteger(hops) || hops < 1) return null
+  const chain = (request.headers.get('x-forwarded-for') ?? '')
+    .split(',')
+    .map((hop) => hop.trim())
+    .filter(Boolean)
+  return chain.at(-hops) ?? null
+}
+
 export async function audit(request: Request, user: { id: string }, input: AuditInput): Promise<void> {
   const { before, changes, statusCode = 200, ...entry } = input
   const payload = before && changes ? computeDiff(before, changes) : changes
@@ -34,8 +53,7 @@ export async function audit(request: Request, user: { id: string }, input: Audit
           payload && Object.keys(payload).length > 0
             ? (redactPayload(payload) as Prisma.InputJsonValue)
             : undefined,
-        // Behind a proxy, the first X-Forwarded-For hop is the client
-        ipAddress: request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || null,
+        ipAddress: clientIp(request),
         userAgent: request.headers.get('user-agent'),
         method: request.method,
         path: new URL(request.url).pathname,

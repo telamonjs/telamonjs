@@ -1,7 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
 import bcrypt from 'bcryptjs'
 import type { Prisma } from '@prisma/client'
+import { canGrant } from '{{scope}}/shared/rbac'
 import { PrismaService } from '../../common/prisma/prisma.service'
+import type { AuthUser } from '../../common/guards/jwt-auth.guard'
 import { CreateUsuarioDto } from './dto/create-usuario.dto'
 import { UpdateUsuarioDto } from './dto/update-usuario.dto'
 
@@ -68,8 +70,11 @@ export class UsuariosService {
     return serialize(usuario)
   }
 
-  async create(dto: CreateUsuarioDto) {
+  async create(dto: CreateUsuarioDto, currentUser: AuthUser) {
     const client = this.prisma.client
+    if (!(await canGrant(client, currentUser, { roleIds: dto.roleIds }))) {
+      throw new ForbiddenException('You can only grant roles and permissions you hold')
+    }
     const existing = await client.user.findUnique({ where: { email: dto.email } })
     if (existing) throw new ConflictException('This email is already in use')
 
@@ -85,12 +90,18 @@ export class UsuariosService {
     return serialize(usuario)
   }
 
-  async update(id: string, dto: UpdateUsuarioDto, currentUserId: string) {
-    if (currentUserId === id && dto.active === false) {
+  async update(id: string, dto: UpdateUsuarioDto, currentUser: AuthUser) {
+    if (currentUser.id === id && dto.active === false) {
       throw new BadRequestException("You can't deactivate yourself")
     }
 
     const client = this.prisma.client
+    // The ceiling covers the roles the user already holds too: no password or
+    // email change takes over an account with more access than yours
+    const held = await client.userRole.findMany({ where: { userId: id }, select: { roleId: true } })
+    if (!(await canGrant(client, currentUser, { roleIds: [...held.map(({ roleId }) => roleId), ...(dto.roleIds ?? [])] }))) {
+      throw new ForbiddenException('You can only grant roles and permissions you hold')
+    }
     if (dto.email) {
       const existing = await client.user.findUnique({ where: { email: dto.email } })
       if (existing && existing.id !== id) {

@@ -211,22 +211,26 @@ export async function createApp(
       databaseUrl: isPostgres
         ? `postgresql://postgres:password@localhost:${dbPort}/${projectName!.replace(/-/g, '_')}`
         : `mysql://root:password@localhost:${dbPort}/${projectName!.replace(/-/g, '_')}`,
+      // docker-compose.prod.yml: the password comes from the environment
       dockerDatabaseUrl: isPostgres
-        ? `postgresql://postgres:password@db:${dbPort}/${projectName!.replace(/-/g, '_')}`
-        : `mysql://root:password@db:${dbPort}/${projectName!.replace(/-/g, '_')}`,
+        ? `postgresql://postgres:\${DB_PASSWORD}@db:${dbPort}/${projectName!.replace(/-/g, '_')}`
+        : `mysql://root:\${DB_PASSWORD}@db:${dbPort}/${projectName!.replace(/-/g, '_')}`,
     }
 
-    // Docker compose environment variables
-    if (isPostgres) {
-      templateData.dbEnvironment = `      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
+    // Docker compose environment variables: a fixed password for the local
+    // database (docker-compose.yml), a required one in production
+    const dbEnvironment = (password: string) =>
+      isPostgres
+        ? `      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${password}
       POSTGRES_DB: ${templateData.projectSlug}`
-      templateData.dbHealthCheck = `['CMD-SHELL', 'pg_isready -U postgres']`
-    } else {
-      templateData.dbEnvironment = `      MYSQL_ROOT_PASSWORD: password
+        : `      MYSQL_ROOT_PASSWORD: ${password}
       MYSQL_DATABASE: ${templateData.projectSlug}`
-      templateData.dbHealthCheck = `['CMD', 'mysqladmin', 'ping', '-h', 'localhost']`
-    }
+    templateData.dbEnvironment = dbEnvironment('password')
+    templateData.prodDbEnvironment = dbEnvironment('${DB_PASSWORD:?Set DB_PASSWORD}')
+    templateData.dbHealthCheck = isPostgres
+      ? `['CMD-SHELL', 'pg_isready -U postgres']`
+      : `['CMD', 'mysqladmin', 'ping', '-h', 'localhost']`
 
     // Copy template files
     const templatePath = path.join(__dirname, '../../templates/app')

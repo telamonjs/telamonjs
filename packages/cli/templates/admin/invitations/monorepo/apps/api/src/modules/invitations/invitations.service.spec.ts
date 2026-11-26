@@ -1,8 +1,18 @@
-import { BadGatewayException, BadRequestException, ConflictException, GoneException, Logger } from '@nestjs/common'
+import { BadGatewayException, BadRequestException, ConflictException, ForbiddenException, GoneException, Logger } from '@nestjs/common'
 import { hashApiKey } from '@telamonjs/auth'
 import { InvitationsService, invitationStatus } from './invitations.service'
 import type { MailSender } from '../mail/mail.module'
 import type { PrismaService } from '../../common/prisma/prisma.service'
+import type { AuthUser } from '../../common/guards/jwt-auth.guard'
+
+// Holds invitations.write and users.read, not the admin role
+const inviter = {
+  id: 'u1',
+  email: 'op@example.com',
+  role: { id: 'r-op', code: 'operator' },
+  roles: [{ id: 'r-op', code: 'operator' }],
+  permissions: ['invitations.write', 'users.read'],
+} as AuthUser
 
 const DAY = 24 * 60 * 60 * 1000
 const row = (over: Record<string, unknown> = {}) => ({
@@ -27,8 +37,20 @@ function setup() {
     role: {
       // every requested role exists
       count: jest.fn().mockImplementation(({ where }) => Promise.resolve(where.id.in.length)),
-      findMany: jest.fn().mockResolvedValue([{ id: 'r1', name: 'Editor' }]),
+      // canGrant reads codes and permissions (r1 holds users.read; r-admin is the admin role)
+      findMany: jest.fn().mockImplementation(({ where, select }) =>
+        Promise.resolve(
+          select.permissions
+            ? where.id.in.map((id: string) =>
+                id === 'r-admin'
+                  ? { code: 'admin', permissions: [{ permission: { code: 'invitations.write' } }] }
+                  : { code: 'editor', permissions: [{ permission: { code: 'users.read' } }] }
+              )
+            : [{ id: 'r1', name: 'Editor' }]
+        )
+      ),
     },
+    permission: { findMany: jest.fn().mockResolvedValue([]) },
     user: {
       findFirst: jest.fn().mockResolvedValue(null),
       findMany: jest.fn().mockResolvedValue([]),
@@ -63,7 +85,7 @@ describe('InvitationsService', () => {
 
   it('create() stores only the token hash and mails the link carrying the token', async () => {
     const { client, mail, service } = setup()
-    const result = await service.create({ email: 'new@example.com', roleIds: ['r1'] }, 'u1')
+    const result = await service.create({ email: 'new@example.com', roleIds: ['r1'] }, inviter)
 
     const { data } = client.invitation.create.mock.calls[0][0]
     const { to, text } = mail.send.mock.calls[0][0]
@@ -79,15 +101,24 @@ describe('InvitationsService', () => {
   it('create() rejects an unknown role, an existing user and a pending invitation', async () => {
     const unknownRole = setup()
     unknownRole.client.role.count.mockResolvedValue(0)
-    await expect(unknownRole.service.create({ email: 'a@a.com', roleIds: ['nope'] }, 'u1')).rejects.toThrow(BadRequestException)
+    await expect(unknownRole.service.create({ email: 'a@a.com', roleIds: ['nope'] }, inviter)).rejects.toThrow(BadRequestException)
 
     const existingUser = setup()
     existingUser.client.user.findFirst.mockResolvedValue({ id: 'u9' })
-    await expect(existingUser.service.create({ email: 'a@a.com' }, 'u1')).rejects.toThrow(ConflictException)
+    await expect(existingUser.service.create({ email: 'a@a.com' }, inviter)).rejects.toThrow(ConflictException)
 
     const pending = setup()
     pending.client.invitation.findFirst.mockResolvedValue(row())
-    await expect(pending.service.create({ email: 'a@a.com' }, 'u1')).rejects.toThrow(ConflictException)
+    await expect(pending.service.create({ email: 'a@a.com' }, inviter)).rejects.toThrow(ConflictException)
+  })
+
+  it('create() refuses roles beyond the inviter (the admin role) and stores no invitation', async () => {
+    const { client, service } = setup()
+    await expect(service.create({ email: 'new@example.com', roleIds: ['r-admin'] }, inviter)).rejects.toThrow(ForbiddenException)
+
+    const beyond = { ...inviter, permissions: ['invitations.write'] } as AuthUser
+    await expect(service.create({ email: 'new@example.com', roleIds: ['r1'] }, beyond)).rejects.toThrow(ForbiddenException)
+    expect(client.invitation.create).not.toHaveBeenCalled()
   })
 
   it('create() drops the row when the email cannot be sent', async () => {
@@ -95,7 +126,7 @@ describe('InvitationsService', () => {
     mail.send.mockRejectedValue(new Error('smtp down'))
     jest.spyOn(Logger.prototype, 'error').mockImplementation(() => {})
 
-    await expect(service.create({ email: 'new@example.com' }, 'u1')).rejects.toThrow(BadGatewayException)
+    await expect(service.create({ email: 'new@example.com' }, inviter)).rejects.toThrow(BadGatewayException)
     expect(client.invitation.delete).toHaveBeenCalledWith({ where: { id: 'i1' } })
   })
 

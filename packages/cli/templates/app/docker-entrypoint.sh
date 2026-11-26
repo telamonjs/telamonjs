@@ -3,30 +3,28 @@ set -e
 
 echo "🚀 Starting TelamonJS App..."
 
-# Wait for database to be ready
-echo "⏳ Waiting for database..."
+# Run migrations, retrying while the database starts (the image has no
+# database client to probe it with; Prisma's own connection is the probe)
+echo "📦 Running Prisma migrations..."
 timeout=30
 counter=0
-until pg_isready -h db -p 5432 -U postgres > /dev/null 2>&1 || [ $counter -eq $timeout ]; do
+until pnpm prisma migrate deploy; do
   counter=$((counter + 1))
+  if [ $counter -ge $timeout ]; then
+    echo "❌ Migrations failed after $timeout attempts (is the database up?)"
+    exit 1
+  fi
   echo "Waiting for database... ($counter/$timeout)"
   sleep 1
 done
 
-if [ $counter -eq $timeout ]; then
-  echo "❌ Database not available after $timeout seconds"
+# Run seed (idempotent: syncs permissions; creates the first admin on an
+# empty database only). A failure stops the container.
+echo "🌱 Running seed..."
+if ! pnpm db:seed; then
+  echo "❌ Seed failed (see the error above). On an empty database, set SEED_ADMIN_PASSWORD to create the first admin."
   exit 1
 fi
-
-echo "✅ Database is ready!"
-
-# Run migrations
-echo "📦 Running Prisma migrations..."
-pnpm prisma migrate deploy
-
-# Run seed
-echo "🌱 Running seed..."
-pnpm db:seed || echo "⚠️  Seed already exists or failed (this is ok)"
 
 echo "🎉 App is ready!"
 

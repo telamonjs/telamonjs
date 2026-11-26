@@ -233,9 +233,14 @@ export function addAdmin(module: string, options: AddAdminOptions = {}): AddAdmi
   const plan = new Plan(root)
   const templates = join(TEMPLATES, 'admin', name)
 
-  // 1. Module files: web/ goes to the Next.js app, app/ or monorepo/ to the root
+  // 1. Module files: web/ goes to the Next.js app, app/ or monorepo/ to the root.
+  // Monorepo files import the shared package by name (`{{scope}}/shared/rbac`).
+  const shared = JSON.parse(readIfExists(join(root, 'packages/shared/package.json')) ?? '{}') as { name?: string }
+  const scope = (shared.name ?? '').replace(/\/shared$/, '')
   const copy = (from: string, to: string) => {
-    for (const file of walk(from)) plan.create(join(to, relative(from, file)), readFileSync(file, 'utf-8'))
+    for (const file of walk(from)) {
+      plan.create(join(to, relative(from, file)), readFileSync(file, 'utf-8').replace(/\{\{scope\}\}/g, scope))
+    }
   }
   copy(join(templates, 'web'), layout.web)
   copy(join(templates, layout.kind), root)
@@ -270,6 +275,14 @@ export function addAdmin(module: string, options: AddAdminOptions = {}): AddAdmi
     const updated = open?.index === undefined ? null : insertBeforeArrayClose(rbac, open.index + open[0].length - 1, entries.join('\n'))
     if (updated) plan.write(layout.rbac, updated)
     else plan.warnings.push(`Add to PERMISSIONS in ${relative(root, layout.rbac)}:\n${entries.join('\n')}`)
+  }
+  // Invitations check the inviter with canGrant (the privilege ceiling): an app
+  // generated before it existed gets the template's copy appended
+  const withCatalog = plan.read(layout.rbac)
+  if (name === 'invitations' && withCatalog !== undefined && !withCatalog.includes('function canGrant')) {
+    const source = readFileSync(join(TEMPLATES, 'app/src/rbac.ts'), 'utf-8')
+    const block = source.slice(source.lastIndexOf('/**', source.indexOf('export async function canGrant')))
+    plan.write(layout.rbac, `${withCatalog.trimEnd()}\n\n${block}`)
   }
 
   // 4. Menu entry, in the Administration group

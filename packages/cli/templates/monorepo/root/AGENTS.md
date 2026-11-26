@@ -55,7 +55,7 @@ pnpm test             # shared + api (jobs has no tests of its own yet)
 pnpm lint:telamonjs   # CrudConfig/dialogs conventions, apps/web only
 pnpm telamonjs add admin audit       # admin kit: audit log via a global interceptor (also: parameters, invitations — mail via apps/api/src/modules/mail)
 pnpm db:push          # prisma db push (packages/shared)
-pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345
+pnpm db:seed          # permission catalog + admin role; on an empty database, admin@example.com / 12345
 pnpm telamonjs:link   # @telamonjs/ui from ../telamonjs (hooks unlink around commits)
 pnpm telamonjs:unlink # back to the published range
 docker compose up -d  # postgres + redis, dev-only ports

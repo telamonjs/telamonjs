@@ -42,6 +42,7 @@ model Produto {
 ✔ Created ./src/lib/api/produtos-client.ts
 ✔ Created ./src/app/api/produtos/route.ts
 ✔ Created ./src/app/api/produtos/[id]/route.ts
+✔ Permissions produtos.read, produtos.write in src/rbac.ts
 ✔ Code formatted
 
 ✓ CRUD module 'produtos' created successfully!
@@ -49,9 +50,10 @@ model Produto {
 Next steps:
   1. Review generated files in src/app/admin/produtos
   2. Fill in relationship TODOs in config.tsx (loadField stubs)
-  3. Check src/app/api/produtos/route.ts matches your auth/authorization rules
-  4. Icons are resolved by name from src/lib/icons.ts -- add any you change there
-  5. Run pnpm dev to see your new module
+  3. The Route Handlers require produtos.read (GET) and produtos.write (POST, PATCH, DELETE)
+  4. Run pnpm db:seed so the admin role gets them, then grant them to other roles
+  5. Icons are resolved by name from src/lib/icons.ts -- add any you change there
+  6. Run pnpm dev to see your new module
 ```
 
 ```
@@ -165,6 +167,16 @@ export const produtosConfig: CrudConfig<Produto, ProdutoFormData> = {
     title: 'Produtos',
     description: 'Gerenciamento de produtos',
     route: '/admin/produtos',
+  },
+
+  // Checked with the PermissionsProvider's can (LayoutProviders): a denied
+  // operation loses its button, row action and dialog deep link. The Route
+  // Handlers enforce the same codes.
+  permissions: {
+    view: 'produtos.read',
+    create: 'produtos.write',
+    edit: 'produtos.write',
+    delete: 'produtos.write',
   },
 
   list: {
@@ -407,8 +419,9 @@ export const produtosApi = {
 
 ### 5. src/app/api/produtos/route.ts and [id]/route.ts — Route Handlers
 
-Every handler does **authenticate → validate → execute**: `getCurrentUser()`
-gate (401), Zod `createSchema` / all-optional `updateSchema`, validated
+Every handler does **authorize → validate → execute**:
+`requirePermission('produtos.read')` on GET and `requirePermission('produtos.write')`
+on POST/PATCH/DELETE (401 without a session, 403 without the permission), Zod `createSchema` / all-optional `updateSchema`, validated
 pagination (`pageSize` capped at 100), `sortBy` whitelisted against
 `SORTABLE_FIELDS`, insensitive search on String fields, Prisma P2025 → 404
 on PATCH/DELETE, hard delete → 204. Models with `password`/`senha`/`hash`
@@ -421,7 +434,7 @@ A complete CRUD module in the CrudConfig + React Query + dialogs pattern:
 - Consolidated `config.tsx` (schema, header, columns, form, query, mutations, actions, dialogs)
 - One-line `ListPage`; view/create/edit/delete in dialogs, no extra routes
 - `ProdutoDetail` with `ContentTabs` + `SemanticCard`/`SemanticField`
-- Route Handlers with auth gate, Zod validation, sortBy whitelist,
+- Route Handlers with a permission gate, Zod validation, sortBy whitelist,
   pagination caps and sensitive-field stripping
 - Typed REST client as the single seam between UI and API
 - Passes `telamonjs lint` and `tsc` as generated

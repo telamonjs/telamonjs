@@ -1,5 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Patch, Post, Query } from '@nestjs/common'
 import { Permissions } from '@telamonjs/permissions/nest'
+import { CurrentUser } from '../../common/decorators/current-user.decorator'
+import type { AuthUser } from '../../common/guards/jwt-auth.guard'
 import { RolesService } from './roles.service'
 import { CreateRoleDto, UpdateRoleDto } from './dto/role.dto'
 
@@ -56,14 +58,14 @@ export class RolesController {
   @Permissions('roles.write')
   @Post(':id/permissions/:permissionId')
   @HttpCode(204)
-  grant(@Param('id') id: string, @Param('permissionId') permissionId: string) {
-    return this.rolesService.setPermission(id, permissionId, true)
+  grant(@Param('id') id: string, @Param('permissionId') permissionId: string, @CurrentUser() user: AuthUser) {
+    return this.rolesService.setPermission(id, permissionId, true, user)
   }
 
   @Permissions('roles.write')
   @Delete(':id/permissions/:permissionId')
   @HttpCode(204)
-  revoke(@Param('id') id: string, @Param('permissionId') permissionId: string) {
-    return this.rolesService.setPermission(id, permissionId, false)
+  revoke(@Param('id') id: string, @Param('permissionId') permissionId: string, @CurrentUser() user: AuthUser) {
+    return this.rolesService.setPermission(id, permissionId, false, user)
   }
 }

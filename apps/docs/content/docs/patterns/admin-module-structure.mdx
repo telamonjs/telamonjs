@@ -231,13 +231,15 @@ Every key is documented in [CrudConfig](/docs/getting-started/crud-config). What
 ## Route Handlers
 
 The module owns a small REST API under `app/api/<module>/`. Every handler does
-three things in order: **authenticate, validate, execute**.
+three things in order: **authorize, validate, execute**. `requirePermission()`
+answers 401 without a session and 403 without the permission; a signed-in user
+is not enough.
 
 ```ts title="app/api/users/route.ts"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 
 const createSchema = z.object({
   name: z.string().min(1),
@@ -250,9 +252,8 @@ const createSchema = z.object({
 const SORTABLE_FIELDS = new Set(['name', 'email', 'role', 'active', 'createdAt'])
 
 export async function GET(request: NextRequest) {
-  if (!(await getCurrentUser())) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
+  const currentUser = await requirePermission('users.read')
+  if (currentUser instanceof NextResponse) return currentUser
 
   const { searchParams } = new URL(request.url)
   const page = Number(searchParams.get('page') ?? '1')
@@ -280,9 +281,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await getCurrentUser())) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
+  const currentUser = await requirePermission('users.write')
+  if (currentUser instanceof NextResponse) return currentUser
 
   const parsed = createSchema.safeParse(await request.json())
   if (!parsed.success) {

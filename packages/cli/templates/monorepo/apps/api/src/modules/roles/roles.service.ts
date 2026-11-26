@@ -1,6 +1,7 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common'
-import { markRoleHoldersStale } from '{{scope}}/shared/rbac'
+import { BadRequestException, ConflictException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common'
+import { canGrant, markRoleHoldersStale } from '{{scope}}/shared/rbac'
 import { PrismaService } from '../../common/prisma/prisma.service'
+import type { AuthUser } from '../../common/guards/jwt-auth.guard'
 import { CreateRoleDto, UpdateRoleDto } from './dto/role.dto'
 
 interface ListQuery {
@@ -106,17 +107,27 @@ export class RolesService {
 
   async remove(id: string) {
     await this.findEditable(id)
-    const client = this.prisma.client
-    // Holders lose the role's permissions: mark them before the rows go (cascade)
-    await markRoleHoldersStale(client, id)
-    await client.role.delete({ where: { id } })
+    // Holders lose the role's permissions. Stamp them after the rows go (cascade),
+    // in the same transaction: a mark committed before the delete would let a
+    // refresh in between store the deleted role's claims as fresh
+    await this.prisma.client.$transaction(async (tx) => {
+      const holders = await tx.userRole.findMany({ where: { roleId: id }, select: { userId: true } })
+      await tx.role.delete({ where: { id } })
+      await tx.user.updateMany({
+        where: { id: { in: holders.map(({ userId }) => userId) } },
+        data: { accessChangedAt: new Date() },
+      })
+    })
   }
 
   /** Grant (`true`) or revoke one permission — one PermissionMatrix cell. */
-  async setPermission(roleId: string, permissionId: string, grant: boolean) {
+  async setPermission(roleId: string, permissionId: string, grant: boolean, currentUser: AuthUser) {
     await this.findEditable(roleId)
     const client = this.prisma.client
     if (grant) {
+      if (!(await canGrant(client, currentUser, { permissionIds: [permissionId] }))) {
+        throw new ForbiddenException('You can only grant permissions you hold')
+      }
       await client.rolePermission.upsert({
         where: { roleId_permissionId: { roleId, permissionId } },
         update: {},

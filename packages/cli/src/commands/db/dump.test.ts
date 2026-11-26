@@ -3,7 +3,8 @@
  * runs (real bash, stub pg_dump on PATH).
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { gunzipSync } from 'node:zlib'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -69,6 +70,22 @@ describe('runDump (command wrapper)', () => {
     expect(args).toHaveLength(1)
     expect(args[0]).toMatch(/templates\/database\/dump\.sh$/)
     expect(opts).toEqual({ cwd, stdio: 'inherit' })
+  })
+
+  // A dump is the whole database: it must never be stageable, whatever the
+  // app's .gitignore says (apps generated before the template ignored it too).
+  it('keeps dumps out of git, also when database/dumps already exists', async () => {
+    execFileSync('git', ['init', '-q'], { cwd })
+    writeFileSync(join(cwd, '.gitignore'), '*.sql\n')
+    mkdirSync(join(cwd, 'database/dumps'), { recursive: true })
+
+    await runDump()
+
+    const ignored = execFileSync('git', ['check-ignore', 'database/dumps/dump_20260101_000000.sql.gz'], {
+      cwd,
+      encoding: 'utf-8',
+    })
+    expect(ignored.trim()).toBe('database/dumps/dump_20260101_000000.sql.gz')
   })
 
   it('passes the custom dump name to the script', async () => {

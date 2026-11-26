@@ -55,8 +55,12 @@ multi-file `prisma/schema/` folder, or a monorepo's `packages/shared/prisma`;
 it stops with an error when the schema or the model is missing), maps the fields to the field system and writes
 `config.tsx`, the list `page.tsx`, a detail component for the view dialog, a
 REST client and its route handlers, plus the module's i18n messages. Create,
-edit and view open in dialogs, with no extra routes. It also adds the module to
-the menu. Missing arguments are asked interactively. Options: `-m, --model`,
+edit and view open in dialogs, with no extra routes. The route handlers require
+`<name>.read` (GET) and `<name>.write` (POST, PATCH, DELETE); the command adds
+both to `PERMISSIONS` in `src/rbac.ts` (run `pnpm db:seed` so the admin role
+gets them); in an app without `requirePermission()` in `src/lib/auth.ts` it
+stops before writing anything. It also adds the module to the menu; the menu entry and the
+`CrudConfig` check the same codes. Missing arguments are asked interactively. Options: `-m, --model`,
 `-p, --path` (default `src/app/admin/<name>`), `--no-prisma-schema`,
 `--no-update-menu`, `-f, --force` (overwrite the module's messages block).
 `telamonjs g` is an alias of `generate`.

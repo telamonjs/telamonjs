@@ -65,7 +65,11 @@ New apps ship RBAC from the database, built on
 Changing a role's permissions, renaming or deleting it, or changing a user's
 roles stamps `accessChangedAt` on the affected users, so their next request
 carries fresh claims without a new sign-in; deactivating a user or changing
-their password stamps `sessionsRevokedAt` and ends their sessions. In the monorepo, `src/rbac.ts`
+their password stamps `sessionsRevokedAt` and ends their sessions. Granting has a
+ceiling (`canGrant()` in `src/rbac.ts`): `users.write`, `roles.write` and
+`invitations.write` only confer permissions the acting user already holds, only an
+admin confers the built-in `admin` role, and a user with more access than yours
+can't be edited; anything else is a 403. In the monorepo, `src/rbac.ts`
 moves to `packages/shared` (`@<name>/shared/rbac`) and `apps/api` enforces the
 same codes with `createPermissionsGuard` and `@Permissions(...)`.
 
@@ -158,11 +162,16 @@ which models exist; `--no-prisma-schema` generates generic fields instead.
 | `src/app/admin/<name>/page.tsx` | `<ListPage config={…} />`, the module's only route |
 | `src/app/admin/<name>/_components/<Model>Detail.tsx` | The view dialog body |
 | `src/lib/api/<name>-client.ts` | Typed REST client used by the config |
-| `src/app/api/<name>/route.ts`, `[id]/route.ts` | Route Handlers backed by Prisma |
+| `src/app/api/<name>/route.ts`, `[id]/route.ts` | Route Handlers backed by Prisma, gated by `requirePermission`: `<name>.read` on `GET`, `<name>.write` on `POST`, `PATCH` and `DELETE` |
 
-It also adds the module to `menu-items.ts`, writes the module's messages to
+It also adds `<name>.read` and `<name>.write` to `PERMISSIONS` in `src/rbac.ts`
+(`packages/shared/src/rbac.ts` from a monorepo's `apps/web`), adds the module
+to the menu with `permission: '<name>.read'` and gives the `CrudConfig` the
+same codes in `permissions`, writes the module's messages to
 `messages/{pt-BR,en,es}.json` when the app has i18n, and formats the files with
-Prettier when it is available.
+Prettier when it is available. In an app whose `src/lib/auth.ts` has no
+`requirePermission()` (one created before the template shipped RBAC), it stops
+before writing anything and names the template files to add first.
 
 | Option | Effect |
 | --- | --- |
@@ -181,10 +190,11 @@ telamonjs generate crud products --model Product
 telamonjs g crud                                  # fully interactive
 ```
 
-The output is a starting point. Fill in the `loadField` stubs for relationships,
-review the validation schema, and check that the Route Handlers match your
-authorization rules: none of that can be inferred from the schema. Icons are
-resolved by name from `src/lib/icons.ts`.
+The output is a starting point. Fill in the `loadField` stubs for relationships
+and review the validation schema: neither can be inferred from the schema. Run
+`pnpm db:seed` so the admin role gets the new permissions, then grant them to
+the other roles that need the module. Icons are resolved by name from
+`src/lib/icons.ts`.
 
 <Callout type='warn' title='Monorepo apps'>
   The generated Route Handlers import `@/lib/prisma`, which only exists in the single-app
@@ -216,7 +226,7 @@ What each module writes besides the shared edits below:
 
 | Module | Single app | Monorepo |
 | --- | --- | --- |
-| `audit` | `src/lib/audit.ts` (`audit()`, built on `computeDiff` and `redactPayload`), `GET /api/audit` and `/api/audit/[id]`; the users and roles Route Handlers call `audit()` after each create, update, (de)activation, deletion, grant and revoke | `apps/api/src/modules/audit` (`GET /v1/audit`, `GET /v1/audit/:id`), and `createAuditInterceptor` registered as `APP_INTERCEPTOR`, so every successful, authenticated mutation is recorded |
+| `audit` | `src/lib/audit.ts` (`audit()`, built on `computeDiff` and `redactPayload`), `GET /api/audit` and `/api/audit/[id]`; the users and roles Route Handlers call `audit()` after each create, update, (de)activation, deletion, grant and revoke. The IP is the `X-Forwarded-For` entry your reverse proxy added: `TRUSTED_PROXY_HOPS` from the right (default `1`; `0` when Next is reached directly, which records no IP) | `apps/api/src/modules/audit` (`GET /v1/audit`, `GET /v1/audit/:id`), and `createAuditInterceptor` registered as `APP_INTERCEPTOR`, so every successful, authenticated mutation is recorded |
 | `parameters` | `src/lib/parameters.ts` (`getParameter(key, fallback)`), Route Handlers under `/api/parameters` | `apps/api/src/modules/parameters` (`ParametersService.get(key, fallback)`, exported by its module), wired into `AppModule` |
 | `invitations` | `src/lib/invitations.ts`, `src/lib/mail.ts` (the mail port: `sendMail({ to, subject, html, text })`), Route Handlers under `/api/invitations` | `apps/api/src/modules/invitations` wired into `AppModule`, and `apps/api/src/modules/mail` (the mail port: the `MAIL_SENDER` token, a `MailSender` interface and `ConsoleMailSender`) |
 
@@ -231,7 +241,7 @@ Invitations: `GET /invitations`, `POST /invitations`, `POST /invitations/:id/res
 and `POST /invitations/accept` need no session. The link carries a random 32-byte
 token (`generateApiKey` from `@telamonjs/auth`) and the row keeps only its sha256
 (`hashApiKey`). Inviting an email that already has a user or a pending invitation is
-a 409. Accepting creates the user (active, with the invited roles that still exist)
+a 409; inviting with a role beyond your own access (the `canGrant` ceiling above) is a 403. Accepting creates the user (active, with the invited roles that still exist)
 and marks the invitation accepted in one transaction; an unknown, used, revoked or
 expired token gets the same 410. The accept page then signs in with the new
 credentials. Mail goes through the port above, which only logs to the console:

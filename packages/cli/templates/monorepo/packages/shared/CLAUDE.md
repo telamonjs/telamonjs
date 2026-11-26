@@ -8,13 +8,14 @@ in `package.json` — never via a relative `../../packages/shared/src` import.
 
 ```
 ./prisma  → dist/lib/prisma.js
-./rbac    → dist/rbac.js        # PERMISSIONS catalog, loadAccess, markRoleHoldersStale
+./rbac    → dist/rbac.js        # PERMISSIONS catalog, loadAccess, markRoleHoldersStale, canGrant
 ```
 
 `src/rbac.ts` is the RBAC source of the whole repo: the permission catalog
 (the seed syncs the `Permission` table with it), `loadAccess()` (roles +
 permission codes, read by `apps/web` at sign-in and by `apps/api`'s guard on a
-stale token) and `markRoleHoldersStale()`. Add a permission there, enforce it
+stale token), `markRoleHoldersStale()` and `canGrant()` (the privilege ceiling
+every role/permission grant goes through). Add a permission there, enforce it
 with `@Permissions()` in `apps/api`, then `pnpm db:seed`.
 
 Add more entries here as real shared logic moves in (e.g. `./lib/*` →
@@ -40,5 +41,5 @@ client bundle that imports the barrel by accident.
 ```bash
 pnpm --filter {{scope}}/shared build         # tsc -> dist
 pnpm --filter {{scope}}/shared prisma:push   # or db:push from the root
-pnpm --filter {{scope}}/shared prisma:seed   # admin@example.com / 12345
+pnpm --filter {{scope}}/shared prisma:seed   # admin@example.com / 12345 on an empty database
 ```
