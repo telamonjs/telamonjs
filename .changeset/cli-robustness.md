@@ -13,3 +13,7 @@ models the schema has) instead of quietly generating placeholder fields;
 The schema parser no longer truncates a model at a `}` inside a string (`@default("{}")`)
 or a comment, ignores commented-out models, reads `@default(cuid())` whole, and matches
 `--model` literally instead of as a regular expression.
+
+Formatting the generated files works for paths with spaces (Prettier gets an argument
+list instead of a shell string), never downloads Prettier when the app doesn't have it,
+and a failure now prints Prettier's reason instead of a generic "not found".

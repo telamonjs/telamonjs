@@ -7,7 +7,7 @@ import chalk from 'chalk'
 import ora from 'ora'
 import { writeFileSync, mkdirSync, existsSync } from 'fs'
 import { join, dirname } from 'path'
-import { execSync } from 'child_process'
+import execa from 'execa'
 
 import {
   requirePrismaModel,
@@ -112,13 +112,9 @@ export async function generateCrud(
 
     // 6. Format with Prettier (if available)
     spinner.start('Formatting code...')
-    try {
-      const filePaths = files.map(f => f.path).join(' ')
-      execSync(`npx prettier --write ${filePaths}`, { cwd, stdio: 'ignore' })
-      spinner.succeed('Code formatted')
-    } catch {
-      spinner.warn('Could not format with Prettier (not found)')
-    }
+    const formatWarning = formatWithPrettier(files.map(f => f.path), cwd)
+    if (formatWarning) spinner.warn(chalk.yellow(formatWarning))
+    else spinner.succeed('Code formatted')
 
     spinner.stop()
 
@@ -148,6 +144,22 @@ export async function generateCrud(
       chalk.red(error instanceof Error ? error.message : String(error))
     )
     process.exit(1)
+  }
+}
+
+/**
+ * Run the app's Prettier on the generated files. Paths go as an args array
+ * (spaces survive) and `--no-install` stops npx from downloading Prettier when the app
+ * doesn't have it. Returns a warning on failure, undefined on success.
+ */
+export function formatWithPrettier(paths: string[], cwd: string): string | undefined {
+  try {
+    execa.sync('npx', ['--no-install', 'prettier', '--write', ...paths], { cwd })
+    return undefined
+  } catch (error) {
+    const { stderr, shortMessage, message } = error as { stderr?: string; shortMessage?: string; message?: string }
+    const reason = stderr?.trim().split('\n')[0] || shortMessage || message || String(error)
+    return `Could not format with Prettier (${reason}). The generated files are still valid, just unformatted.`
   }
 }
 
