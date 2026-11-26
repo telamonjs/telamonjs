@@ -26,6 +26,8 @@ export interface ForgotPasswordFormProps {
   /** Focuses the email field on mount. */
   autoFocus?: boolean
   className?: string
+  /** Classes for the error alert, merged over the default (destructive) style. */
+  errorClassName?: string
   /** Classes for the submit button (merged with `w-full`). */
   submitClassName?: string
 }
@@ -47,6 +49,7 @@ export function ForgotPasswordForm({
   emailPlaceholder,
   autoFocus,
   className,
+  errorClassName,
   submitClassName,
 }: ForgotPasswordFormProps) {
   const t = useTelamonjsT()
@@ -107,7 +110,7 @@ export function ForgotPasswordForm({
   return (
     <form onSubmit={submit} noValidate className={cn('space-y-4', className)}>
       {failed && (
-        <div role='alert' className='rounded-md bg-destructive/10 p-3 text-sm text-destructive'>
+        <div role='alert' className={cn('rounded-md bg-destructive/10 p-3 text-sm text-destructive', errorClassName)}>
           {t('auth.forgotError')}
         </div>
       )}

@@ -229,6 +229,21 @@ describe('SignInForm', () => {
       expect(screen.getByRole('link', { name: 'continue' })).toHaveAttribute('href', '/sso')
     })
 
+    it('errorClassName restyles the alert per error code (merged over the default)', async () => {
+      signIn.mockResolvedValueOnce({ ok: false, error: 'CredentialsSignin', code: 'sso_only', status: 401, url: null })
+      render(
+        <SignInForm
+          errorMessages={{ sso_only: 'Use single sign-on.' }}
+          errorClassName={code => (code === 'sso_only' ? 'bg-amber-50 text-amber-900 border-l-4' : undefined)}
+        />
+      )
+      await fillAndSubmit()
+      const alert = await screen.findByRole('alert')
+      expect(alert.className).toContain('bg-amber-50')
+      expect(alert.className).toContain('border-l-4')
+      expect(alert.className).not.toContain('bg-destructive/10')
+    })
+
     it('autoFocus, passwordPlaceholder and submitClassName reach the fields', () => {
       render(<SignInForm autoFocus passwordPlaceholder='Your password' submitClassName='h-12' />)
       expect(screen.getByLabelText('E-mail')).toHaveFocus()

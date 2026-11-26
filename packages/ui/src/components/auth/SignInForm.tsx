@@ -66,6 +66,12 @@ export interface SignInFormProps {
    */
   errorMessages?: Record<string, I18nText | ReactNode>
   /**
+   * Classes for the error alert, merged over the default (destructive) style;
+   * a function receives the error `code` (or `error`) to restyle one case,
+   * e.g. a warning-colored notice for an SSO-only account.
+   */
+  errorClassName?: string | ((code: string | undefined) => string | undefined)
+  /**
    * Replaces `signIn('credentials', ...)` for apps that authenticate another
    * way. Resolve `{ error }` to show an error, anything else to succeed.
    */
@@ -104,6 +110,7 @@ export function SignInForm({
   callbackUrl = '/',
   forgotPasswordHref,
   errorMessages,
+  errorClassName,
   onSubmit,
   onSuccess,
   className,
@@ -115,6 +122,7 @@ export function SignInForm({
   const id = useId()
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<ReactNode>(null)
+  const [errorCode, setErrorCode] = useState<string | undefined>()
   const [showPassword, setShowPassword] = useState(false)
 
   const schema = useMemo(() => {
@@ -164,6 +172,7 @@ export function SignInForm({
             callbackUrl: url,
           })
       if (res?.error) {
+        setErrorCode(res.code ?? res.error ?? undefined)
         setError(errorText(res))
         setPending(false)
         return
@@ -175,6 +184,7 @@ export function SignInForm({
         router.refresh()
       }
     } catch {
+      setErrorCode(undefined)
       setError(t('auth.signInError'))
       setPending(false)
     }
@@ -186,7 +196,13 @@ export function SignInForm({
   return (
     <form onSubmit={submit} noValidate className={cn('space-y-4', className)}>
       {error && (
-        <div role='alert' className='rounded-md bg-destructive/10 p-3 text-sm text-destructive'>
+        <div
+          role='alert'
+          className={cn(
+            'rounded-md bg-destructive/10 p-3 text-sm text-destructive',
+            typeof errorClassName === 'function' ? errorClassName(errorCode) : errorClassName
+          )}
+        >
           {error}
         </div>
       )}
