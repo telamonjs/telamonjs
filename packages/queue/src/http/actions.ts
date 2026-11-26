@@ -147,7 +147,7 @@ async function performActionOnAllQueues(
     success: !allFailed,
     message:
       errors.length > 0
-        ? `Cleaned ${removed} jobs across ${names.length} queues (${errors.length} falharam)`
+        ? `Cleaned ${removed} jobs across ${names.length} queues (${errors.length} failed)`
         : `Cleaned ${removed} jobs across ${names.length} queues`,
     removed,
     byQueue,

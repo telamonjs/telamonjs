@@ -56,10 +56,10 @@ export async function handleGetHistoryAll(
   params: GetHistoryAllParams
 ): Promise<HistoryAllResponse> {
   if (params.startDate && isNaN(Date.parse(params.startDate))) {
-    throw new QueueHttpError('startDate inválido: use ISO 8601', 400)
+    throw new QueueHttpError('Invalid startDate: use ISO 8601', 400)
   }
   if (params.endDate && isNaN(Date.parse(params.endDate))) {
-    throw new QueueHttpError('endDate inválido: use ISO 8601', 400)
+    throw new QueueHttpError('Invalid endDate: use ISO 8601', 400)
   }
 
   const statusList = (params.statuses ?? 'completed,failed')

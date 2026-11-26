@@ -63,10 +63,10 @@ describe('handleGetHistoryAll', () => {
   it('rejects an invalid startDate/endDate', async () => {
     await expect(
       handleGetHistoryAll(makeDeps(), { startDate: 'not-a-date' })
-    ).rejects.toMatchObject({ status: 400 })
+    ).rejects.toMatchObject({ status: 400, message: 'Invalid startDate: use ISO 8601' })
     await expect(
       handleGetHistoryAll(makeDeps(), { endDate: 'not-a-date' })
-    ).rejects.toMatchObject({ status: 400 })
+    ).rejects.toMatchObject({ status: 400, message: 'Invalid endDate: use ISO 8601' })
   })
 
   it('aggregates completed+failed across queues with global stats when unfiltered', async () => {

@@ -154,6 +154,7 @@ describe('handlePerformAction', () => {
       })
 
       expect(result.success).toBe(false)
+      expect(result.message).toBe('Cleaned 0 jobs across 1 queues (1 failed)')
       expect(result.errors).toEqual(['q1: boom'])
       expect(logger.error).toHaveBeenCalled()
     })
