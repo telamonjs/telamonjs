@@ -41,7 +41,7 @@
     "test:coverage": "vitest run --coverage",
     "lint": "eslint src --ext ts --report-unused-disable-directives --max-warnings 0",
     "format": "prettier --write src",
-    "type-check": "tsc --noEmit",
+    "type-check": "tsc --noEmit && tsc -p tsconfig.typetest.json",
     "verify": "pnpm lint && pnpm type-check && pnpm test && pnpm build"
   },
   "keywords": [

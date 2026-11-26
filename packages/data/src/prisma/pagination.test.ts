@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createPaginationContext } from './pagination.js'
-import type { AuthUser, PaginatedServiceConfig } from './types.js'
+import type { AuthUser, PaginatedServiceConfig, PaginationContext } from './types.js'
 import type { PaginationParams } from '../contract.js'
 
 function setup(config: Partial<PaginatedServiceConfig> = {}) {
@@ -16,8 +16,8 @@ function setup(config: Partial<PaginatedServiceConfig> = {}) {
     defaultOrderDirection: 'asc',
     ...config,
   })
-  const orderByFor = async (params: PaginationParams) => {
-    await service.list(params)
+  const orderByFor = async (params: Omit<PaginationParams, 'page' | 'pageSize'>) => {
+    await service.list({ page: 1, pageSize: 10, ...params })
     return findMany.mock.calls.at(-1)?.[0].orderBy
   }
   return { orderByFor }
@@ -184,12 +184,15 @@ describe('createCachedPaginatedService without cache', () => {
 describe('createCachedPaginatedService cache keys', () => {
   function setupCached(config: Partial<PaginatedServiceConfig> = {}) {
     const store = new Map<string, unknown>()
-    const cache = {
+    const cacheEntity = vi.fn(async (_entity: string, key: string, fetcher: () => Promise<unknown>) => {
+      if (!store.has(key)) store.set(key, await fetcher())
+      return store.get(key)
+    })
+    // a vi.fn mock loses the generic signature cacheEntity needs
+    const cache: NonNullable<PaginationContext['cache']> = {
       invalidateEntity: vi.fn(),
-      cacheEntity: vi.fn(async <T,>(_entity: string, key: string, fetcher: () => Promise<T>) => {
-        if (!store.has(key)) store.set(key, await fetcher())
-        return store.get(key) as T
-      }),
+      cacheEntity: <T,>(entity: string, key: string, fetcher: () => Promise<T>) =>
+        cacheEntity(entity, key, fetcher) as Promise<T>,
     }
     let currentUser: string | null = 'alice'
     const findMany = vi.fn(async () => [{ ownerId: currentUser }])
@@ -206,7 +209,7 @@ describe('createCachedPaginatedService cache keys', () => {
     })
     return {
       service,
-      cache,
+      cacheEntity,
       store,
       as: (user: string | null) => {
         currentUser = user
@@ -238,7 +241,7 @@ describe('createCachedPaginatedService cache keys', () => {
   })
 
   it('does not cache when visibility is set and nobody is signed in', async () => {
-    const { service, as, cache } = setupCached({ visibility })
+    const { service, as, cacheEntity } = setupCached({ visibility })
 
     as(null)
     expect(await service.list(params)).toEqual({
@@ -249,7 +252,7 @@ describe('createCachedPaginatedService cache keys', () => {
       totalPages: 0,
     })
     expect(await service.getFilterOptions!()).toEqual({})
-    expect(cache.cacheEntity).not.toHaveBeenCalled()
+    expect(cacheEntity).not.toHaveBeenCalled()
   })
 
   it('keeps the shared key when there is no visibility rule', async () => {

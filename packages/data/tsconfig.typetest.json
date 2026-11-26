@@ -1,0 +1,7 @@
+{
+  // The test files, which the build tsconfig excludes: vitest alone doesn't type-check them.
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"]
+}
