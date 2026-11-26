@@ -1,5 +1,11 @@
 # Changelog
 
+## ui 1.15.1 (2026-11-25)
+
+- `@telamonjs/ui`: the saved views "Share" link works. It now uses `?sharedView=` and is applied when the
+  page opens. Before, it used `?view=` and nothing read it. The query builder also shows a number value
+  of `0` instead of an empty input.
+
 ## ui 1.15.0, data 1.4.0, queue 1.4.2, cli 1.4.1 (2026-11-25)
 
 Quality pass, plus the bugs it found.
