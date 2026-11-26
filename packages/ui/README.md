@@ -122,7 +122,7 @@ Every name each entry point exports, runtime and types: [Public API index](https
 
 ## Full docs
 
-**Full docs →** [getting started, components and patterns](https://github.com/telamonjs/telamonjs/tree/main/apps/docs/content/docs)
+**Full docs →** [getting started, components and patterns](https://telamonjs.com/docs)
 (MDX sources of the docs site, readable on GitHub).
 
 MIT licensed. Base primitives are derived from [shadcn/ui](https://ui.shadcn.com);
