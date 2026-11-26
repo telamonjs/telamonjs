@@ -298,6 +298,20 @@ import { QueueDashboard, JobDetailPage } from '@telamonjs/ui/queue'
 | `onRefresh` | `() => void` | Called after a successful update |
 | `moduleLabels` / `jobLabel` | as on `QueueTabbedDashboard` | Module badge and title; pass the dashboard's values |
 
+The header `QueueDashboard` renders with `showHeader` is exported as `QueueDashboardHeader`, and
+the display config of a job state (icon, label, colors) as the type `JobStatusConfig`:
+
+```tsx
+import { QueueDashboardHeader, type JobStatusConfig } from '@telamonjs/ui/queue'
+```
+
+<Callout type='warn'>
+The older names `DashboardHeader` and `StatusConfig` are still exported from
+`@telamonjs/ui/queue` but deprecated: the root barrel has a `DashboardHeader` (the
+`DashboardShell` header) and a `StatusConfig` (the `DetailStatus` config) that are different
+symbols.
+</Callout>
+
 Types (`QueueStats`, `DashboardStats`, `JobInfo`, `JobConfig`, `JobHistoryEntry`,
 `QueueApiAdapter`, `QueueConfigApiAdapter`, …) are exported from the same subpath.
 

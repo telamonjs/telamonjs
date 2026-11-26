@@ -763,6 +763,7 @@ Runtime:
 - `JobDetailPage`
 - `QueueApiProvider`
 - `QueueDashboard`
+- `QueueDashboardHeader`
 - `QueueTabbedDashboard`
 - `createNestJSAdapter`
 - `createNextJSAdapter`
@@ -788,6 +789,7 @@ Types:
 - `JobHistoryEntry` (type)
 - `JobInfo` (type)
 - `JobState` (type)
+- `JobStatusConfig` (type)
 - `JobsAllParams` (type)
 - `JobsAllResponse` (type)
 - `JobsResponse` (type)
