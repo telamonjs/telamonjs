@@ -13,13 +13,22 @@ export interface JobConfigStoreOptions {
   redis: RedisConfig | IORedis
 
   /**
-   * Key prefix. Layout is `${keyPrefix}{jobName}` (HASH),
+   * App namespace: pass the same `prefix` as the app's QueueManager /
+   * QueueRegistry so apps sharing one Redis never see, orphan or edit each
+   * other's job configs. Keys default to `${prefix}:config:`.
+   *
+   * @default 'telamonjs' (the queue prefix default)
+   */
+  prefix?: string
+
+  /**
+   * Full key prefix; wins over `prefix`. Layout is `${keyPrefix}{jobName}` (HASH),
    * `${keyPrefix}__index__` (SET), `${keyPrefix}{jobName}:history` (LIST).
    *
    * CRITICAL: identical layout to the original consumer-app redis adapter
    * so the same Redis data is readable with zero migration.
    *
-   * @default 'telamonjs:config:'
+   * @default `${prefix}:config:` ('telamonjs:config:')
    */
   keyPrefix?: string
 
@@ -59,6 +68,18 @@ const BACKFILLABLE_FIELDS: ReadonlyArray<
 ]
 
 /**
+ * Optional fields that `set()` deletes when the partial carries them as
+ * `undefined`/`null` - what the PATCH route sends for a cleared field
+ * ("No limit", "No schedule"). Left out of the partial = left untouched.
+ */
+const CLEARABLE_FIELDS = [
+  'description',
+  'cronPattern',
+  'concurrency',
+  'timeout',
+] as const satisfies ReadonlyArray<keyof JobConfig>
+
+/**
  * Redis-backed store for job configuration (enabled/disabled, cron pattern,
  * priority, concurrency, timeout) with change history.
  *
@@ -76,7 +97,8 @@ export class JobConfigStore {
   private readonly logger: ILogger
 
   constructor(options: JobConfigStoreOptions) {
-    this.keyPrefix = options.keyPrefix ?? 'telamonjs:config:'
+    this.keyPrefix =
+      options.keyPrefix ?? `${options.prefix ?? 'telamonjs'}:config:`
     this.indexKey = `${this.keyPrefix}__index__`
     this.historyLimit = options.historyLimit ?? 50
     this.defaultTimezone = options.defaultTimezone ?? 'UTC'
@@ -199,6 +221,11 @@ export class JobConfigStore {
     return this.hashToConfig(jobName, hash)
   }
 
+  /**
+   * Merge `partial` into the job's config. A `description`, `cronPattern`,
+   * `concurrency` or `timeout` key present with the value `undefined` (or
+   * `null`) clears that field; a key left out keeps its stored value.
+   */
   async set(
     jobName: string,
     partial: Partial<JobConfig>,
@@ -215,6 +242,10 @@ export class JobConfigStore {
     }
 
     await this.redis.hset(this.key(jobName), this.configToHash(fullConfig))
+    const cleared = CLEARABLE_FIELDS.filter(
+      field => field in partial && partial[field] == null
+    )
+    if (cleared.length > 0) await this.redis.hdel(this.key(jobName), ...cleared)
     await this.redis.sadd(this.indexKey, jobName)
 
     if (user) {

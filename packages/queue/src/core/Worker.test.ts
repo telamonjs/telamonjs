@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { Queue as BullQueue } from 'bullmq'
 import { Worker } from './Worker'
 import { Job } from './Job'
-import { createTestRedisConfig } from '../test/fixtures/test-helpers'
+import type { JobOptions, WorkerConfig } from './types'
+import { JobTimeoutError } from '../utils/errors'
+import {
+  cleanupTestQueues,
+  createTestRedisConfig,
+} from '../test/fixtures/test-helpers'
 import { isRedisAvailable } from '../test/redis-availability'
 
 // Test job class
@@ -289,6 +295,125 @@ describe.skipIf(!redisAvailable)('Worker', () => {
       })
 
       expect(worker.isActive()).toBe(false)
+    })
+  })
+
+  // 8. Per-job timeout: the deadline from JobConfigStore (timeoutPerQueue),
+  // job.opts.timeout or the class's options.timeout fails the attempt and
+  // frees the concurrency slot instead of holding it until process() settles.
+  describe('Timeout', () => {
+    let seq = 0
+    let prefix: string
+    let queue: BullQueue | undefined
+
+    beforeEach(() => {
+      prefix = `test-timeout-${Date.now()}-${seq++}`
+    })
+
+    afterEach(async () => {
+      await queue?.close()
+      queue = undefined
+      await cleanupTestQueues(prefix)
+    })
+
+    class HungJob extends Job<Record<string, never>, string> {
+      name = 'hung-job'
+      options: JobOptions = { timeout: 50 }
+      signal: AbortSignal | undefined
+
+      async process(
+        _data: Record<string, never>,
+        ctx?: { signal: AbortSignal }
+      ): Promise<string> {
+        this.signal = ctx?.signal
+        return new Promise<string>(() => {})
+      }
+    }
+
+    class QuickJob extends Job<Record<string, never>, string> {
+      name = 'quick-job'
+      options: JobOptions = {}
+
+      async process(): Promise<string> {
+        await new Promise(resolve => setTimeout(resolve, 30))
+        return 'done'
+      }
+    }
+
+    /** Run one job through a real BullMQ worker and report how it settled. */
+    async function runOne(
+      jobInstance: Job<Record<string, never>, string>,
+      opts: JobOptions,
+      timeoutPerQueue?: number
+    ): Promise<{ ok: true; result: string } | { ok: false; error: Error; ms: number }> {
+      const name = `${jobInstance.name}-${seq++}`
+      queue = new BullQueue(name, { connection: redis, prefix })
+      const start = Date.now()
+      const config: WorkerConfig = { concurrency: 1 }
+      if (timeoutPerQueue !== undefined) config.timeoutPerQueue = { [name]: timeoutPerQueue }
+      worker = new Worker(name, jobInstance, redis, config, prefix)
+      const outcome = new Promise<
+        { ok: true; result: string } | { ok: false; error: Error; ms: number }
+      >(resolve => {
+        const raw = worker.getRawWorker()
+        raw.on('completed', (_job, result) => resolve({ ok: true, result: result as string }))
+        raw.on('failed', (_job, error) => resolve({ ok: false, error, ms: Date.now() - start }))
+      })
+      await queue.add(name, {}, { attempts: 1, ...opts })
+      return outcome
+    }
+
+    it('fails a hung job with JobTimeoutError and aborts its signal', async () => {
+      const job = new HungJob()
+      const outcome = await runOne(job, { timeout: 50 })
+
+      expect(outcome.ok).toBe(false)
+      if (outcome.ok) return
+      expect(outcome.error).toBeInstanceOf(JobTimeoutError)
+      expect(outcome.ms).toBeLessThan(5000)
+      expect(job.signal?.aborted).toBe(true)
+      expect(job.signal?.reason).toBe(outcome.error)
+    })
+
+    it("falls back to the class's options.timeout when job.opts has none (dashboard dispatch, DLQ retry)", async () => {
+      const outcome = await runOne(new HungJob(), {})
+
+      expect(outcome.ok).toBe(false)
+      if (!outcome.ok) expect(outcome.error).toBeInstanceOf(JobTimeoutError)
+    })
+
+    it('timeoutPerQueue (the JobConfigStore value) wins over job.opts.timeout', async () => {
+      const outcome = await runOne(new HungJob(), { timeout: 600_000 }, 50)
+
+      expect(outcome.ok).toBe(false)
+      if (!outcome.ok) expect(outcome.error).toBeInstanceOf(JobTimeoutError)
+    })
+
+    it('times out a slow onActive hook without an unhandled rejection', async () => {
+      class SlowHookJob extends QuickJob {
+        options: JobOptions = { timeout: 50 }
+        async onActive(): Promise<void> {
+          await new Promise(resolve => setTimeout(resolve, 150))
+        }
+      }
+      const outcome = await runOne(new SlowHookJob(), {})
+
+      expect(outcome.ok).toBe(false)
+      if (!outcome.ok) expect(outcome.error).toBeInstanceOf(JobTimeoutError)
+      // Let the hook finish: a stray rejection would surface here.
+      await new Promise(resolve => setTimeout(resolve, 200))
+    })
+
+    it('clamps a timeout above the timer limit instead of firing at once', async () => {
+      const outcome = await runOne(new QuickJob(), {}, 2 ** 31)
+
+      expect(outcome).toEqual({ ok: true, result: 'done' })
+    })
+
+    it('leaves a job with no timeout anywhere unchanged', async () => {
+      const outcome = await runOne(new QuickJob(), {})
+
+      expect(outcome).toEqual({ ok: true, result: 'done' })
     })
   })
 })

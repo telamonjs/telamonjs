@@ -41,6 +41,9 @@ export async function handleDispatch(
     throw new QueueHttpError(`Job is not dispatchable: ${queueName}`, 400)
   }
 
+  // The job gets the schema's output, not the raw body: unknown keys
+  // stripped, defaults and transforms applied.
+  let payload: unknown = data
   if (contract.schema) {
     const validation = contract.schema.safeParse(data)
     if (!validation.success) {
@@ -49,6 +52,7 @@ export async function handleDispatch(
         422
       )
     }
+    payload = validation.data
   }
 
   const queue = deps.queues.getQueue(queueName)
@@ -57,7 +61,7 @@ export async function handleDispatch(
   }
 
   const jobData = {
-    ...data,
+    ...(payload as Record<string, unknown>),
     triggeredBy: actor,
     triggeredAt: new Date().toISOString(),
   }

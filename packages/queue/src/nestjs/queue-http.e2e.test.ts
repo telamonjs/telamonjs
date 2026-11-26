@@ -1,12 +1,12 @@
 import 'reflect-metadata'
 import * as http from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { describe, it, expect, vi, beforeAll, afterAll } from 'vitest'
+import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest'
 import { Injectable } from '@nestjs/common'
 import type { CanActivate, ExecutionContext, INestApplication } from '@nestjs/common'
 import { Test } from '@nestjs/testing'
 import request from 'supertest'
-import type { Request } from 'express'
+import type { Request, Response } from 'express'
 import { createPermissionsGuard } from '@telamonjs/permissions/nest'
 import { QueueHttpModule } from './queue-http.module.js'
 import {
@@ -17,6 +17,7 @@ import {
   makeBullJob,
 } from '../http/test-support.js'
 import type { Queue as BullQueue } from 'bullmq'
+import type { SSEClient } from '../events/SSEBroadcaster.js'
 
 /**
  * Minimal end-to-end proof that `QueueHttpModule.forRoot()` actually binds
@@ -257,4 +258,135 @@ describe('QueueHttpModule e2e (readPermission / writePermission)', () => {
     await request(app.getHttpServer()).patch('/queue/config/send-email').send({}).expect(403)
     await request(app.getHttpServer()).post('/queue/jobs/remove').send({}).expect(403)
   })
+})
+
+/**
+ * The SSE stream outlives the request that authorized it: these pin down
+ * when a stream leaves the broadcaster. Each guard verdict stands in for a
+ * real one: `wait-for-close` is an async guard (a JWE decrypt) the client
+ * gives up on, `deny` a session revoked, a permission removed or a token
+ * expired after the stream opened.
+ */
+class SwitchGuard implements CanActivate {
+  mode: 'allow' | 'deny' | 'wait-for-close' = 'allow'
+  lastResponse: Response | undefined
+  released: Promise<void> = Promise.resolve()
+
+  canActivate(context: ExecutionContext): boolean | Promise<boolean> {
+    const res = context.switchToHttp().getResponse<Response>()
+    this.lastResponse = res
+    if (this.mode !== 'wait-for-close') return this.mode === 'allow'
+    let release = (): void => {}
+    this.released = new Promise(resolve => (release = resolve))
+    return new Promise(resolve =>
+      res.once('close', () => {
+        resolve(true)
+        release()
+      })
+    )
+  }
+}
+
+describe('QueueHttpModule e2e (SSE stream lifecycle)', () => {
+  let app: INestApplication
+  let port: number
+  const guard = new SwitchGuard()
+  // What the broadcaster still holds: added by addClient, removed by unsubscribe
+  const live = new Set<SSEClient>()
+
+  beforeAll(async () => {
+    const eventBroadcaster = {
+      addClient: (client: SSEClient) => {
+        live.add(client)
+        return () => {
+          live.delete(client)
+        }
+      },
+      close: vi.fn(),
+    }
+    const moduleRef = await Test.createTestingModule({
+      imports: [
+        QueueHttpModule.forRoot({
+          depsFactory: () => makeDeps({ eventBroadcaster }),
+          getActor: () => 'qa',
+          guards: [guard],
+          sseMaxAgeMs: 200,
+        }),
+      ],
+    }).compile()
+
+    app = moduleRef.createNestApplication()
+    await app.listen(0, '127.0.0.1')
+    port = (app.getHttpServer().address() as AddressInfo).port
+  })
+
+  afterAll(async () => {
+    await app.close()
+  })
+
+  beforeEach(() => {
+    live.clear()
+  })
+
+  const openStream = () =>
+    new Promise<{ req: http.ClientRequest; res: http.IncomingMessage }>((resolve, reject) => {
+      const req = http.request({ host: '127.0.0.1', port, path: '/queue/events' }, res =>
+        resolve({ req, res })
+      )
+      req.on('error', reject)
+      req.end()
+    })
+
+  it('does not keep a client that disconnected while an async guard was running', async () => {
+    guard.lastResponse = undefined
+    guard.mode = 'wait-for-close'
+    const req = http.request({ host: '127.0.0.1', port, path: '/queue/events' })
+    req.on('error', () => {
+      // The client aborting its own request
+    })
+    req.end()
+    await vi.waitFor(() => expect(guard.lastResponse).toBeDefined())
+    req.destroy()
+
+    await guard.released
+    // Let Nest run the handler the guard just let through
+    await new Promise(resolve => setTimeout(resolve, 50))
+    expect(live.size).toBe(0)
+  })
+
+  it('ends the stream after sseMaxAgeMs, and the reconnect goes back through the guards', async () => {
+    guard.mode = 'allow'
+    const { res } = await openStream()
+    expect(res.statusCode).toBe(200)
+    expect(live.size).toBe(1)
+
+    guard.mode = 'deny'
+    let body = ''
+    res.setEncoding('utf8')
+    res.on('data', (chunk: string) => (body += chunk))
+    await new Promise(resolve => res.once('end', resolve))
+    expect(live.size).toBe(0)
+    // Lets the client tell this planned end from a dropped connection
+    expect(body).toMatch(/^event: reconnect\ndata: .+\n\n$/)
+
+    const reconnect = await openStream()
+    expect(reconnect.res.statusCode).toBe(403)
+    reconnect.res.resume()
+  }, 5000)
+
+  it('at sseMaxAgeMs, destroys a stream whose client stopped reading instead of holding its buffer', async () => {
+    guard.mode = 'allow'
+    const { req, res } = await openStream()
+    res.pause()
+    const [client] = live
+    const frame = `data: ${'x'.repeat(1024 * 1024)}\n\n`
+    // Enough to fill both kernel socket buffers on loopback, so frames queue in the heap
+    for (let i = 0; i < 32; i++) client?.write(frame)
+    expect(guard.lastResponse?.writableNeedDrain).toBe(true)
+
+    // end() would queue behind the stuck frames and never finish
+    await vi.waitFor(() => expect(guard.lastResponse?.destroyed).toBe(true), { timeout: 2000 })
+    expect(live.size).toBe(0)
+    req.destroy()
+  }, 5000)
 })

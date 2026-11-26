@@ -76,6 +76,28 @@ describe('QueueHttpModule.forRoot', () => {
     expect(c1).not.toBe(c2)
   })
 
+  describe('sseMaxAgeMs', () => {
+    const maxAgeOf = (dynamicModule: ReturnType<typeof QueueHttpModule.forRoot>) => {
+      const [controller] = dynamicModule.controllers as AnyController[]
+      return (new controller() as { sseMaxAgeMs: number }).sseMaxAgeMs
+    }
+
+    it('bounds every SSE stream to 5 minutes by default, or to the given value', () => {
+      const base = { depsFactory: vi.fn(), getActor: vi.fn() }
+      expect(maxAgeOf(QueueHttpModule.forRoot(base))).toBe(300_000)
+      expect(maxAgeOf(QueueHttpModule.forRoot({ ...base, sseMaxAgeMs: 60_000 }))).toBe(60_000)
+    })
+
+    it.each([0, -1, Number.NaN, Number.POSITIVE_INFINITY, 2 ** 31])(
+      'throws at boot for %s (setTimeout would fire at once and loop reconnects)',
+      sseMaxAgeMs => {
+        expect(() =>
+          QueueHttpModule.forRoot({ depsFactory: vi.fn(), getActor: vi.fn(), sseMaxAgeMs })
+        ).toThrow(/sseMaxAgeMs/)
+      }
+    )
+  })
+
   describe('readPermission / writePermission', () => {
     const routeNames = Object.getOwnPropertyNames(QueueControllerBase.prototype).filter(
       name =>

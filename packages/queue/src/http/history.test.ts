@@ -127,6 +127,20 @@ describe('handleGetHistoryAll', () => {
     expect(result.approximate).toBe(true)
   })
 
+  it('fetches each status once per queue, however often it is repeated in `statuses`', async () => {
+    const getJobs = vi.fn().mockResolvedValue([makeBullJob({ id: 'c1' })])
+    const queue = makeQueue({ getJobs, getCompletedCount: vi.fn().mockResolvedValue(7) })
+    const queues = makeQueueSource({ q1: queue })
+
+    const result = await handleGetHistoryAll(makeDeps({ queues }), {
+      statuses: Array(2000).fill('completed').join(','),
+    })
+
+    expect(getJobs).toHaveBeenCalledTimes(1)
+    expect(result.total).toBe(7)
+    expect(result.jobs.map(j => j.id)).toEqual(['c1'])
+  })
+
   it('filters to a single queue when `queue` is provided', async () => {
     const q1 = makeQueue({ getJobs: vi.fn().mockResolvedValue([]) })
     const q2 = makeQueue({ getJobs: vi.fn().mockResolvedValue([]) })

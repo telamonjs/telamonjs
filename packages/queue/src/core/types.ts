@@ -46,7 +46,10 @@ export interface JobOptions extends Omit<JobsOptions, 'repeat'> {
   delay?: number
 
   /**
-   * Job timeout (ms)
+   * Job timeout (ms). An attempt that runs longer fails with
+   * `JobTimeoutError` and is retried while `process()` is told to stop via
+   * `ctx.signal` - a handler that ignores the signal keeps running alongside
+   * the retry, so it must honor the signal or be safe to run twice.
    */
   timeout?: number
 
@@ -195,6 +198,13 @@ export interface WorkerConfig {
    * Jobs not listed here fall back to `concurrency`.
    */
   concurrencyPerQueue?: Record<string, number>
+
+  /**
+   * Per-queue timeout overrides (ms), keyed by job name. Win over the job's
+   * own `JobOptions.timeout`; `createWorkersFromConfig` fills them from the
+   * `JobConfigStore`.
+   */
+  timeoutPerQueue?: Record<string, number>
 }
 
 /**
@@ -252,9 +262,12 @@ export interface IJob<TData = unknown, TResult = unknown> {
   configDefaults?: JobConfigDefaults
 
   /**
-   * Main job processor
+   * Main job processor. `ctx.signal` aborts when the job exceeds its
+   * timeout - pass it to fetch/streams so the work actually stops. A
+   * handler that ignores it keeps running after the timeout while the retry
+   * starts, so the same job can run twice at once.
    */
-  process(data: TData): Promise<TResult>
+  process(data: TData, ctx?: { signal: AbortSignal }): Promise<TResult>
 
   /**
    * Lifecycle hooks

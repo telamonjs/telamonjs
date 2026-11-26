@@ -38,7 +38,7 @@ import {
   type JobConfigUpdateInput,
 } from '../http/index.js'
 import { mapQueueHttpError } from './errors.js'
-import { QUEUE_HTTP_DEPS, QUEUE_HTTP_GET_ACTOR } from './constants.js'
+import { DEFAULT_SSE_MAX_AGE_MS, QUEUE_HTTP_DEPS, QUEUE_HTTP_GET_ACTOR } from './constants.js'
 import type { GetActorFn } from './types.js'
 
 /**
@@ -72,6 +72,9 @@ export abstract class QueueControllerBase {
   @Inject(QUEUE_HTTP_GET_ACTOR)
   protected readonly getActor!: GetActorFn
 
+  /** Set from `QueueHttpModuleOptions.sseMaxAgeMs` by `forRoot()`. */
+  protected readonly sseMaxAgeMs: number = DEFAULT_SSE_MAX_AGE_MS
+
   /** `GET /queue/events` — Server-Sent Events stream. */
   @Get('events')
   async events(@Res() res: Response): Promise<void> {
@@ -81,6 +84,11 @@ export abstract class QueueControllerBase {
       })
       return
     }
+    // 'close' fires once: a client that left while an async guard ran has
+    // already emitted it, so registering it would keep it forever. This
+    // check, addClient and the listener below run in one tick, so nothing
+    // can close in between.
+    if (res.destroyed || res.writableEnded) return
 
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache, no-transform')
@@ -94,7 +102,24 @@ export abstract class QueueControllerBase {
     const unsubscribe = this.deps.eventBroadcaster.addClient({
       write: chunk => res.write(chunk),
     })
-    res.on('close', unsubscribe)
+    // The guards authorized this stream once, when it opened. Ending it makes
+    // the client reconnect through them, so revocation reaches the stream.
+    // The `reconnect` frame tells the client this end is planned (the ui
+    // dashboard reconnects at once instead of backing off).
+    // Unsubscribe first: a write after end() emits 'error' on the response.
+    // A client that stopped reading would never get end()'s final chunk, and
+    // its queued frames would stay in the heap: destroy that one instead.
+    // ponytail: frames still queue for up to sseMaxAgeMs; a per-client buffer
+    // cap is the upgrade if job payloads get large.
+    const maxAge = setTimeout(() => {
+      unsubscribe()
+      if (res.writableNeedDrain) res.destroy()
+      else res.end(`event: reconnect\ndata: ${JSON.stringify({ type: 'reconnect', timestamp: Date.now() })}\n\n`)
+    }, this.sseMaxAgeMs)
+    res.on('close', () => {
+      clearTimeout(maxAge)
+      unsubscribe()
+    })
   }
 
   @Get('stats')

@@ -257,6 +257,13 @@ list of clauses (OR between entries, an inner array is AND). They are written as
 the metadata that package's guard reads, so that guard (global, or in `guards`)
 is what enforces them.
 
+Guards run once per request, and the SSE stream is one long request. The route
+ends each stream after `sseMaxAgeMs` (a `forRoot()` option, 5 minutes by
+default) and the dashboard reconnects through your guards, so an expired token,
+a revoked session or a removed `readPermission` stops the feed within that time.
+The stream's last frame is `event: reconnect`, so the dashboard reconnects at
+once and keeps showing `connected`.
+
 ## Real-time updates (SSE)
 
 With `enableSSE` (the default), the dashboard connects to the adapter's

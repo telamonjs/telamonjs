@@ -81,6 +81,25 @@ describe('createWorkersFromConfig', () => {
       )
     })
 
+    it('builds timeoutPerQueue from the store, an explicit entry winning', async () => {
+      const { qm, createWorkers } = makeQueueManager()
+      const store = makeStore([
+        makeConfig({ jobName: 'job-a', timeout: 5000 }),
+        makeConfig({ jobName: 'job-b', timeout: 7000 }),
+        makeConfig({ jobName: 'job-c', timeout: undefined }),
+      ])
+
+      await createWorkersFromConfig(qm, store, {
+        timeoutPerQueue: { 'job-b': 100 },
+      })
+
+      expect(createWorkers).toHaveBeenCalledWith(
+        expect.objectContaining({
+          timeoutPerQueue: { 'job-a': 5000, 'job-b': 100 },
+        })
+      )
+    })
+
     it('returns whatever queueManager.createWorkers() returns', async () => {
       const fakeWorkers = [{ name: 'job-a' }] as unknown as Worker[]
       const qm = {

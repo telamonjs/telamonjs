@@ -42,7 +42,11 @@ export interface JobContract<TData = unknown, TResult = unknown> {
 
 export interface JobDefinition<TData = unknown, TResult = unknown>
   extends JobContract<TData, TResult> {
-  /** Validates a dispatch payload before it reaches the queue. */
+  /**
+   * Validates a dispatch payload before it reaches the queue. The job is
+   * enqueued with the parsed output: unknown keys stripped (non-strict
+   * `z.object`), defaults and transforms applied.
+   */
   schema?: ZodSchema<TData>
   defaultOptions?: JobOptions
 }

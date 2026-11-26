@@ -10,6 +10,7 @@ import type {
 } from '@nestjs/common'
 import { QueueControllerBase } from './queue-controller-base.js'
 import {
+  DEFAULT_SSE_MAX_AGE_MS,
   PERMISSIONS_METADATA_KEY,
   QUEUE_HTTP_DEPS,
   QUEUE_HTTP_GET_ACTOR,
@@ -57,6 +58,15 @@ export interface QueueHttpModuleOptions {
   writePermission?: QueueRoutePermission
   /** Populates `triggeredBy`/`updatedBy` from the request — this package never assumes an auth/user shape. */
   getActor: GetActorFn
+  /**
+   * Longest an SSE stream (`GET /queue/events`) stays open, in ms. Guards run
+   * once, when a stream opens; ending it here makes the client reconnect
+   * through them again, so an expired token, a revoked session or a removed
+   * `readPermission` stops the feed within this time. The ui dashboard
+   * reconnects on its own.
+   * @default 300_000 (5 minutes)
+   */
+  sseMaxAgeMs?: number
 }
 
 /**
@@ -117,10 +127,17 @@ function applyRoutePermissions(
 export class QueueHttpModule {
   static forRoot(options: QueueHttpModuleOptions): DynamicModule {
     const { depsFactory, inject = [], guards = [], getActor } = options
+    const { sseMaxAgeMs = DEFAULT_SSE_MAX_AGE_MS } = options
+    // setTimeout fires at once outside 1..2^31-1: every stream would end on open
+    if (!(sseMaxAgeMs >= 1 && sseMaxAgeMs <= 2 ** 31 - 1)) {
+      throw new Error('QueueHttpModule.forRoot(): sseMaxAgeMs must be from 1 to 2147483647 (ms)')
+    }
 
     @UseGuards(...guards)
     @Controller('queue')
-    class BoundQueueController extends QueueControllerBase {}
+    class BoundQueueController extends QueueControllerBase {
+      protected override readonly sseMaxAgeMs = sseMaxAgeMs
+    }
 
     applyRoutePermissions(BoundQueueController, options.readPermission, options.writePermission)
 

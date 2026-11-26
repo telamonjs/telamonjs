@@ -30,7 +30,14 @@ export interface JobEventPublisherOptions {
   /** Redis connection config, or an already-connected ioredis instance to share. */
   redis: RedisConfig | IORedis
 
-  /** Pub/Sub channel to publish events on. @default 'telamonjs:job-events' */
+  /**
+   * App namespace: pass the same `prefix` as the app's QueueManager so apps
+   * sharing one Redis don't receive each other's events. The channel
+   * defaults to `${prefix}:job-events`. @default 'telamonjs'
+   */
+  prefix?: string
+
+  /** Pub/Sub channel to publish events on; wins over `prefix`. @default `${prefix}:job-events` */
   channel?: string
 
   logger?: ILogger
@@ -52,7 +59,8 @@ export class JobEventPublisher {
   private closed = false
 
   constructor(options: JobEventPublisherOptions) {
-    this.channel = options.channel ?? 'telamonjs:job-events'
+    this.channel =
+      options.channel ?? `${options.prefix ?? 'telamonjs'}:job-events`
     this.logger = options.logger ?? new NoOpLogger()
 
     if (options.redis instanceof IORedis) {

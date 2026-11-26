@@ -1,9 +1,14 @@
 import { Worker as BullWorker } from 'bullmq'
 import type { Job as BullJob, JobProgress } from 'bullmq'
-import type { RedisConfig, WorkerConfig, IJob } from './types.js'
+import type { RedisConfig, WorkerConfig, IJob, JobOptions } from './types.js'
 import type { ILogger } from '@telamonjs/logger'
 import { NoOpLogger } from '@telamonjs/logger'
 import type { DeadLetterQueue } from './DeadLetterQueue.js'
+import { JobTimeoutError } from '../utils/errors.js'
+
+// Node fires a setTimeout delay above 2^31-1 ms after 1 ms, which would fail
+// every job of the queue at once.
+const MAX_TIMER_MS = 2_147_483_647
 
 /**
  * Type-safe Worker wrapper around BullMQ
@@ -29,6 +34,7 @@ export class Worker<TData = unknown, TResult = unknown> {
   private isRunning = false
   private logger: ILogger
   private dlq: DeadLetterQueue | null
+  private readonly timeoutOverride: number | undefined
 
   constructor(
     name: string,
@@ -43,6 +49,7 @@ export class Worker<TData = unknown, TResult = unknown> {
 
     this.logger = logger || new NoOpLogger()
     this.dlq = dlq || null
+    this.timeoutOverride = config.timeoutPerQueue?.[name]
 
     this.worker = new BullWorker<TData, TResult>(
       name,
@@ -70,24 +77,7 @@ export class Worker<TData = unknown, TResult = unknown> {
    */
   private async processJob(job: BullJob<TData, TResult>): Promise<TResult> {
     try {
-      // Validate if defined
-      if (this.jobInstance.validate) {
-        await this.jobInstance.validate(job.data)
-      }
-
-      // Transform if defined
-      let data = job.data
-      if (this.jobInstance.transform) {
-        data = await this.jobInstance.transform(job.data)
-      }
-
-      // Call onActive hook
-      if (this.jobInstance.hooks?.onActive) {
-        await this.jobInstance.hooks.onActive(data)
-      }
-
-      // Execute main job logic
-      const result = await this.jobInstance.process(data)
+      const result = await this.runWithTimeout(job)
 
       // Call onCompleted hook
       if (this.jobInstance.hooks?.onCompleted) {
@@ -102,6 +92,57 @@ export class Worker<TData = unknown, TResult = unknown> {
       }
 
       throw error
+    }
+  }
+
+  /**
+   * validate -> transform -> onActive -> process, raced against the job's
+   * timeout: the per-queue override (JobConfigStore, via timeoutPerQueue),
+   * else job.opts.timeout, else the class's own options.timeout (dashboard
+   * dispatch and DLQ retry enqueue without it). On expiry the attempt fails
+   * with JobTimeoutError, freeing the concurrency slot, and `ctx.signal`
+   * aborts; a process() that ignores the signal keeps running unattended,
+   * in parallel with the retry BullMQ then starts.
+   */
+  private async runWithTimeout(job: BullJob<TData, TResult>): Promise<TResult> {
+    const configured =
+      this.timeoutOverride ??
+      (job.opts as JobOptions).timeout ??
+      this.jobInstance.options?.timeout
+    const timeoutMs =
+      configured && configured > 0 ? Math.min(configured, MAX_TIMER_MS) : undefined
+    const controller = new AbortController()
+
+    const run = async (): Promise<TResult> => {
+      if (this.jobInstance.validate) {
+        await this.jobInstance.validate(job.data)
+      }
+      let data = job.data
+      if (this.jobInstance.transform) {
+        data = await this.jobInstance.transform(job.data)
+      }
+      if (this.jobInstance.hooks?.onActive) {
+        await this.jobInstance.hooks.onActive(data)
+      }
+      return this.jobInstance.process(data, { signal: controller.signal })
+    }
+
+    if (timeoutMs === undefined) return run()
+
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        run(),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => {
+            const error = new JobTimeoutError(this.name, String(job.id), timeoutMs)
+            controller.abort(error)
+            reject(error)
+          }, timeoutMs)
+        }),
+      ])
+    } finally {
+      clearTimeout(timer)
     }
   }
 

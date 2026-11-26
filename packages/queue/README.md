@@ -63,6 +63,14 @@ manager.register(SendWelcomeEmail)
 await manager.createWorkers()
 ```
 
+**Timeouts.** An attempt that runs past its `timeout` (dashboard value, else the
+enqueue options, else the class's `options.timeout`) fails with
+`JobTimeoutError`, frees its worker slot and is retried. `process(data, ctx)`
+gets `ctx.signal`, which aborts at the deadline. JavaScript cannot kill a running
+handler: one that ignores the signal keeps running while the retry starts, so
+the same job can run twice at once. Handlers with side effects must honor
+`ctx.signal` or be safe to run twice.
+
 ## Config-driven jobs: toggle and cron without a redeploy
 
 ```ts
@@ -81,6 +89,16 @@ BullMQ job schedulers (`upsertJobScheduler`, one per job, id = job name).
 Repeatables written by earlier versions (`add(..., { repeat })`) are
 replaced on the first reconcile after the upgrade: the legacy repeatable and
 its pending run are removed, then the scheduler is upserted, so no job runs twice.
+
+**Several apps on one Redis?** Give each app its own `prefix` and pass the same
+value to `QueueManager`/`QueueRegistry`, `JobConfigStore`, `JobEventPublisher`
+and `createSSEBroadcaster`: configs then live under `${prefix}:config:` and
+events go to `${prefix}:job-events`. Left at the default (`telamonjs`), the apps
+share one config index and one event channel, so each app's bootstrap disables
+the other's jobs and each dashboard lists, edits and streams the other's jobs.
+Giving an existing app a new `prefix` moves its config keys: pass
+`keyPrefix: 'telamonjs:config:'` to keep reading them, or rename the keys first,
+otherwise bootstrap reseeds every job from code and dashboard edits are lost.
 
 ## Dead-letter queue
 
@@ -146,7 +164,7 @@ contracts.register({
   label: 'Welcome email', // optional short name for dashboard rows and titles
   description: 'Sends the welcome email to a newly registered user',
   dispatchable: true,
-  schema: z.object({ userId: z.string() }), // validates a manual dispatch server-side (422)
+  schema: z.object({ userId: z.string() }), // validates a manual dispatch server-side (422); the job gets the parsed output
 })
 ```
 
@@ -217,6 +235,14 @@ the behaviour is unchanged.
 
 The SSE route sets `X-Accel-Buffering: no`, which only disables buffering on
 nginx; other reverse proxies need their own config.
+
+Guards run once per request, and an SSE stream is one long request. The route
+ends each stream after `sseMaxAgeMs` (a `forRoot()` option, 5 minutes by
+default) so the client reconnects through your guards: an expired token, a
+revoked session or a removed `readPermission` stops the feed within that time.
+The last frame of such a stream is `event: reconnect`. The ui dashboard
+reconnects at once on it, without showing a disconnect; a custom client should
+do the same.
 
 Job events (`jobStarted`, `jobCompleted`, `jobFailed`) are published over Redis
 pub/sub by `JobEventPublisher`; consume them through the SSE stream in your web app.
