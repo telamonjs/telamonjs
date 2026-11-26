@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.15.0
+
+### Minor Changes
+
+- 3a1ce22: `SignInForm` `errorClassName` (a string, or a function of the error code) and `ForgotPasswordForm` `errorClassName` restyle the error alert, merged over the default destructive style — e.g. an amber notice for one error code.
+- 6fefb3e: `@telamonjs/ui/queue` exports `QueueDashboardHeader` and the type `JobStatusConfig`, names that
+  don't clash with the root barrel. Its `DashboardHeader` and `StatusConfig` stay exported but are
+  deprecated: the root barrel has different symbols under those names.
+
+  The last hardcoded neutrals follow dark mode through theme tokens, with the same light look: the
+  `Stepper` connectors and progress track, the `ZustandFormServer` loading skeleton, the
+  `ZustandForm` section dots, the sub-list's inactive dot, the `SkeletonCard` stripe, the `range`
+  field track, and the `ghost-info` button hover (`hover:bg-slate-500 hover:text-white` →
+  `hover:bg-muted-foreground hover:text-background`).
+
+### Patch Changes
+
+- fc644e2: MultiSelect: the selected labels in the trigger are left-aligned again. They sat inside the trigger `<button>` and inherited the browser's centered text alignment.
+- ef0bd27: The query builder's "does not contain" condition emits `{ NOT: { field: { contains, mode } } }`.
+  It used to emit `{ field: { not: { contains, mode } } }`, which Prisma rejects (a `not` filter takes
+  no `mode`), so applying that condition failed the list query.
+- f81aeed: Saved views: a stored or imported view whose `config` is `null` is now rejected like any other
+  malformed entry. It used to pass validation (`typeof null === 'object'`) and crash the table when
+  applied.
+- 4f890f6: Sharing a saved view no longer copies an empty `?view=` link when its config holds text outside
+  Latin-1 (a search like `São João`): `encodeViewConfig` encodes the JSON as UTF-8 before base64.
+  ASCII-only configs encode exactly as before.
+- Updated dependencies [6125657]
+- Updated dependencies [cc69ee7]
+  - @telamonjs/data@1.4.0
+
 ## 1.14.0
 
 ### Minor Changes

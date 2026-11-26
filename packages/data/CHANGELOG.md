@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.4.0
+
+### Minor Changes
+
+- cc69ee7: The ORM-agnostic types `AuthUser`, `FilterFieldConfig`, `FilterFieldType`, `FilterValue`,
+  `FilterOption` and `FilterLabels` are now exported from `@telamonjs/data` too (`/prisma` keeps
+  re-exporting them). `AuthUser.role` accepts a bare code or an object carrying one
+  (`string | { code: string }`), so the `RoleInfo` of `@telamonjs/auth` fits without a cast, and
+  `PaginatedService.list` is typed as `Promise<PaginatedResponse<T>>` (same shape as before).
+
+### Patch Changes
+
+- 6125657: A `'boolean'` filter whose `transform` returns a where fragment (a relation filter such as
+  `{ some: {} }`) now applies that fragment. It used to be coerced to `false`, so the filter
+  produced `{ hasOrders: false }` instead of `{ hasOrders: { some: {} } }`. `transform` is typed to
+  allow that return (`FilterValue | Record<string, unknown>`).
+
 ## 1.3.1
 
 ### Patch Changes

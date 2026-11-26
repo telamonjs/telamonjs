@@ -1,6 +1,6 @@
 {
   "name": "@telamonjs/cli",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "CLI for TelamonJS: create a Next.js admin app (single app or monorepo), generate CRUD modules from a Prisma schema, lint admin modules and manage database dumps",
   "type": "module",
   "bin": {

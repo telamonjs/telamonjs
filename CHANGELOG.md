@@ -1,5 +1,42 @@
 # Changelog
 
+## ui 1.15.0, data 1.4.0, queue 1.4.2, cli 1.4.1 (2026-11-25)
+
+Quality pass, plus the bugs it found.
+
+`@telamonjs/ui`:
+- `SignInForm`/`ForgotPasswordForm` `errorClassName` restyles the error alert. On `SignInForm` it can be
+  a function of the error code.
+- `@telamonjs/ui/queue` exports `QueueDashboardHeader` and `JobStatusConfig`. The clashing names stay as
+  deprecated aliases.
+- Fixes:
+  - `MultiSelect` trigger labels are left-aligned again.
+  - The query builder's "not contains" now emits a filter Prisma accepts.
+  - A saved view with a `null` config no longer crashes the table.
+  - Sharing a view whose search has accents produced an empty link; that is fixed.
+  - The remaining hardcoded grays (Stepper, skeletons, the range field, `ghost-info`) follow dark mode.
+
+`@telamonjs/data`:
+- `AuthUser`, `FilterFieldConfig`, `FilterFieldType`, `FilterValue`, `FilterOption` and `FilterLabels`
+  are exported from the root. `/prisma` still re-exports them.
+- `AuthUser.role` accepts `@telamonjs/auth`'s `{ code }` shape.
+- Fix: a boolean filter `transform` that returns a relation filter (`{ some: {} }`) is no longer coerced
+  to a boolean.
+
+`@telamonjs/queue`:
+- The `history/all` and clean-all API messages are in English.
+- `SSEBroadcaster` logs a failed unsubscribe.
+
+`@telamonjs/cli`:
+- `generate crud` finds the schema in the monorepo layout, in multi-file schema folders and through
+  `package.json#prisma.schema`. It stops with a clear error instead of generating code that doesn't
+  compile.
+- The schema parser now handles braces inside strings and comments, and reads `@default(cuid())`
+  correctly.
+- Prettier runs safely on paths with spaces.
+- The `create` setup failure is reported, with the manual steps.
+- The build fails if the database scripts are missing.
+
 ## ui 1.14.0, data 1.3.1 (2026-11-25)
 
 - `@telamonjs/ui`:
