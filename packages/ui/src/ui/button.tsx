@@ -22,9 +22,9 @@ const buttonVariants = cva(
         tertiary:
           'bg-tertiary border border-tertiary text-tertiary-foreground shadow-emphasis hover:bg-tertiary/70',
         ghost: 'hover:bg-accent hover:text-accent-foreground',
-        // Variantes ghost-*: cor de repouso pelo token (text-slate-600 sumia no dark).
+        // ghost-* variants: rest and hover colors come from tokens (raw slate vanished in dark mode).
         'ghost-info':
-          'text-muted-foreground hover:bg-slate-500 hover:text-white transition-colors',
+          'text-muted-foreground hover:bg-muted-foreground hover:text-background transition-colors',
         'ghost-primary':
           'text-muted-foreground hover:bg-primary hover:text-primary-foreground transition-colors',
         'ghost-destructive':

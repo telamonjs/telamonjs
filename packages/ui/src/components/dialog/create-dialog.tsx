@@ -57,7 +57,7 @@ export interface CreateDialogProps<T extends Record<string, unknown>> {
    *       </div>
    *       <div>
    *         <h2 className="font-semibold">New Client</h2>
-   *         <p className="text-xs text-gray-600">Register a new client</p>
+   *         <p className="text-xs text-muted-foreground">Register a new client</p>
    *       </div>
    *     </div>
    *   </div>

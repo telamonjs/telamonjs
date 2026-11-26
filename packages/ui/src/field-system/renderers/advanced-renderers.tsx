@@ -185,7 +185,7 @@ export const RangeRenderer: FieldRenderer = {
           onBlur={field.onBlur}
           disabled={field.readOnly || field.disabled}
           required={field.required}
-          className='w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer dark:bg-gray-700'
+          className='w-full h-2 bg-muted rounded-lg appearance-none cursor-pointer'
         />
       </div>
     )

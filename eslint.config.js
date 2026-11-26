@@ -81,13 +81,13 @@ export default [
         'error',
         {
           selector:
-            'Literal[value=/\\b(bg-white|bg-(gray|slate)-(50|100)|text-(gray|slate)-[5-9]00|border-(gray|slate)-(100|200|300)|from-gray-50|to-white)\\b/]',
+            'Literal[value=/\\b(bg-white|bg-(gray|slate)-(50|100|200|300|400|500)|text-(gray|slate)-[5-9]00|border(-[trblxy])?-(gray|slate)-(100|200|300)|from-gray-50|to-white)\\b/]',
           message:
             'Use semantic tokens (bg-card/bg-background, bg-muted, text-foreground/text-muted-foreground, border-border) instead of raw palette colors — they break in dark mode. Legitimate exception (print/QR white, translucent overlay): // eslint-disable-next-line no-restricted-syntax with a justification.',
         },
         {
           selector:
-            'TemplateElement[value.raw=/\\b(bg-white|bg-(gray|slate)-(50|100)|text-(gray|slate)-[5-9]00|border-(gray|slate)-(100|200|300)|from-gray-50|to-white)\\b/]',
+            'TemplateElement[value.raw=/\\b(bg-white|bg-(gray|slate)-(50|100|200|300|400|500)|text-(gray|slate)-[5-9]00|border(-[trblxy])?-(gray|slate)-(100|200|300)|from-gray-50|to-white)\\b/]',
           message:
             'Use semantic tokens (bg-card/bg-background, bg-muted, text-foreground/text-muted-foreground, border-border) instead of raw palette colors — they break in dark mode.',
         },

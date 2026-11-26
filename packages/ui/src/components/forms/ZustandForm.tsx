@@ -591,7 +591,7 @@ const ZustandFormComponent: React.FC<ZustandFormProps> = ({
                     'w-2 h-2 rounded-full transition-all',
                     currentSectionIndex === index
                       ? 'bg-blue-600 w-8'
-                      : 'bg-gray-300 hover:bg-gray-400'
+                      : 'bg-muted-foreground/40 hover:bg-muted-foreground/60'
                   )}
                 />
               ))}

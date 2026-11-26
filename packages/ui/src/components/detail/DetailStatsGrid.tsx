@@ -316,7 +316,7 @@ StatCard.displayName = 'StatCard'
  *       label: 'Progress',
  *       value: (
  *         <div className="flex items-center gap-2">
- *           <div className="flex-1 bg-gray-200 rounded-full h-2">
+ *           <div className="flex-1 bg-muted rounded-full h-2">
  *             <div className="bg-green-600 h-2 rounded-full" style={{ width: '75%' }} />
  *           </div>
  *           <span>75%</span>

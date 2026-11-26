@@ -49,7 +49,7 @@ export function Stepper({
                 <div
                   className={cn(
                     'absolute left-5 top-12 w-0.5 h-full',
-                    step.status === 'completed' ? 'bg-green-500' : 'bg-gray-300'
+                    step.status === 'completed' ? 'bg-green-500' : 'bg-border'
                   )}
                 />
               )}
@@ -196,7 +196,7 @@ export function Stepper({
                 <div
                   className={cn(
                     'h-0.5 flex-1 mx-2',
-                    step.status === 'completed' ? 'bg-green-500' : 'bg-gray-300'
+                    step.status === 'completed' ? 'bg-green-500' : 'bg-border'
                   )}
                 />
               )}
@@ -206,7 +206,7 @@ export function Stepper({
       </div>
 
       {/* Progress bar */}
-      <div className='mt-4 w-full bg-gray-200 rounded-full h-1'>
+      <div className='mt-4 w-full bg-muted rounded-full h-1'>
         <div
           className='bg-blue-500 h-1 rounded-full transition-all duration-300'
           style={{

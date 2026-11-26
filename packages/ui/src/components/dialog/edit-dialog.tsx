@@ -67,7 +67,7 @@ export interface EditDialogProps<T extends Record<string, unknown>> {
    *       </div>
    *       <div>
    *         <h2 className="font-semibold">Edit {data.nome}</h2>
-   *         <p className="text-xs text-gray-600">#{data.codigo}</p>
+   *         <p className="text-xs text-muted-foreground">#{data.codigo}</p>
    *       </div>
    *     </div>
    *   </div>

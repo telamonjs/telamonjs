@@ -315,7 +315,7 @@ const SubListComponent = <
               <div
                 className={cn(
                   'h-2 w-2 rounded-full transition-colors',
-                  value ? 'bg-emerald-500' : 'bg-gray-300'
+                  value ? 'bg-emerald-500' : 'bg-muted-foreground/40'
                 )}
               />
               <span className='text-sm'>

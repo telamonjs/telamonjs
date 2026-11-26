@@ -7,7 +7,7 @@ import { Skeleton } from '../../ui/skeleton'
  */
 export function SkeletonCard() {
   return (
-    <Card className='relative border-l-4 border-l-gray-300'>
+    <Card className='relative border-l-4 border-l-muted-foreground/40'>
       <CardContent className='p-4'>
         {/* Row 1: Avatar + Name + Chevron */}
         <div className='flex items-start gap-3 mb-2'>
