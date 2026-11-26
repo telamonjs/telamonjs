@@ -8,6 +8,13 @@
  * - Server-side environment (TELAMONJS_DEBUG)
  */
 
+declare global {
+  interface Window {
+    /** Runtime debug override: any defined value wins over the env vars (coerced with `Boolean`). */
+    __TELAMONJS_DEBUG__?: unknown
+  }
+}
+
 export type DebugLevel = 'basic' | 'verbose' | 'trace'
 
 export type DebugCategory =
@@ -33,8 +40,7 @@ export interface DebugConfig {
 function isDebugEnabled(): boolean {
   // Runtime override via window
   if (typeof window !== 'undefined') {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- runtime override property, not part of the Window type
-    const windowDebug = (window as any).__TELAMONJS_DEBUG__
+    const windowDebug = window.__TELAMONJS_DEBUG__
     if (windowDebug !== undefined) {
       return Boolean(windowDebug)
     }

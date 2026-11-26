@@ -2,7 +2,14 @@
 
 import { useState, useTransition, useEffect } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useForm, FormProvider } from 'react-hook-form'
+import {
+  useForm,
+  FormProvider,
+  type DefaultValues,
+  type FieldValues,
+  type Resolver,
+} from 'react-hook-form'
+import type { z } from 'zod'
 import { Button } from '../../ui/button'
 import { Label } from '../../ui/label'
 import { cn } from '../../utils'
@@ -145,12 +152,15 @@ export function WizardForm<T extends Record<string, unknown>>({
   const isFirstStep = currentStep === 0
 
   // Form for current step
-  const form = useForm({
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    defaultValues: draft as any,
+  // `WizardStep.validation` is a zod schema typed `unknown`; zodResolver v5
+  // also expects `_def.typeName`, which every concrete zod 3 schema carries
+  // at runtime (same narrowing as AdminForm).
+  const form = useForm<FieldValues>({
+    defaultValues: draft as DefaultValues<FieldValues>,
     resolver: currentStepConfig?.validation
-      ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (zodResolver as any)(currentStepConfig.validation)
+      ? (zodResolver(
+          currentStepConfig.validation as z.ZodType & { _def: { typeName: string } }
+        ) as Resolver<FieldValues>)
       : undefined,
   })
 
