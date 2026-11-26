@@ -9,7 +9,7 @@
   },
   "scripts": {
     "build": "tsc && pnpm run copy:templates",
-    "copy:templates": "mkdir -p dist/templates/database && cp templates/database/*.sh dist/templates/database/ 2>/dev/null || true",
+    "copy:templates": "mkdir -p dist/templates/database && cp templates/database/dump.sh templates/database/restore.sh dist/templates/database/",
     "dev": "tsc --watch",
     "clean": "rm -rf dist",
     "prepublishOnly": "pnpm run clean && pnpm run build",

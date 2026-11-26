@@ -17,3 +17,6 @@ or a comment, ignores commented-out models, reads `@default(cuid())` whole, and 
 Formatting the generated files works for paths with spaces (Prettier gets an argument
 list instead of a shell string), never downloads Prettier when the app doesn't have it,
 and a failure now prints Prettier's reason instead of a generic "not found".
+
+The build fails when `dump.sh` or `restore.sh` cannot be copied into `dist`, instead of
+publishing a CLI whose `db dump` / `db restore` break at runtime.
