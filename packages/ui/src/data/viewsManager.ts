@@ -50,8 +50,8 @@ function isValidView(view: unknown): view is SavedView {
     typeof v.id === 'string' &&
     typeof v.name === 'string' &&
     typeof v.isDefault === 'boolean' &&
-    v.config !== undefined &&
     typeof v.config === 'object' &&
+    v.config !== null &&
     v.createdAt !== undefined &&
     v.updatedAt !== undefined
   )

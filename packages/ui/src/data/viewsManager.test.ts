@@ -88,6 +88,7 @@ describe('loadViews', () => {
         view({ id: 'ok' }),
         { id: 'no-name', isDefault: false, config, createdAt: 1, updatedAt: 1 },
         { ...view({ id: 'no-config' }), config: undefined },
+        { ...view({ id: 'null-config' }), config: null },
         { ...view({ id: 'string-default' }), isDefault: 'yes' },
         'garbage',
         null,
@@ -204,6 +205,10 @@ describe('importViewFromJSON', () => {
     expect(() => importViewFromJSON(TABLE, '{not json')).toThrow('Failed to import view')
     expect(() => importViewFromJSON(TABLE, 'null')).toThrow('Failed to import view')
     expect(() => importViewFromJSON(TABLE, '{"id":"x"}')).toThrow('Failed to import view')
+    // `typeof null === 'object'`: a null config would crash whoever applies the view
+    expect(() =>
+      importViewFromJSON(TABLE, JSON.stringify({ ...view(), config: null }))
+    ).toThrow('Failed to import view')
     expect(loadViews(TABLE)).toEqual([])
   })
 })
