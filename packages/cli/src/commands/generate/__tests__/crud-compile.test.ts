@@ -52,7 +52,10 @@ function writeLibStandins(cwd: string): void {
   writeFileSync(join(cwd, 'src', 'lib', 'prisma.ts'), 'export const prisma: any = {}\n')
   writeFileSync(
     join(cwd, 'src', 'lib', 'auth.ts'),
-    'export async function getCurrentUser(): Promise<Record<string, unknown> | null> {\n  return null\n}\n'
+    // Same signature as templates/app/src/lib/auth.ts: the user, or the 401/403 response to return.
+    "import { NextResponse } from 'next/server'\n" +
+      'export async function requirePermission(..._permissions: [string, ...string[]]): Promise<Record<string, unknown> | NextResponse> {\n' +
+      "  return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })\n}\n"
   )
   writeFileSync(
     join(cwd, 'src', 'lib', 'utils.ts'),

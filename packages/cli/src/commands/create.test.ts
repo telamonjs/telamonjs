@@ -89,7 +89,40 @@ describe('createApp — generated app structure', () => {
       encoding: 'utf-8',
     }).trim()
     expect(hits, `files with unresolved placeholders:\n${hits}`).toBe('')
-    expect(readFileSync(join(projectPath, 'docker-compose.prod.yml'), 'utf-8')).toContain('image: postgres:16-alpine')
+    const prodCompose = readFileSync(join(projectPath, 'docker-compose.prod.yml'), 'utf-8')
+    expect(prodCompose).toContain('image: postgres:16-alpine')
+    // Production secrets come from the environment, never from the template,
+    // and the database is not reachable from other hosts.
+    expect(prodCompose).toContain('NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?')
+    expect(prodCompose).toContain('POSTGRES_PASSWORD: ${DB_PASSWORD:?')
+    expect(prodCompose).toContain('DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/')
+    expect(prodCompose).not.toMatch(/development-secret|PASSWORD: password|:password@/)
+    expect(prodCompose).toContain("- '127.0.0.1:5432:5432'")
+
+    // The Docker deps stage runs the root postinstall (`prisma generate`):
+    // without the schema already copied, the image does not build.
+    const dockerfile = readFileSync(join(projectPath, 'Dockerfile'), 'utf-8')
+    const copySchema = dockerfile.indexOf('COPY prisma ./prisma')
+    expect(copySchema).toBeGreaterThan(-1)
+    expect(copySchema).toBeLessThan(dockerfile.indexOf('RUN pnpm install'))
+    // `prisma migrate deploy` (docker-entrypoint.sh) needs the migrations in
+    // the image, and the runner has no database client to probe with.
+    expect(readFileSync(join(projectPath, '.dockerignore'), 'utf-8')).not.toMatch(/^prisma\/migrations/m)
+    const entrypoint = readFileSync(join(projectPath, 'docker-entrypoint.sh'), 'utf-8')
+    expect(entrypoint).not.toMatch(/pg_isready|mysqladmin/)
+    expect(entrypoint).toMatch(/until pnpm prisma migrate deploy/)
+    // The seed is idempotent: a failure (e.g. no SEED_ADMIN_PASSWORD on an
+    // empty production database) must stop the container, not be swallowed.
+    expect(entrypoint).not.toMatch(/db:seed\s*\|\|/)
+    expect(entrypoint).toMatch(/if ! pnpm db:seed; then[\s\S]*SEED_ADMIN_PASSWORD[\s\S]*exit 1/)
+
+    // Migrations are code (committed); dumps never are.
+    execSync('git init -q', { cwd: projectPath })
+    const ignored = execSync(
+      'git check-ignore prisma/migrations/20251015035454_init/migration.sql database/dumps/x.sql.gz || true',
+      { cwd: projectPath, encoding: 'utf-8' }
+    )
+    expect(ignored.trim()).toBe('database/dumps/x.sql.gz')
 
     // pnpm 10+ ignores pnpm.overrides and blocks prisma's build scripts
     // unless the app pins its package manager.
@@ -103,6 +136,9 @@ describe('createApp — generated app structure', () => {
     // src/, not the root: with src/app, Next.js ignores a root middleware.ts.
     expect(existsSync(join(projectPath, 'middleware.ts'))).toBe(false)
     expect(read('src/middleware.ts')).toContain('if (!req.auth?.user)')
+    // /_next/image is public: a wildcard host turns it into a fetch proxy
+    // to any server the app can reach.
+    expect(read('next.config.js')).not.toMatch(/hostname:\s*['"]\*\*['"]/)
 
     // .env.example: DATABASE_URL resolved, secret left blank for the dev
     // to generate — not a hardcoded value baked into the template.
@@ -235,6 +271,20 @@ describe('createApp --monorepo — generated tree', () => {
     expect(webPkg.scripts.dev).toContain('-p 3001')
     const mainTs = readFileSync(join(root, 'apps/api/src/main.ts'), 'utf-8')
     expect(mainTs).toContain("|| Number('4001')")
+
+    // packages/shared migrations are committed (apps/web carries the app
+    // template's .gitignore, whose *.sql must not reach them).
+    exec('git init -q', { cwd: root })
+    const ignored = exec(
+      'git check-ignore packages/shared/prisma/migrations/20251015035454_init/migration.sql || true',
+      { cwd: root, encoding: 'utf-8' }
+    )
+    expect(ignored.trim()).toBe('')
+
+    // /_next/image is public: no wildcard host in the web app either.
+    expect(readFileSync(join(root, 'apps/web/next.config.js'), 'utf-8')).not.toMatch(
+      /hostname:\s*['"]\*\*['"]/
+    )
   })
 
   // Regression: commander leaves `--port` as a string; `appPort + 1000` must

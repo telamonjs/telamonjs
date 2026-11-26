@@ -81,10 +81,16 @@ export abstract class Job<TData = unknown, TResult = unknown>
    * MUST be implemented in child class
    *
    * @param data - Job input data (type-safe via generic TData)
+   * @param ctx - `ctx.signal` aborts when the job exceeds its timeout. A
+   *   handler that ignores it keeps running while the retry starts (the job
+   *   runs twice at once), so honor it or make the handler idempotent.
    * @returns Job result (type-safe via generic TResult)
    * @throws Error if job should be retried
    */
-  abstract process(data: TData): Promise<TResult>
+  abstract process(
+    data: TData,
+    ctx?: { signal: AbortSignal }
+  ): Promise<TResult>
 
   /**
    * Called when job becomes active

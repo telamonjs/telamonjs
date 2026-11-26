@@ -13,7 +13,8 @@ export interface ServicePrincipal {
 }
 
 /**
- * Checks a key: the principal it belongs to, or `null`/`undefined` to reject.
+ * Checks a key: the principal it belongs to, or `null`/`undefined` to reject
+ * (any falsy result, `false` included, rejects too).
  * Sync or async, so an env comparison (`staticApiKey`) and a database lookup
  * (by `hashApiKey(key)`) both fit. A thrown error propagates as-is — a
  * database outage is not an invalid key; throw your own exception to send a
@@ -59,7 +60,9 @@ export async function verifyApiKey<TPrincipal>(
   }
   // A repeated header arrives as string[] — ambiguous, so not a key
   if (typeof key !== 'string' || !key) return null
-  return (await options.verify(key, request)) ?? null
+  // Fail closed on every falsy result (false, 0, '', NaN), not only null:
+  // a predicate verifier (`key => key === expected`) must not let a wrong key in
+  return (await options.verify(key, request)) || null
 }
 
 /**

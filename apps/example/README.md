@@ -24,18 +24,23 @@ Complete admin application template built with Next.js 15, React 19, TypeScript 
 ## 🏃 Quick Start with Docker
 
 1. Clone or extract this template
-2. Run the production compose file (`docker-compose.yml` holds only the
-   database, for local development):
+2. Set the production secrets in `.env` (Compose reads it; `cp .env.example .env`
+   first): `NEXTAUTH_SECRET` (`openssl rand -base64 32`) and `DB_PASSWORD`
+   (URL-safe, e.g. `openssl rand -hex 24`). Compose refuses to start without them.
+3. Run the production compose file (`docker-compose.yml` holds only the
+   database, for local development). The first start, on an empty database,
+   also needs `SEED_ADMIN_PASSWORD` (the first admin's password):
 
 ```bash
-docker compose -f docker-compose.prod.yml up --build
+SEED_ADMIN_PASSWORD='choose-a-password' docker compose -f docker-compose.prod.yml up --build
 ```
 
-3. Wait for the build and startup (the first run can take ~5 minutes)
-4. Open http://localhost:3001
-5. Sign in with:
+4. Wait for the build and startup (the first run can take ~5 minutes)
+5. Open http://localhost:3001
+6. Sign in with:
    - **Email:** admin@example.com
-   - **Password:** 12345
+   - **Password:** the `SEED_ADMIN_PASSWORD` you chose (read only when the
+     seed creates the first admin, on an empty database)
 
 ## 💻 Local Development (without Docker)
 
@@ -68,8 +73,9 @@ pnpm prisma migrate dev
 pnpm db:seed
 ```
 
-The seed creates the default user (the sign-in page does not show it):
-**admin@example.com** / **12345**.
+On an empty database the seed creates the default user (the sign-in page does
+not show it): **admin@example.com** / **12345**. A re-run only syncs the
+permission catalog: it never touches existing accounts.
 
 ### 5. Start the development server
 
@@ -239,8 +245,11 @@ pnpm prisma migrate dev --name add_seu_model
 ### Default User
 
 - **Email:** admin@example.com
-- **Password:** 12345
+- **Password:** 12345 (in production: the value of `SEED_ADMIN_PASSWORD`)
 - **Role:** `admin` (built-in, holds every permission)
+
+The seed creates it on an empty database only; rename it or change its
+password freely, a re-run of `pnpm db:seed` leaves it alone.
 
 ### Roles and Permissions
 
@@ -304,7 +313,10 @@ Edit:
 
 `docker-compose.yml` runs only the database (for `pnpm dev`);
 `docker-compose.prod.yml` runs the database plus the app built from the
-`Dockerfile`.
+`Dockerfile`. It needs `NEXTAUTH_SECRET` and `DB_PASSWORD` in the environment
+or in `.env`, plus `SEED_ADMIN_PASSWORD` on the first start (empty database:
+the container stops if the seed cannot create the first admin), and publishes
+the database on `127.0.0.1` only.
 
 ### Useful Commands
 

@@ -60,4 +60,20 @@ describe('FileField download', () => {
     expect(await screen.findByText('Erro ao baixar o arquivo')).toBeInTheDocument()
     expect(tab.close).toHaveBeenCalled()
   })
+
+  it('refuses to open a stored javascript: value and shows an error', async () => {
+    render(<FileField field={field({ value: 'javascript:alert(document.domain)' })} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Baixar arquivo' }))
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(await screen.findByText('Erro ao baixar o arquivo')).toBeInTheDocument()
+  })
+
+  it('closes the tab instead of navigating it when an async resolveUrl yields javascript:', async () => {
+    const resolveUrl = vi.fn(async () => ' JavaScript:alert(1)')
+    render(<FileField field={field({ resolveUrl })} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Baixar arquivo' }))
+    expect(await screen.findByText('Erro ao baixar o arquivo')).toBeInTheDocument()
+    expect(tab.close).toHaveBeenCalled()
+    expect(tab.location.href).toBe('')
+  })
 })

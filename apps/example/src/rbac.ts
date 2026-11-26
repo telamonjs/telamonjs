@@ -60,3 +60,33 @@ export function markRoleHoldersStale(prisma: PrismaClient, roleId: string) {
     data: { accessChangedAt: new Date() },
   })
 }
+
+/**
+ * The privilege ceiling of every grant: a user's roles, an invitation's roles,
+ * a permission given to a role. The actor (the session user, whose claims
+ * `auth()` and the API guard keep fresh) confers only permissions it already
+ * holds, and only a holder of the built-in `admin` role confers that role, so
+ * users.write, roles.write or invitations.write alone never lead to admin.
+ * True when every listed role and permission is within the actor's reach.
+ */
+export async function canGrant(
+  prisma: PrismaClient,
+  actor: { roles?: { code: string }[]; permissions?: string[] },
+  grant: { roleIds?: string[]; permissionIds?: string[] }
+): Promise<boolean> {
+  const [roles, permissions] = await Promise.all([
+    prisma.role.findMany({
+      where: { id: { in: grant.roleIds ?? [] } },
+      select: { code: true, permissions: { select: { permission: { select: { code: true } } } } },
+    }),
+    prisma.permission.findMany({ where: { id: { in: grant.permissionIds ?? [] } }, select: { code: true } }),
+  ])
+  const isAdmin = actor.roles?.some((role) => role.code === ADMIN_ROLE_CODE) ?? false
+  if (!isAdmin && roles.some((role) => role.code === ADMIN_ROLE_CODE)) return false
+  const held = new Set(actor.permissions)
+  const conferred = [
+    ...roles.flatMap((role) => role.permissions.map((p) => p.permission.code)),
+    ...permissions.map((p) => p.code),
+  ]
+  return conferred.every((code) => held.has(code))
+}

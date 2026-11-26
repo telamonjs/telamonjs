@@ -42,6 +42,10 @@ modules/<name>/
   `roleIds` (`accessChangedAt`); deactivating a user or changing their password sets
   `sessionsRevokedAt`. New permission: add it to the catalog, guard the route
   with `@Permissions`, run `pnpm db:seed`.
+- Granting has a ceiling: `UsuariosService` (roles of a user), `RolesService.setPermission`
+  and invitations pass the `@CurrentUser()` to `canGrant()` from `{{scope}}/shared/rbac`,
+  which refuses (403) a permission the actor lacks or the `admin` role to a non-admin;
+  editing a user also checks the roles they already hold.
 
 ## Testing with a real cookie
 

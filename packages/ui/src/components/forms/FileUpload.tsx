@@ -385,8 +385,9 @@ export function FileUpload({
 
       setValidationError(undefined)
 
-      // If replacing an existing file (maxFiles=1), delete the old file from S3 first
-      if (isReplacing && uploadEndpoint) {
+      // If replacing an existing file (maxFiles=1), delete the old file from S3 first,
+      // unless the replacement is rejected: then the record still points at the old file.
+      if (isReplacing && uploadEndpoint && !validateFile(fileArray[0])) {
         const existingFile = files[0] as ExistingFile
         const oldKey = extractS3KeyFromUrl(existingFile.url)
 

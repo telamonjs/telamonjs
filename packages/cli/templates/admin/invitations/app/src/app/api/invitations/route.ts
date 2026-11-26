@@ -3,6 +3,7 @@ import { z } from 'zod'
 import { createPaginatedResponse, sanitizePaginationParams } from '@telamonjs/data'
 import { prisma } from '@/lib/prisma'
 import { requirePermission } from '@/lib/auth'
+import { canGrant } from '@/rbac'
 import { newToken, sendInvitation, serializeInvitations } from '@/lib/invitations'
 
 const createSchema = z.object({
@@ -63,6 +64,10 @@ export async function POST(request: NextRequest) {
 
   if ((await prisma.role.count({ where: { id: { in: roleIds } } })) !== roleIds.length) {
     return NextResponse.json({ message: 'Unknown role' }, { status: 400 })
+  }
+  // An invitation never confers more than the inviter holds (the admin role included)
+  if (!(await canGrant(prisma, currentUser, { roleIds }))) {
+    return NextResponse.json({ message: 'You can only invite with roles whose permissions you hold' }, { status: 403 })
   }
   if (await prisma.user.findFirst({ where: { email: { equals: email, mode: 'insensitive' } } })) {
     return NextResponse.json({ message: 'A user with this email already exists' }, { status: 409 })

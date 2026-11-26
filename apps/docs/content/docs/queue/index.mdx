@@ -181,6 +181,23 @@ its queue at once on the Node.js event loop; `concurrencyPerQueue` overrides the
 value per job name. Capacity adds up across processes: three worker processes with
 `concurrency: 5` run up to 15 jobs of that queue in parallel.
 
+**Timeout.** An attempt that runs past its `timeout` fails with `JobTimeoutError`
+and frees its concurrency slot; the normal retry and DLQ path then applies. The
+deadline covers `validate`, `transform`, `onActive` and `process`. The value comes
+from the job's `JobConfigStore` config (via `createWorkersFromConfig`, or
+`timeoutPerQueue` on `createWorkers`), else the `timeout` the job was enqueued
+with, else the class's `options.timeout`. `process(data, ctx)` receives
+`ctx.signal`, which aborts at the deadline.
+
+<Callout type='warn' title='A timeout does not stop a handler that ignores ctx.signal'>
+  JavaScript cannot kill a running `process()`. After the timeout, a handler that
+  ignores `ctx.signal` keeps running in the background while the retry starts, so
+  the same job can run twice at once, above the worker's concurrency. A handler
+  with side effects (charges, emails, writes) must stop when `ctx.signal` aborts
+  (pass it to `fetch` and other I/O, check `signal.aborted` between steps) or be
+  safe to run twice.
+</Callout>
+
 ### Design decisions
 
 - **BullMQ on Redis.** BullMQ provides atomic job state, priorities, delays, rate

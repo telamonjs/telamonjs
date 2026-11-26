@@ -210,6 +210,20 @@ describe('addAdmin', () => {
       expect(count(read(app, 'src/app/api/roles/[id]/route.ts'), 'await audit(')).toBe(2)
       expect(count(schema, 'model Invitation ')).toBe(1)
       expect(count(read(app, '.env.example'), 'telamonjs:admin:invitations')).toBe(1)
+      expect(count(read(app, 'src/rbac.ts'), 'export async function canGrant')).toBe(1)
+    })
+
+    it('invitations: an app generated before canGrant gets it appended to src/rbac.ts', () => {
+      const rbac = read(app, 'src/rbac.ts')
+      const block = rbac.slice(rbac.lastIndexOf('/**', rbac.indexOf('export async function canGrant')))
+      writeFileSync(join(app, 'src/rbac.ts'), rbac.replace(block, ''))
+
+      addAdmin('invitations', { cwd: app })
+
+      const patched = read(app, 'src/rbac.ts')
+      expect(count(patched, 'export async function canGrant')).toBe(1)
+      expect(patched.endsWith(`}\n\n${block}`)).toBe(true)
+      expect(patched).toContain("code: 'invitations.write'")
     })
 
     it('keeps a module file the app already changed', () => {
@@ -328,6 +342,11 @@ describe('addAdmin', () => {
       expect(appModule).toContain("import { InvitationsModule } from './modules/invitations/invitations.module'\n")
       expect(appModule).toMatch(/RolesModule,\n {4}InvitationsModule,\n {2}\]/)
       expect(read(mono, 'apps/api/src/modules/invitations/invitations.controller.ts')).toContain("@Public()\n  @Post('accept')")
+      // the inviter is checked by the shared canGrant, imported under the workspace's own scope
+      const service = read(mono, 'apps/api/src/modules/invitations/invitations.service.ts')
+      expect(service).toContain("import { canGrant } from '@shop-mono/shared/rbac'")
+      expect(service).not.toContain('{{scope}}')
+      expect(count(read(mono, 'packages/shared/src/rbac.ts'), 'export async function canGrant')).toBe(1)
       expect(result.nextSteps.at(-1)).toContain('ConsoleMailSender')
     })
 

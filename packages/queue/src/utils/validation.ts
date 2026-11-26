@@ -119,6 +119,7 @@ export const WorkerConfigSchema = z.object({
   autoRun: z.boolean().optional().default(true),
   metrics: z.boolean().optional().default(false),
   concurrencyPerQueue: z.record(z.number().int().min(1).max(100)).optional(),
+  timeoutPerQueue: z.record(z.number().int().positive()).optional(),
 })
 
 export type ValidatedWorkerConfig = z.infer<typeof WorkerConfigSchema>

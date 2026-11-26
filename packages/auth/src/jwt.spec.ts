@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import {
   encodeSessionToken,
   decodeSessionToken,
@@ -73,6 +73,28 @@ describe('encode/decodeSessionToken', () => {
     )
     expect(decoded?.authTime).toBe(1000)
     expect(decoded?.accessAt).toBe(2000)
+  })
+
+  it('an explicit maxAge caps the token age; without it only exp applies', async () => {
+    // Auth.js default lifetime: 30 days
+    const token = await encodeSessionToken(basePayload, {
+      secret: SECRET,
+      maxAge: 30 * 24 * 60 * 60,
+    })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000) // 2h later
+      expect(
+        await decodeSessionToken(token, { secret: SECRET, maxAge: 60 * 60 })
+      ).toBeNull()
+      expect(
+        (await decodeSessionToken(token, { secret: SECRET, maxAge: 3 * 60 * 60 }))
+          ?.id
+      ).toBe('u1')
+      expect((await decodeSessionToken(token, { secret: SECRET }))?.id).toBe('u1')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('invalid token → null (does not throw)', async () => {

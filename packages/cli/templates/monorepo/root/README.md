@@ -21,7 +21,7 @@ pnpm install
 cp .env.example .env  # fill NEXTAUTH_SECRET (openssl rand -base64 32)
 docker compose up -d  # postgres + redis
 pnpm db:push
-pnpm db:seed          # permission catalog + admin role + admin@example.com / 12345
+pnpm db:seed          # permission catalog + admin role; on an empty database, admin@example.com / 12345
 pnpm dev              # apps/web   — http://localhost:{{appPort}}
 pnpm dev:api          # apps/api   — http://localhost:{{apiPort}}/v1
 pnpm worker           # apps/jobs
@@ -40,4 +40,6 @@ pnpm db:studio       # Prisma Studio
 ## Default credentials
 
 - Email: `admin@example.com`
-- Password: `12345`
+- Password: `12345` (`SEED_ADMIN_PASSWORD` in production)
+
+Created by the seed on an empty database only; a re-run never touches existing accounts.

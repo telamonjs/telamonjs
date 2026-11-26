@@ -60,7 +60,9 @@ export const JwtAuthGuard = createJwtAuthGuard()
 The guard reads the token from `Authorization: Bearer`, then `?token=` (for
 EventSource/SSE, which can't send headers), then the NextAuth cookies. Cookie
 decoding is salt-aware (`__Secure-` names under HTTPS) and reassembles chunked
-cookies. Opt a route out with `@Public()`.
+cookies. While a `__Secure-` cookie is present, the plain one is never read; an
+HTTPS-only API passes `cookieNames: ['__Secure-authjs.session-token']` so it is
+never read at all. Opt a route out with `@Public()`.
 
 The guard is built when its module is imported, before Nest DI and env
 loading. To read the secret late, pass a function (sync or async), called on
@@ -95,7 +97,9 @@ const token = await createImpersonationToken({ target, actor, logId: log.id })
 The impersonation token **is** the API credential: the callbacks swap
 `accessToken` too, so impersonation is not cosmetic. Wire the cookies through
 `createAuthCallbacks({ getImpersonationCookies, clearImpersonationCookies })`.
-For immediate revocation, pass `isImpersonationActive` to the guard; tokens
+The cookie only applies to the session of the actor who started it (the
+token's `originalUserId`), so another user signing in on the same browser
+keeps their own identity. For immediate revocation, pass `isImpersonationActive` to the guard; tokens
 without a `logId` are then rejected. Without the hook an impersonation token
 stays valid until it expires, and the guard logs a one-time warning (Nest
 `Logger`) the first time it accepts one:
@@ -178,8 +182,8 @@ export const InternalKeyGuard = createApiKeyGuard({
 @Public() @UseGuards(InternalKeyGuard) @Post('emit') emit() {}
 ```
 
-`verify(key, request)` returns a principal or `null` (sync or async, so a
-database lookup fits too). The principal goes to `request.servicePrincipal`;
+`verify(key, request)` returns a principal, or `null` (any falsy value) to
+reject (sync or async, so a database lookup fits too). The principal goes to `request.servicePrincipal`;
 `request.user` is left alone. Anything else is a generic 401 (`createException`
 applies); the guard logs nothing, and a thrown verifier error propagates.
 `staticApiKey` compares sha256 digests with `timingSafeEqual` and rejects
@@ -218,7 +222,11 @@ hashApiKey(key)                        // → Promise<hex sha256>, to store
 
 `TokenConfig` is `{ secret?, salt?, maxAge? }`. Defaults: salt
 `'authjs.session-token'` (`DEFAULT_SALT`), maxAge 24 h (`DEFAULT_MAX_AGE`),
-impersonation 1 h (`DEFAULT_IMPERSONATION_MAX_AGE`).
+impersonation 1 h (`DEFAULT_IMPERSONATION_MAX_AGE`). Those maxAge defaults
+set the lifetime of the tokens you encode. On the decoding side
+(`decodeSessionToken`, the guard, `createAuthCallbacks({ tokenConfig })`) a
+`maxAge` you pass also rejects a token issued longer ago than that; without
+one, the token's own `exp` is the only limit.
 
 `AuthUser` structurally satisfies `UserWithPermissions` from
 [`@telamonjs/permissions`](https://www.npmjs.com/package/@telamonjs/permissions),

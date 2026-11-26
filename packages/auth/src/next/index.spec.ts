@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import { createAuthCallbacks, type ImpersonationCookies } from './index'
 import { createImpersonationToken } from '../impersonation'
+import { encodeSessionToken } from '../jwt'
 
 const SECRET = 'test-secret-with-at-least-32-characters!!'
 const tokenConfig = { secret: SECRET }
@@ -23,19 +24,21 @@ function actorToken(): Record<string, unknown> {
   }
 }
 
-async function impersonationToken(maxAge?: number) {
+const target = {
+  id: 'u1',
+  pessoaId: 'p1',
+  name: 'Alvo',
+  email: 'alvo@b.c',
+  role: targetRole,
+  permissions: ['produtos.read'],
+}
+
+async function impersonationToken(maxAge?: number, actorId = 'admin-1') {
   return createImpersonationToken(
     {
-      target: {
-        id: 'u1',
-        pessoaId: 'p1',
-        name: 'Alvo',
-        email: 'alvo@b.c',
-        role: targetRole,
-        permissions: ['produtos.read'],
-      },
+      target,
       actor: {
-        id: 'admin-1',
+        id: actorId,
         name: 'Admin',
         email: 'admin@b.c',
         role: actorRole,
@@ -59,7 +62,8 @@ function setup(jar: ImpersonationCookies) {
   })
   return {
     jar,
-    jwt: (token: Record<string, unknown>) => callbacks.jwt({ token }),
+    jwt: (token: Record<string, unknown>, user?: unknown) =>
+      callbacks.jwt({ token, user }),
     session: (token: Record<string, unknown>) =>
       callbacks.session({ session: { user: {} }, token }),
   }
@@ -145,6 +149,18 @@ describe('createAuthCallbacks — session times', () => {
     expect(token.authTime).toBe(1)
     expect(token.accessAt).toBe(2)
   })
+
+  it("stopping restores the actor's accessAt with the actor's permissions", async () => {
+    const ctx = setup({ token: await impersonationToken(), logId: 'log-1' })
+    const impersonated = await ctx.jwt({ ...actorToken(), authTime: 1, accessAt: 2 })
+    // the app refreshed the target's claims while impersonating
+    impersonated.accessAt = 999
+    delete ctx.jar.token
+    const restored = await ctx.jwt(impersonated)
+    expect(restored.permissions).toEqual(['admin.impersonate'])
+    expect(restored.accessAt).toBe(2)
+    expect(restored.authTime).toBe(1)
+  })
 })
 
 describe('createAuthCallbacks — impersonation', () => {
@@ -214,6 +230,51 @@ describe('createAuthCallbacks — impersonation', () => {
     const next = await ctx.jwt(restored)
     expect(ctx.session(next).impersonationExpired).toBe(false)
     expect(next).toEqual(actorToken())
+  })
+
+  it("another user's login does not inherit the actor's leftover impersonation cookie", async () => {
+    const { jwt, session } = setup({
+      token: await impersonationToken(),
+      logId: 'log-1',
+    })
+    const token = await jwt(
+      {},
+      { id: 'low-b', email: 'b@b.c', role: targetRole, permissions: [] }
+    )
+    expect(token.id).toBe('low-b')
+    expect(token.permissions).toEqual([])
+    expect(token.impersonatedUserId).toBeUndefined()
+    expect(token.originalUserId).toBeUndefined()
+    expect(session(token).isImpersonating).toBe(false)
+  })
+
+  it('a plain session token in the impersonation cookie is not applied', async () => {
+    const plain = await encodeSessionToken(
+      { ...target, id: 'u-d', permissions: ['finance.write'] },
+      tokenConfig
+    )
+    const { jwt } = setup({ token: plain, logId: 'client-chosen-log' })
+    expect(await jwt(actorToken())).toEqual(actorToken())
+  })
+
+  it('an impersonation token without its own log id is not applied', async () => {
+    const logless = await encodeSessionToken(
+      { ...target, impersonatedUserId: 'u1', originalUserId: 'admin-1' },
+      tokenConfig
+    )
+    const { jwt } = setup({ token: logless, logId: 'active-log' })
+    expect(await jwt(actorToken())).toEqual(actorToken())
+  })
+
+  it("a cookie swapped for another actor's token ends the impersonation", async () => {
+    const ctx = setup({ token: await impersonationToken(), logId: 'log-1' })
+    const impersonated = await ctx.jwt(actorToken())
+    ctx.jar.token = await impersonationToken(undefined, 'admin-2')
+    const restored = await ctx.jwt(impersonated)
+    expect(restored.id).toBe('admin-1')
+    expect(restored.accessToken).toBe('ACTOR_ACCESS')
+    expect(restored.impersonatedUserId).toBeUndefined()
+    expect(ctx.jar.token).toBeUndefined() // clearImpersonationCookies ran
   })
 
   it('invalid orphan cookie with no active impersonation is ignored', async () => {

@@ -100,6 +100,40 @@ describe('handleDispatch', () => {
     ).rejects.toMatchObject({ status: 422 })
   })
 
+  it('enqueues the schema output: unknown keys stripped, defaults and transforms applied', async () => {
+    const queue = makeQueue()
+    const queues = makeQueueSource({ export: queue })
+    const contracts = makeContracts([
+      {
+        name: 'export',
+        module: 'reports',
+        description: 'Export',
+        dispatchable: true,
+        schema: z.object({
+          fileName: z.string().trim(),
+          pageSize: z.number().max(100).default(50),
+        }),
+      },
+    ])
+
+    await handleDispatch(
+      makeDeps({ queues, contracts }),
+      { queueName: 'export', data: { fileName: '  report.csv  ', ownerId: 'other-owner' } },
+      'actor'
+    )
+
+    expect(queue.add).toHaveBeenCalledWith(
+      'export',
+      {
+        fileName: 'report.csv',
+        pageSize: 50,
+        triggeredBy: 'actor',
+        triggeredAt: expect.any(String),
+      },
+      undefined
+    )
+  })
+
   it('applies the contract defaultOptions when adding the job', async () => {
     const queue = makeQueue()
     const queues = makeQueueSource({ 'send-email': queue })

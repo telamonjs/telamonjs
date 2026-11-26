@@ -1,5 +1,5 @@
 import execa from 'execa'
-import { existsSync, mkdirSync } from 'fs'
+import { existsSync, mkdirSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { fileURLToPath } from 'url'
 import chalk from 'chalk'
@@ -27,6 +27,10 @@ export async function runDump(name?: string) {
     mkdirSync(dumpsDir, { recursive: true })
     logger.info('Created database/dumps directory')
   }
+  // A dump is the whole database: keep it out of git whatever the app's
+  // .gitignore says (older apps' rules do not match *.sql.gz)
+  const dumpsIgnore = join(dumpsDir, '.gitignore')
+  if (!existsSync(dumpsIgnore)) writeFileSync(dumpsIgnore, '*\n')
 
   // Execute script directly from CLI templates
   const scriptPath = join(__dirname, '../../templates/database/dump.sh')

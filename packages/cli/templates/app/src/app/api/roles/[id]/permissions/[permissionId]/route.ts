@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePermission } from '@/lib/auth'
-import { markRoleHoldersStale } from '@/rbac'
+import { canGrant, markRoleHoldersStale } from '@/rbac'
 
 type Params = { params: Promise<{ id: string; permissionId: string }> }
 
@@ -18,6 +18,9 @@ async function toggle({ params }: Params, grant: boolean) {
   }
 
   if (grant) {
+    if (!(await canGrant(prisma, currentUser, { permissionIds: [permissionId] }))) {
+      return NextResponse.json({ message: 'You can only grant permissions you hold' }, { status: 403 })
+    }
     await prisma.rolePermission.upsert({
       where: { roleId_permissionId: { roleId, permissionId } },
       update: {},

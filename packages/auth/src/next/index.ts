@@ -56,7 +56,10 @@ export interface AuthCallbacksOptions {
   getImpersonationCookies?: () => Promise<
     ImpersonationCookies | null | undefined
   >
-  /** Called when the impersonation token expires or is invalid. Optional. */
+  /**
+   * Called when an active impersonation ends because its token expired, is
+   * invalid or was not started by this session's user. Optional.
+   */
   clearImpersonationCookies?: () => Promise<void> | void
   /** secret/salt to decode the impersonation token. Default: env + v5 salt. */
   tokenConfig?: TokenConfig
@@ -76,6 +79,9 @@ const IMPERSONATION_SWAP = {
   roles: 'originalUserRoles',
   permissions: 'originalPermissions',
   accessToken: 'originalAccessToken',
+  // when the actor's permissions above were computed: restored with them, so
+  // a target-side refresh during impersonation cannot hide an actor change
+  accessAt: 'originalAccessAt',
 } as const
 
 type MutableToken = Record<string, unknown>
@@ -111,13 +117,23 @@ async function applyImpersonation(
     return
   }
 
-  const payload = await decodeSessionToken(
+  const decoded = await decodeSessionToken(
     impersonationToken,
     options.tokenConfig
   )
+  // Only a real impersonation token (with its own log id) started by THIS
+  // session's actor counts: a cookie left behind never applies to another user
+  const actorId = token.originalUserId ?? token.id
+  const payload =
+    decoded?.impersonatedUserId &&
+    decoded.impersonationLogId &&
+    decoded.originalUserId &&
+    decoded.originalUserId === actorId
+      ? decoded
+      : null
 
   if (!payload) {
-    // Expired/invalid. Orphan cookie with no active impersonation: ignore.
+    // Expired/invalid/not ours. Orphan cookie with no active impersonation: ignore.
     if (!token.impersonatedUserId) return
     restoreActor(token)
     token.impersonationExpired = true
@@ -143,7 +159,7 @@ async function applyImpersonation(
   // while API calls keep going out with the admin's credential.
   token.accessToken = payload.accessToken ?? impersonationToken
   token.impersonatedUserId = payload.id
-  token.impersonationLogId = payload.impersonationLogId ?? logId
+  token.impersonationLogId = payload.impersonationLogId
   token.isImpersonating = true
 }
 

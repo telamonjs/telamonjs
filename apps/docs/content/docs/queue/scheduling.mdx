@@ -45,7 +45,7 @@ export class DailyReportJob extends Job<void, void> {
 
 const redis = { host: 'localhost', port: 6379 }
 const jobs = new Map<string, JobConstructor>([['daily-report', DailyReportJob]])
-const store = new JobConfigStore({ redis })
+const store = new JobConfigStore({ redis, prefix: 'myapp' }) // same prefix as the queues
 
 // Seeds the store from Job.configDefaults and registers the enabled jobs
 await setupFromConfig(queueManager, store, jobs)
@@ -54,6 +54,13 @@ await setupFromConfig(queueManager, store, jobs)
 const reconciler = new SchedulerReconciler(new QueueRegistry({ redis, prefix: 'myapp' }), store, jobs)
 await reconciler.start()
 ```
+
+The store keeps its configs under `${prefix}:config:`. Give it the same `prefix`
+as the queues (and give `JobEventPublisher`/`createSSEBroadcaster` the same one
+for events): apps sharing one Redis with the default `telamonjs` share one
+config index, so each app's bootstrap disables the other's jobs. An existing
+app moving off the default can pass `keyPrefix: 'telamonjs:config:'` to keep its
+stored configs.
 
 The reconciler writes one BullMQ **job scheduler** per job (`upsertJobScheduler`,
 id = job name), so a cron, timezone or priority edit updates it in place. It

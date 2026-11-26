@@ -56,8 +56,11 @@ const payload = await decodeSessionToken(token)
 ```
 
 `TokenConfig` (`secret`, `salt`, `maxAge`) is accepted by every function and
-by the Nest guard; secret defaults to the env vars, salt to the v5 default,
-maxAge to 24h. The guard also accepts `secret` as a function resolved per
+by the Nest guard; secret defaults to the env vars, salt to the v5 default.
+`maxAge` is the lifetime of an encoded token (default 24h). When decoding
+(`decodeSessionToken`, the guard), a `maxAge` you pass also rejects a token
+issued longer ago than that; without one, the token's own `exp` is the only
+limit. The guard also accepts `secret` as a function resolved per
 request (see [Secret resolved per request](#secret-resolved-per-request)).
 
 ### Known trap: which salt does your project use?
@@ -75,8 +78,15 @@ request (see [Secret resolved per request](#secret-resolved-per-request)).
 
 A related knob on the guard: `cookieNames` controls **where the guard looks
 for the cookie**, independent of the salt. Default:
-`[salt, '__Secure-' + salt]`. A project that decodes with one salt but serves
+`['__Secure-' + salt, salt]`. A project that decodes with one salt but serves
 a differently-named cookie passes both explicitly (see below).
+
+Only a secure origin can set a `__Secure-` cookie, while any plain-HTTP
+response or non-secure sibling subdomain can plant the plain one. So while the
+`__Secure-` cookie is present (even expired), the guard never falls back to
+the plain one. An API served only over HTTPS should pass
+`cookieNames: ['__Secure-authjs.session-token']`, so a planted plain cookie is
+not read even when the user has no session.
 
 ### The payload contract
 
@@ -225,7 +235,7 @@ The guard looks for the session token in three places, in priority order:
    forwards its own session JWE as a bearer token.
 2. **`?token=` query param** — for SSE: `EventSource` cannot send custom
    headers, so streams pass the token in the URL.
-3. **NextAuth cookies** — `cookieNames` (default `[salt, '__Secure-' + salt]`),
+3. **NextAuth cookies** — `cookieNames` (default `['__Secure-' + salt, salt]`),
    for same-domain requests with `credentials: 'include'`.
 
 On success the guard attaches the decoded `AuthUser` to `request.user`; any
@@ -399,7 +409,12 @@ const loadMarks = cache((userId: string) =>
 callbacks: {
   jwt: async args => {
     const token = await base.jwt(args)
-    if (args.user) return token // fresh login: claims and times just stamped
+    if (args.user) {
+      // fresh login: authorize() read the claims before this clock, so count
+      // them as older than any mark (a change committing meanwhile stays stale)
+      token.accessAt = 0
+      return token
+    }
     const marks = await loadMarks(token.id as string)
     if (!marks) return null
     const state = sessionState(token, {
@@ -408,9 +423,11 @@ callbacks: {
     })
     if (state === 'revoked') return null // signs the user out
     if (state === 'stale') {
-      // role, roles, permissions — same source as authorize()
+      // role, roles, permissions — same source as authorize(); `accessAt` is
+      // the mark read above, never the clock, so a change that commits while
+      // loadAccess runs leaves the token stale
       Object.assign(token, await loadAccess(token.id as string), {
-        accessAt: Date.now(),
+        accessAt: marks.accessChangedAt?.getTime() ?? 0,
       })
     }
     return token
@@ -646,5 +663,5 @@ The package is linked instead of installed, so the guard throws an
 ## Related Links
 
 - [Permissions](/docs/packages/permissions) — the RBAC that fills `permissions[]`
-- [Admin Module Structure](/docs/patterns/admin-module-structure) — where `getCurrentUser()` guards Route Handlers
+- [Admin Module Structure](/docs/patterns/admin-module-structure) — where `requirePermission()` guards Route Handlers
 - [Troubleshooting](/docs/troubleshooting) — two copies of a peer dependency

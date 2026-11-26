@@ -72,8 +72,13 @@ export interface PaginatedServiceConfig<TModel extends string = string> {
    */
   sortableFields?: string[]
 
-  // Visibility/permission rules
-  visibility?: (user: AuthUser) => PrismaWhereClause // Returns Prisma where clause
+  /**
+   * Visibility/permission rule: the Prisma where clause this user may see.
+   * With `createCachedPaginatedService` the clause is part of the cache key,
+   * so it must be deterministic for a given user: not
+   * `{ publishedAt: { lte: new Date() } }`, which never repeats a key.
+   */
+  visibility?: (user: AuthUser) => PrismaWhereClause
 
   // Count configuration for relations
   counts?: string[] // Relations to count (e.g., ['produtosCliente', 'unidades'])

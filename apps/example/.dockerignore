@@ -65,5 +65,5 @@ temp
 Thumbs.db
 .DS_Store
 
-# Prisma
-prisma/migrations
+# Database dumps (telamonjs db dump)
+database/dumps

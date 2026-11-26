@@ -21,7 +21,9 @@ function sameOriginPath(url: string | null | undefined): string | null {
   if (!url) return null
   try {
     const parsed = new URL(url, window.location.origin)
-    return parsed.origin === window.location.origin
+    // A path that normalizes to '//host' ('/.//host', '/a/..//host', 'https://app//host')
+    // passes the origin check here but reads as protocol-relative in router.push.
+    return parsed.origin === window.location.origin && !parsed.pathname.startsWith('//')
       ? parsed.pathname + parsed.search + parsed.hash
       : null
   } catch {

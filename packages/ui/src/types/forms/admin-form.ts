@@ -132,7 +132,7 @@ export interface FormField<TValue = unknown> {
   /**
    * `file` fields: turns the stored value (e.g. a storage key) into the URL
    * the download button opens — sync or async (signed URL). Default: opens
-   * the stored value as is
+   * the stored value as is. Only http(s), blob: and relative URLs are opened
    */
   resolveUrl?: (value: string) => string | Promise<string>
   Component?: ({ id }: { id: string }) => React.ReactElement

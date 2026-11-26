@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ReactElement, isValidElement, memo } from 'react'
+import { ReactElement, isValidElement, memo, useSyncExternalStore } from 'react'
 import type { LucideIcon } from 'lucide-react'
 import { resolveNamedIcon, type IconName } from '../../utils/icon'
 import { sanitizeSvg } from '../../utils/sanitize-html'
@@ -14,6 +14,8 @@ interface CardLinkIconProps {
   svgWrapperClassName?: string
 }
 
+const noopSubscribe = () => () => {}
+
 // memo: the icon resolves to a component reference at render time
 // (getIconFromName lookup); the React Compiler can't prove that reference is
 // stable, so it flags rendering it as "creating a component during render".
@@ -24,6 +26,9 @@ const CardLinkIcon = memo(function CardLinkIcon({
   iconClassName,
   svgWrapperClassName,
 }: CardLinkIconProps) {
+  // false on the server and during hydration, true after: the raw string is only
+  // ever sanitized and inserted in the browser, never serialized into server HTML.
+  const isClient = useSyncExternalStore(noopSubscribe, () => true, () => false)
   const IconComponent = resolveNamedIcon(icon, iconName)
   if (IconComponent) {
     return <IconComponent className={iconClassName} />
@@ -31,7 +36,7 @@ const CardLinkIcon = memo(function CardLinkIcon({
   if (typeof icon === 'string') {
     return (
       <div
-        dangerouslySetInnerHTML={{ __html: sanitizeSvg(icon) }}
+        dangerouslySetInnerHTML={{ __html: isClient ? sanitizeSvg(icon) : '' }}
         className={svgWrapperClassName}
       />
     )

@@ -44,7 +44,7 @@ export class InvitationsController {
   @Post()
   @HttpCode(201)
   create(@Body() dto: CreateInvitationDto, @CurrentUser() user: AuthUser) {
-    return this.invitationsService.create(dto, user.id)
+    return this.invitationsService.create(dto, user)
   }
 
   @Permissions('invitations.write')

@@ -32,13 +32,13 @@ export class UsuariosController {
   @Permissions('users.write')
   @Post()
   @HttpCode(201)
-  create(@Body() dto: CreateUsuarioDto) {
-    return this.usuariosService.create(dto)
+  create(@Body() dto: CreateUsuarioDto, @CurrentUser() user: AuthUser) {
+    return this.usuariosService.create(dto, user)
   }
 
   @Permissions('users.write')
   @Patch(':id')
   update(@Param('id') id: string, @Body() dto: UpdateUsuarioDto, @CurrentUser() user: AuthUser) {
-    return this.usuariosService.update(id, dto, user.id)
+    return this.usuariosService.update(id, dto, user)
   }
 }

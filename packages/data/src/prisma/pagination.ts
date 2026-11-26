@@ -6,7 +6,7 @@
  */
 
 import { createPaginatedResponse, sanitizePaginationParams } from '../contract.js'
-import type { PaginationParams, SortField } from '../contract.js'
+import type { PaginatedResponse, PaginationParams, SortField } from '../contract.js'
 import { resolveSort } from '../sort.js'
 import { buildPrismaOrderBy, buildPrismaOrderByMulti, type PrismaOrderBy } from './order-by.js'
 import type {
@@ -15,6 +15,7 @@ import type {
   PaginatedService,
   PaginatedServiceConfig,
   PaginationContext,
+  PrismaWhereClause,
 } from './types.js'
 import {
   buildFilterConditions,
@@ -109,6 +110,19 @@ export function createPaginationContext(context: PaginationContext) {
   function createPaginatedService<T extends string>(
     config: PaginatedServiceConfig<T>
   ): PaginatedService<Record<string, unknown>> {
+    return buildPaginatedService(config).service
+  }
+
+  /**
+   * The service plus its internals: the cached service resolves the
+   * visibility clause once per call and hands it to `listFor` /
+   * `filterOptionsFor`. Never put that clause on `list` itself: `list` is
+   * often exported as a server action, so the argument would come from the
+   * client.
+   */
+  function buildPaginatedService<T extends string>(
+    config: PaginatedServiceConfig<T>
+  ) {
     const {
       model,
       searchFields = [],
@@ -138,25 +152,31 @@ export function createPaginationContext(context: PaginationContext) {
       throw new Error(`Model "${model}" not found in Prisma client`)
     }
 
-    // Main pagination function
-    async function list(params?: PaginationParams): Promise<{
-      data: Record<string, unknown>[]
-      total: number
-      page: number
-      pageSize: number
-      totalPages: number
-    }> {
-      // Get authenticated user if visibility rules are defined
-      let visibilityWhere: Record<string, unknown> | undefined = undefined
-      if (visibility) {
-        const session = await auth()
-        if (!session?.user) {
-          // No user, return empty result
-          return createPaginatedResponse([], 0, 1, 10)
-        }
-        visibilityWhere = visibility(session.user)
-      }
+    /** `{}` without a visibility rule; `null` when nobody is signed in */
+    async function resolveScope(): Promise<{
+      userId?: string
+      where?: PrismaWhereClause
+    } | null> {
+      if (!visibility) return {}
+      const session = await auth()
+      if (!session?.user) return null
+      return { userId: session.user.id, where: visibility(session.user) }
+    }
 
+    // Main pagination function
+    async function list(
+      params?: PaginationParams
+    ): Promise<PaginatedResponse<Record<string, unknown>>> {
+      const scope = await resolveScope()
+      // No user, return empty result
+      if (!scope) return createPaginatedResponse([], 0, 1, 10)
+      return listFor(params, scope.where)
+    }
+
+    async function listFor(
+      params: PaginationParams | undefined,
+      visibilityWhere: PrismaWhereClause | undefined
+    ): Promise<PaginatedResponse<Record<string, unknown>>> {
       // Destructure params with defaults
       const {
         search = '',
@@ -263,17 +283,16 @@ export function createPaginationContext(context: PaginationContext) {
         return {}
       }
 
-      const labels = filterLabels(locale)
+      const scope = await resolveScope()
+      if (!scope) return {}
+      return filterOptionsFor(locale, scope.where)
+    }
 
-      // Get authenticated user if visibility rules are defined
-      let visibilityWhere: Record<string, unknown> | undefined = undefined
-      if (visibility) {
-        const session = await auth()
-        if (!session?.user) {
-          return {}
-        }
-        visibilityWhere = visibility(session.user)
-      }
+    async function filterOptionsFor(
+      locale: string | undefined,
+      visibilityWhere: PrismaWhereClause | undefined
+    ): Promise<Record<string, FilterOption[]>> {
+      const labels = filterLabels(locale)
 
       const filterOptions: Record<string, FilterOption[]> = {}
 
@@ -321,22 +340,31 @@ export function createPaginationContext(context: PaginationContext) {
       return filterOptions
     }
 
-    // Return service object
-    return {
+    const service: PaginatedService<Record<string, unknown>> = {
       list,
       ...(enableFilterOptions && { getFilterOptions }),
       getConfig: () => config,
     }
+    return { service, resolveScope, listFor, filterOptionsFor }
   }
 
   /**
    * Create a cached paginated service
-   * Same as createPaginatedService but with caching
+   * Same as createPaginatedService but with caching. Entries are keyed by the
+   * service config and, with `visibility`, by the user and the clause the rule
+   * returns for them. A service with beforeQuery/afterQuery/customFilterOptions
+   * or a filter `transform` is returned uncached (reported through `onWarning`).
+   *
+   * The visibility clause must be deterministic for a given user: a clause
+   * that changes on every call, such as `{ publishedAt: { lte: new Date() } }`,
+   * gives every call a new key, so nothing is ever reused and each call stores
+   * one more entry. Put a time cut-off in an uncached service instead.
    */
   function createCachedPaginatedService<T extends string>(
     config: PaginatedServiceConfig<T>
   ): PaginatedService<Record<string, unknown>> {
-    const service = createPaginatedService(config)
+    const { service, resolveScope, listFor, filterOptionsFor } =
+      buildPaginatedService(config)
     const { model } = config
 
     if (!cache) {
@@ -346,42 +374,73 @@ export function createPaginationContext(context: PaginationContext) {
       return service
     }
 
-    /**
-     * With `visibility`, each user sees different rows, so the key carries the
-     * user's id. `null` means nobody is signed in: skip the cache and let the
-     * service answer the unauthenticated case.
-     */
-    async function userKeyPart(): Promise<string | null> {
-      if (!config.visibility) return ''
-      const session = await auth()
-      return session?.user ? `user:${session.user.id}_` : null
+    // Hooks and filter transforms are closures the key cannot tell apart: two
+    // services differing only there would share entries, so they go uncached.
+    const hasClosures =
+      !!(
+        config.beforeQuery ||
+        config.afterQuery ||
+        config.customFilterOptions
+      ) ||
+      Object.values(config.filters ?? {}).some(
+        f => typeof f === 'object' && typeof f.transform === 'function'
+      )
+    if (hasClosures) {
+      onWarning(
+        `createCachedPaginatedService(${model}): beforeQuery/afterQuery/customFilterOptions and filter transforms are not part of the cache key, so this service is not cached`
+      )
+      return service
     }
 
+    // Prisma clauses may hold BigInt, which plain JSON.stringify rejects
+    const keyJson = (value: unknown): string =>
+      JSON.stringify(value, (_key, v: unknown) =>
+        typeof v === 'bigint' ? `${v}n` : v
+      )
+
+    // Everything static that shapes the result (baseWhere, select, include,
+    // filters, sorting, page sizes...): two services on one model never share
+    // an entry. JSON drops the functions (visibility is keyed per call below).
+    // ponytail: long keys; hash them in cacheEntity if the backend limits key length.
+    const serviceKey = keyJson(config)
+
+    /**
+     * With `visibility`, the key carries the user's id and the clause the rule
+     * returns for them: the id alone misses a role or tenant change. The
+     * clause is computed once per call, and the query runs with that same one.
+     */
+    const userKeyPart = (scope: {
+      userId?: string
+      where?: PrismaWhereClause
+    }) =>
+      config.visibility ? `user:${scope.userId}_${keyJson(scope.where)}_` : ''
+
     // Wrap list function with caching
-    const originalList = service.list
     async function cachedList(params?: PaginationParams) {
-      const userPart = await userKeyPart()
-      if (userPart === null) return originalList(params)
+      const scope = await resolveScope()
+      // Nobody signed in: skip the cache, the service answers that case
+      if (!scope) return service.list(params)
 
-      const cacheKey = `${model}_paginated_${userPart}${JSON.stringify(params || {})}`
+      const cacheKey = `${model}_paginated_${serviceKey}_${userKeyPart(scope)}${JSON.stringify(params || {})}`
 
-      return cache!.cacheEntity(model, cacheKey, () => originalList(params))
+      return cache!.cacheEntity(model, cacheKey, () =>
+        listFor(params, scope.where)
+      )
     }
 
     // Wrap getFilterOptions with caching
-    const originalGetFilterOptions = service.getFilterOptions
     async function cachedGetFilterOptions(locale?: string) {
-      if (!originalGetFilterOptions) {
+      if (!service.getFilterOptions) {
         return {}
       }
 
-      const userPart = await userKeyPart()
-      if (userPart === null) return originalGetFilterOptions(locale)
+      const scope = await resolveScope()
+      if (!scope) return {}
 
-      const cacheKey = `${model}_filter_options_${userPart}${locale ?? ''}`
+      const cacheKey = `${model}_filter_options_${serviceKey}_${userKeyPart(scope)}${locale ?? ''}`
 
       return cache!.cacheEntity(model, cacheKey, () =>
-        originalGetFilterOptions(locale)
+        filterOptionsFor(locale, scope.where)
       )
     }
 

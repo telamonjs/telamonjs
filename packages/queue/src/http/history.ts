@@ -62,9 +62,15 @@ export async function handleGetHistoryAll(
     throw new QueueHttpError('Invalid endDate: use ISO 8601', 400)
   }
 
-  const statusList = (params.statuses ?? 'completed,failed')
-    .split(',')
-    .map(s => parseJobState(s.trim(), 'completed', HISTORY_STATES))
+  // A set: each state is fetched once per queue, so a repeated status can't
+  // multiply the per-request Redis fan-out (or count the total twice).
+  const statusList = [
+    ...new Set(
+      (params.statuses ?? 'completed,failed')
+        .split(',')
+        .map(s => parseJobState(s.trim(), 'completed', HISTORY_STATES))
+    ),
+  ]
   const { limit, offset } = parseListQuery(params, 100)
   const search = params.search
   const hasSearch = Boolean(search && search.trim())

@@ -4,6 +4,7 @@ import { z } from 'zod'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { requirePermission } from '@/lib/auth'
+import { canGrant } from '@/rbac'
 
 const createSchema = z.object({
   name: z.string().min(1),
@@ -76,6 +77,9 @@ export async function POST(request: NextRequest) {
       { message: parsed.error.issues[0]?.message ?? 'Invalid data' },
       { status: 400 }
     )
+  }
+  if (!(await canGrant(prisma, currentUser, { roleIds: parsed.data.roleIds }))) {
+    return NextResponse.json({ message: 'You can only grant roles and permissions you hold' }, { status: 403 })
   }
 
   const existing = await prisma.user.findUnique({ where: { email: parsed.data.email } })

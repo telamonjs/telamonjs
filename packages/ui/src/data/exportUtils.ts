@@ -72,7 +72,12 @@ function downloadBlob(blob: Blob, filename: string): void {
 
 /** RFC 4180 field: quoted when it holds a delimiter, quote, line break, BOM or edge space. */
 function csvField(value: unknown): string {
-  const text = String(value)
+  let text = String(value)
+  // Spreadsheets run a text cell starting with = + - @ tab or CR as a formula; a leading '
+  // keeps it text. A number (or numeric string like '-12.50') cannot be a formula.
+  if (typeof value === 'string' && /^[=+\-@\t\r]/.test(text) && !/^[+-]?\d[\d.,]*$/.test(text)) {
+    text = `'${text}`
+  }
   return /[",\r\n\uFEFF]|^ | $/.test(text) ? `"${text.replace(/"/g, '""')}"` : text
 }
 

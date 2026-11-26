@@ -255,15 +255,132 @@ describe('createCachedPaginatedService cache keys', () => {
     expect(cacheEntity).not.toHaveBeenCalled()
   })
 
-  it('keeps the shared key when there is no visibility rule', async () => {
-    const { service, store } = setupCached()
+  it('shares one entry per service and params when there is no visibility rule', async () => {
+    const { service, store, cacheEntity } = setupCached()
+
+    await service.list(params)
+    await service.list(params)
+    await service.getFilterOptions!('en')
+    expect(cacheEntity).toHaveBeenCalledTimes(3)
+    expect(store.size).toBe(2)
+  })
+})
+
+describe('createCachedPaginatedService scope', () => {
+  // One shared cache, a Prisma model that answers with the query it got, and
+  // a session whose user the test swaps: a cached answer built for another
+  // scope shows up as the wrong query.
+  function context() {
+    const store = new Map<string, unknown>()
+    const onWarning = vi.fn()
+    const cacheEntity = vi.fn(async (_entity: string, key: string, fetcher: () => Promise<unknown>) => {
+      if (!store.has(key)) store.set(key, await fetcher())
+      return store.get(key)
+    })
+    let user: AuthUser = { id: 'u1', role: 'admin' }
+    const { createCachedPaginatedService } = createPaginationContext({
+      prisma: {
+        item: {
+          findMany: vi.fn(async (args: Record<string, unknown>) => [
+            { where: args.where, select: args.select },
+          ]),
+          count: vi.fn().mockResolvedValue(1),
+          groupBy: vi.fn(async ({ where }: { where: unknown }) => [
+            { status: JSON.stringify(where), _count: { _all: 1 } },
+          ]),
+        },
+      },
+      auth: async () => ({ user }),
+      cache: {
+        invalidateEntity: vi.fn(),
+        cacheEntity: <T,>(entity: string, key: string, fetcher: () => Promise<T>) =>
+          cacheEntity(entity, key, fetcher) as Promise<T>,
+      },
+      onWarning,
+    })
+    return {
+      create: (config: Omit<PaginatedServiceConfig, 'model'>) =>
+        createCachedPaginatedService({ model: 'item', ...config }),
+      cacheEntity,
+      store,
+      onWarning,
+      signIn: (next: AuthUser) => {
+        user = next
+      },
+    }
+  }
+
+  const params = { page: 1, pageSize: 10 }
+
+  it('does not serve one service the page or filter options another service cached', async () => {
+    const { create } = context()
+    const admin = create({ filters: { status: 'enum' } })
+    const picker = create({
+      filters: { status: 'enum' },
+      baseWhere: { active: true },
+      select: { id: true, name: true },
+    })
+
+    await admin.list(params)
+    await admin.getFilterOptions!('en')
+    expect((await picker.list(params)).data).toEqual([
+      { where: { active: true }, select: { id: true, name: true } },
+    ])
+    expect((await picker.getFilterOptions!('en')).status[0].value).toBe(
+      JSON.stringify({ active: true })
+    )
+  })
+
+  it('keeps services scoped by baseWhere apart, BigInt values included', async () => {
+    const { create } = context()
+    const tenantA = create({ baseWhere: { tenantId: 1n } })
+    const tenantB = create({ baseWhere: { tenantId: 2n } })
+
+    await tenantA.list(params)
+    expect((await tenantB.list(params)).data).toEqual([
+      { where: { tenantId: 2n }, select: undefined },
+    ])
+  })
+
+  it('recomputes the page when the visibility rule answers differently for the same user', async () => {
+    const { create, signIn } = context()
+    const notes = create({
+      visibility: user => (user.role === 'admin' ? {} : { ownerId: user.id }),
+    })
+
+    signIn({ id: 'u1', role: 'admin' })
+    expect((await notes.list(params)).data[0].where).toEqual({})
+    signIn({ id: 'u1', role: 'user' })
+    expect((await notes.list(params)).data[0].where).toEqual({ ownerId: 'u1' })
+  })
+
+  it('runs the visibility rule once per call and queries with the clause it keyed on', async () => {
+    const { create, store } = context()
+    let calls = 0
+    const visibility = vi.fn(() => ({ version: ++calls }))
+    const service = create({ filters: { status: 'enum' }, visibility })
+
+    expect((await service.list(params)).data[0].where).toEqual({ version: 1 })
+    expect(visibility).toHaveBeenCalledTimes(1)
+    expect([...store.keys()][0]).toContain('{"version":1}')
+    await service.getFilterOptions!('en')
+    expect(visibility).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cache a service whose hooks or filter transforms the key cannot tell apart', async () => {
+    const { create, cacheEntity, onWarning } = context()
+    const service = create({
+      filters: { hasOrders: { type: 'boolean', transform: () => ({ some: {} }) } },
+    })
 
     await service.list(params)
     await service.getFilterOptions!('en')
-    expect([...store.keys()]).toEqual([
-      `item_paginated_${JSON.stringify(params)}`,
-      'item_filter_options_en',
-    ])
+    expect(cacheEntity).not.toHaveBeenCalled()
+    expect(onWarning).toHaveBeenCalledWith(expect.stringContaining('not cached'))
+    create({ afterQuery: data => data })
+    create({ beforeQuery: (_params, where) => where })
+    create({ customFilterOptions: async () => [] })
+    expect(onWarning).toHaveBeenCalledTimes(4)
   })
 })
 

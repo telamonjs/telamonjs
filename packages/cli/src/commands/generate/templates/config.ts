@@ -17,6 +17,7 @@ import {
   isSensitive,
   zodFor,
 } from '../utils/field-mapping.js'
+import { modulePermissions } from './route-handlers.js'
 
 export interface PageConfigOptions {
   name: string
@@ -36,6 +37,7 @@ export function generatePageConfig(options: PageConfigOptions): string {
   const configVar = `${camelCase(name)}Config`
   const route = `/admin/${name}`
   const Title = capitalize(name)
+  const { read, write } = modulePermissions(name)
 
   const editable = formFields(fields)
   // Credentials are stripped from every response (serialize() in route.ts) -- no column for them.
@@ -112,6 +114,16 @@ export const ${configVar}: CrudConfig<${Entity}, ${Entity}FormData> = {
     title: ${i18n ? msgKey('title') : `'${Title}'`},
     description: ${i18n ? msgKey('description') : `'Gerenciamento de ${name}'`},
     route: '${route}',
+  },
+
+  // Checked with the PermissionsProvider's can (LayoutProviders): a denied
+  // operation loses its button, row action and dialog deep link. The Route
+  // Handlers enforce the same codes.
+  permissions: {
+    view: '${read}',
+    create: '${write}',
+    edit: '${write}',
+    delete: '${write}',
   },
 
   list: {

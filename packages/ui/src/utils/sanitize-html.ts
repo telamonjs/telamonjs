@@ -13,8 +13,9 @@
  * server: jsdom reads its `browser/default-stylesheet.css` from disk at runtime,
  * which breaks Next.js server bundles (prerender ENOENT) — especially under
  * `transpilePackages`, where `serverExternalPackages` cannot externalize it.
- * During SSR we return the input unchanged; the client re-sanitizes on hydration
- * before any interaction.
+ * Without a DOM (SSR) both functions fail closed and return `''`: hydration does
+ * not rewrite server HTML, so raw markup emitted there would stay live. Callers
+ * insert the sanitized string on the client (see `CardLink`).
  *
  * NOTE (lazy-dep guard): DOMPurify is a light, eager dependency. It is NOT
  * one of the heavy lazy-by-default deps (@tiptap, recharts) tracked by
@@ -37,7 +38,7 @@ const canSanitize = typeof window !== 'undefined'
  */
 export function sanitizeSvg(input: string): string {
   if (!input) return ''
-  if (!canSanitize) return input
+  if (!canSanitize) return ''
   return DOMPurify.sanitize(input, {
     USE_PROFILES: { svg: true, svgFilters: true, html: true },
   })
@@ -53,7 +54,7 @@ export function sanitizeSvg(input: string): string {
  */
 export function sanitizeRichText(input: string): string {
   if (!input) return ''
-  if (!canSanitize) return input
+  if (!canSanitize) return ''
   return DOMPurify.sanitize(input, {
     ALLOWED_TAGS: [
       // block

@@ -10,13 +10,13 @@ export interface CreateWorkersFromConfigOptions {
 }
 
 /**
- * Creates workers with per-queue concurrency read from the `JobConfigStore`
+ * Creates workers with per-queue concurrency and timeout read from the `JobConfigStore`
  * (settable via a dashboard, no redeploy) - the 1-call replacement for the
  * original consumer-app pattern of calling `getAllConfigs()`, hand-building a
  * `concurrencyPerQueue` map, then `queueManager.createWorkers()`.
  *
- * `config.concurrencyPerQueue`, if given, wins field-by-field over the
- * store-derived map (an explicit call-site override is always the most
+ * `config.concurrencyPerQueue`/`config.timeoutPerQueue`, if given, win
+ * field-by-field over the store-derived maps (an explicit call-site override is always the most
  * specific source, same precedence philosophy as `QueueManager.add()`).
  *
  * If the store is unreachable, logs and falls back to
@@ -33,8 +33,10 @@ export async function createWorkersFromConfig(
   try {
     const configs = await store.getAll()
     const concurrencyPerQueue: Record<string, number> = {}
+    const timeoutPerQueue: Record<string, number> = {}
     for (const c of configs) {
       if (c.concurrency) concurrencyPerQueue[c.jobName] = c.concurrency
+      if (c.timeout) timeoutPerQueue[c.jobName] = c.timeout
     }
 
     return await queueManager.createWorkers({
@@ -43,6 +45,7 @@ export async function createWorkersFromConfig(
         ...concurrencyPerQueue,
         ...config?.concurrencyPerQueue,
       },
+      timeoutPerQueue: { ...timeoutPerQueue, ...config?.timeoutPerQueue },
     })
   } catch (err) {
     logger.error(

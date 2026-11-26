@@ -68,6 +68,33 @@ describe.skipIf(!redisAvailable)('createSSEBroadcaster', () => {
     expect(jobFrameB).toBe(jobFrameA)
   })
 
+  it("with prefix, relays only its own app's `${prefix}:job-events`", async () => {
+    const prefix = `test-app-a-${Date.now()}-${Math.random().toString(36).slice(2)}`
+    broadcaster = createSSEBroadcaster({
+      redis: createTestRedisConfig(),
+      prefix,
+      getStats: vi.fn().mockResolvedValue({}),
+      heartbeatMs: 60_000,
+    })
+    const client = collectWrites()
+    broadcaster.addClient(client)
+    await waitFor(() => client.chunks.some(c => c.startsWith('event: connected')), {
+      timeout: 3000,
+      interval: 20,
+    })
+
+    // Another app on the same Redis, on its own channel and on the legacy one.
+    await publisher.publish('test-app-b:job-events', JSON.stringify({ jobId: 'other-app' }))
+    await publisher.publish('telamonjs:job-events', JSON.stringify({ jobId: 'legacy' }))
+    await publisher.publish(`${prefix}:job-events`, JSON.stringify({ jobId: 'own' }))
+
+    await waitFor(() => client.chunks.some(c => c.includes('"jobId":"own"')), {
+      timeout: 3000,
+      interval: 20,
+    })
+    expect(client.chunks.filter(c => c.startsWith('event: job'))).toHaveLength(1)
+  })
+
   it('a client that publishes on `connected` never misses that event (subscribe happens first)', async () => {
     broadcaster = createSSEBroadcaster({
       redis: createTestRedisConfig(),

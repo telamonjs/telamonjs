@@ -11,7 +11,11 @@ export interface TokenConfig {
    * v4 cookie use 'next-auth.session-token'.
    */
   salt?: string
-  /** Seconds. Default: 24h */
+  /**
+   * Seconds. Encoding: the token lifetime, default 24h. Decoding (and the
+   * guard): only when set, rejects a token issued longer ago than this;
+   * unset, the token's own `exp` is the only limit.
+   */
   maxAge?: number
 }
 
@@ -50,15 +54,24 @@ export async function encodeSessionToken(
   return encode({ token, secret, salt, maxAge })
 }
 
-/** Decodes the session JWE. Returns null for an invalid/expired token. */
+/**
+ * Decodes the session JWE. Returns null for an invalid/expired token.
+ * An explicit `config.maxAge` also rejects a token issued (`iat`) more than
+ * that many seconds ago; without it, only the token's own `exp` applies.
+ */
 export async function decodeSessionToken(
   token: string,
   config?: TokenConfig
 ): Promise<MfJwtPayload | null> {
   const { secret, salt } = resolveTokenConfig(config)
   try {
-    const payload = await decode({ token, secret, salt })
-    return (payload as MfJwtPayload | null) ?? null
+    const payload = (await decode({ token, secret, salt })) as MfJwtPayload | null
+    if (!payload) return null
+    // A token without iat counts as issued at 0: fail closed
+    if (config?.maxAge != null && (payload.iat ?? 0) + config.maxAge < Date.now() / 1000) {
+      return null
+    }
+    return payload
   } catch {
     return null
   }

@@ -135,6 +135,25 @@ describe.skipIf(!redisAvailable)('JobEventPublisher pub/sub (integration)', () =
     await closeRedis(subscriber)
   })
 
+  it('derives the channel from prefix (`${prefix}:job-events`)', async () => {
+    const prefix = `test-app-${Date.now()}-${Math.random()}`
+    const subscriber = createTestRawRedis()
+    const received: string[] = []
+    subscriber.on('message', (_ch, message) => received.push(message))
+    await subscriber.subscribe(`${prefix}:job-events`)
+
+    const publisher = new JobEventPublisher({ redis: createTestRedisConfig(), prefix })
+    await publisher.publish(jobFailed('job-1', 'send-email', 'oops'))
+
+    await sleep(200)
+
+    expect(received).toHaveLength(1)
+
+    await publisher.close()
+    await subscriber.unsubscribe(`${prefix}:job-events`)
+    await closeRedis(subscriber)
+  })
+
   it('defaults to the telamonjs:job-events channel', async () => {
     const subscriber = createTestRawRedis()
     const received: string[] = []

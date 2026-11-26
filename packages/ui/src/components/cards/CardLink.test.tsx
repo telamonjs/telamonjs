@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
+import { hydrateRoot } from 'react-dom/client'
+import { renderToString } from 'react-dom/server'
+import { NextIntlClientProvider } from 'next-intl'
+import { telamonjsMessages } from '../../i18n/messages'
 import { CardLink } from './CardLink'
 
 describe('CardLink', () => {
@@ -40,7 +44,7 @@ describe('CardLink', () => {
       const { container } = render(
         <CardLink
           href='/x'
-          title='Evil'
+          title='Icon'
           icon='<img src=x onerror="alert(1)">'
         />
       )
@@ -55,7 +59,7 @@ describe('CardLink', () => {
       const { container } = render(
         <CardLink
           href='/x'
-          title='Evil'
+          title='Icon'
           disabled
           icon='<img src=x onerror="alert(1)">'
         />
@@ -74,6 +78,29 @@ describe('CardLink', () => {
       )
       expect(container.querySelector('script')).toBeNull()
       expect(container.innerHTML).not.toContain('<script')
+    })
+
+    it('server HTML carries no icon markup; hydration inserts the sanitized icon', async () => {
+      const ui = (
+        <NextIntlClientProvider locale='pt-BR' messages={telamonjsMessages['pt-BR']} timeZone='UTC'>
+          <CardLink href='/x' title='Icon' icon='<img src=x onerror="alert(1)"><script>alert(1)</script>' />
+        </NextIntlClientProvider>
+      )
+      const html = renderToString(ui)
+      expect(html).not.toContain('onerror')
+      expect(html).not.toContain('<script')
+      expect(html).not.toContain('<img')
+
+      const container = document.createElement('div')
+      container.innerHTML = html
+      document.body.appendChild(container)
+      await act(async () => {
+        hydrateRoot(container, ui)
+      })
+      expect(container.querySelector('img')).not.toBeNull()
+      expect(container.innerHTML).not.toContain('onerror')
+      expect(container.querySelector('script')).toBeNull()
+      container.remove()
     })
   })
 })

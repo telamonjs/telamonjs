@@ -61,6 +61,45 @@ describe.skipIf(!redisAvailable)('JobConfigStore', () => {
         })
       )
     })
+
+    // The PATCH handler turns `null` ("No limit", "No schedule") into a key
+    // present with the value undefined: that must clear the stored value.
+    it('clears description/cronPattern/concurrency/timeout passed as undefined', async () => {
+      await store.set('clear-job', {
+        enabled: true,
+        orphan: false,
+        description: 'Nightly',
+        cronPattern: '0 2 * * *',
+        priority: 3,
+        concurrency: 2,
+        timeout: 5000,
+      })
+
+      await store.set(
+        'clear-job',
+        { description: undefined, cronPattern: undefined, concurrency: undefined, timeout: undefined },
+        'user-1 - Alice'
+      )
+
+      const config = await store.get('clear-job')
+      expect(config).toEqual(
+        expect.objectContaining({ enabled: true, priority: 3 })
+      )
+      expect(config?.description).toBeUndefined()
+      expect(config?.cronPattern).toBeUndefined()
+      expect(config?.concurrency).toBeUndefined()
+      expect(config?.timeout).toBeUndefined()
+    })
+
+    it('keeps fields that are left out of the partial', async () => {
+      await store.set('keep-job', { enabled: true, orphan: false, priority: 3, timeout: 5000 })
+
+      await store.set('keep-job', { priority: 4 })
+
+      expect(await store.get('keep-job')).toEqual(
+        expect.objectContaining({ enabled: true, priority: 4, timeout: 5000 })
+      )
+    })
   })
 
   describe('Redis key layout (zero-migration guard)', () => {
@@ -419,5 +458,65 @@ describe.skipIf(!redisAvailable)('JobConfigStore', () => {
 
       expect(second).toEqual({ added: 0, restored: 0, orphaned: 0, backfilled: 0 })
     })
+  })
+})
+
+// Two apps on one Redis, each passing its own queue `prefix`: neither sees,
+// orphans or edits the other's job configs.
+describe.skipIf(!redisAvailable)('JobConfigStore prefix (apps sharing one Redis)', () => {
+  let raw: IORedis
+  let prefixA: string
+  let prefixB: string
+  let storeA: JobConfigStore
+  let storeB: JobConfigStore
+
+  beforeEach(() => {
+    const run = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    prefixA = `test-app-a-${run}`
+    prefixB = `test-app-b-${run}`
+    raw = createTestRawRedis()
+    storeA = new JobConfigStore({ redis: createTestRedisConfig(), prefix: prefixA })
+    storeB = new JobConfigStore({ redis: createTestRedisConfig(), prefix: prefixB })
+  })
+
+  afterEach(async () => {
+    const keys = [
+      ...(await raw.keys(`${prefixA}:*`)),
+      ...(await raw.keys(`${prefixB}:*`)),
+    ]
+    if (keys.length > 0) await raw.del(...keys)
+    await closeRedis(raw)
+    await storeA.close()
+    await storeB.close()
+  })
+
+  it("keeps each app's configs under `${prefix}:config:`", async () => {
+    await storeB.bootstrap(['billing-nightly'], {
+      'billing-nightly': { enabled: true, cronPattern: '0 2 * * *' },
+    })
+    const resultA = await storeA.bootstrap(['report-daily'], {
+      'report-daily': { enabled: true },
+    })
+
+    expect(resultA.orphaned).toBe(0)
+    expect(await raw.exists(`${prefixB}:config:billing-nightly`)).toBe(1)
+    expect(await storeB.get('billing-nightly')).toEqual(
+      expect.objectContaining({ enabled: true, orphan: false })
+    )
+    expect((await storeA.getAll()).map(c => c.jobName)).toEqual(['report-daily'])
+    expect(await storeA.get('billing-nightly')).toBeNull()
+  })
+
+  it('an explicit keyPrefix wins over prefix', async () => {
+    const keyPrefix = `${prefixA}:legacy:`
+    const store = new JobConfigStore({
+      redis: createTestRedisConfig(),
+      prefix: prefixA,
+      keyPrefix,
+    })
+    await store.set('kp-job', { enabled: true, orphan: false, priority: 5 })
+
+    expect(await raw.exists(`${keyPrefix}kp-job`)).toBe(1)
+    await store.close()
   })
 })

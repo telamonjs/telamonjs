@@ -30,8 +30,14 @@ export interface SSEBroadcasterOptions {
   redis: RedisConfig | IORedis
 
   /**
-   * Pub/Sub channel job events are published on.
-   * @default 'telamonjs:job-events' (JobEventPublisher's default channel)
+   * App namespace, same value as the JobEventPublisher's `prefix`: the
+   * channel defaults to `${prefix}:job-events`. @default 'telamonjs'
+   */
+  prefix?: string
+
+  /**
+   * Pub/Sub channel job events are published on; wins over `prefix`.
+   * @default `${prefix}:job-events` (JobEventPublisher's default channel)
    */
   channel?: string
 
@@ -44,8 +50,6 @@ export interface SSEBroadcasterOptions {
   logger?: ILogger
 }
 
-const DEFAULT_CHANNEL = 'telamonjs:job-events'
-
 /**
  * Shared SSE broadcast infrastructure: ONE Redis subscriber + ONE heartbeat
  * interval for every connected client, not one per client. Ported from a
@@ -56,7 +60,8 @@ const DEFAULT_CHANNEL = 'telamonjs:job-events'
 export function createSSEBroadcaster(
   options: SSEBroadcasterOptions
 ): SSEBroadcaster {
-  const channel = options.channel ?? DEFAULT_CHANNEL
+  const channel =
+    options.channel ?? `${options.prefix ?? 'telamonjs'}:job-events`
   const heartbeatMs = options.heartbeatMs ?? 5000
   const logger = options.logger ?? new NoOpLogger()
 

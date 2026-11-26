@@ -5,8 +5,9 @@
 import inquirer from 'inquirer'
 import chalk from 'chalk'
 import ora from 'ora'
-import { writeFileSync, mkdirSync, existsSync } from 'fs'
-import { join, dirname } from 'path'
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs'
+import { join, dirname, relative } from 'path'
+import { fileURLToPath } from 'url'
 import execa from 'execa'
 
 import {
@@ -14,7 +15,7 @@ import {
   listPrismaModels,
   PrismaField,
 } from './utils/prisma-detector.js'
-import { updateMenuItems } from './utils/menu-updater.js'
+import { insertBeforeArrayClose, updateMenuItems } from './utils/menu-updater.js'
 import { capitalize, singular } from './utils/formatters.js'
 import { hasI18n, writeModuleMessages } from './messages-writer.js'
 
@@ -25,6 +26,7 @@ import { generateApiClient } from './templates/api-client.js'
 import {
   generateRouteHandler,
   generateIdRouteHandler,
+  modulePermissions,
 } from './templates/route-handlers.js'
 import { fieldPropName, formFields, isSensitive } from './utils/field-mapping.js'
 
@@ -92,13 +94,24 @@ export async function generateCrud(
       spinner.start()
     }
 
-    // 5. Update menu-items.ts
+    // 5. Register the module's permissions (the Route Handlers, menu entry and CrudConfig check them)
+    const { read, write } = modulePermissions(answers.name)
+    const rbacPath = registerPermissions(answers.name, cwd)
+    if (rbacPath) {
+      spinner.succeed(chalk.green(`Permissions ${read}, ${write} in ${relative(cwd, rbacPath)}`))
+    } else {
+      spinner.warn(chalk.yellow(missingCatalogMessage(answers.name)))
+    }
+    spinner.start()
+
+    // 6. Update menu-items.ts
     if (answers.updateMenu) {
       spinner.text = 'Updating menu...'
       const menuUpdated = await updateMenuItems(
         {
           name: answers.name,
           path: answers.path,
+          permission: read,
         },
         cwd
       )
@@ -110,7 +123,7 @@ export async function generateCrud(
       }
     }
 
-    // 6. Format with Prettier (if available)
+    // 7. Format with Prettier (if available)
     spinner.start('Formatting code...')
     const formatWarning = formatWithPrettier(files.map(f => f.path), cwd)
     if (formatWarning) spinner.warn(chalk.yellow(formatWarning))
@@ -130,13 +143,16 @@ export async function generateCrud(
     console.log(`  2. Fill in relationship TODOs in config.tsx (loadField stubs)`)
     console.log(
       hasPrismaClient(cwd)
-        ? `  3. Check ${chalk.yellow(`src/app/api/${answers.name}/route.ts`)} matches your auth/authorization rules`
-        : `  3. ${chalk.yellow('No src/lib/prisma.ts here')}: Route Handlers were skipped -- serve ${chalk.yellow(`/api/${answers.name}`)} from your API`
+        ? `  3. The Route Handlers require ${chalk.yellow(read)} (GET) and ${chalk.yellow(write)} (POST, PATCH, DELETE)`
+        : `  3. ${chalk.yellow('No src/lib/prisma.ts here')}: Route Handlers were skipped -- serve ${chalk.yellow(`/api/${answers.name}`)} from your API, checking ${chalk.yellow(read)} and ${chalk.yellow(write)}`
     )
     console.log(
-      `  4. Icons are resolved by name from ${chalk.yellow('src/lib/icons.ts')} -- add any you change there`
+      `  4. Run ${chalk.yellow('pnpm db:seed')} so the admin role gets them, then grant them to other roles`
     )
-    console.log(`  5. Run ${chalk.yellow('pnpm dev')} to see your new module`)
+    console.log(
+      `  5. Icons are resolved by name from ${chalk.yellow('src/lib/icons.ts')} -- add any you change there`
+    )
+    console.log(`  6. Run ${chalk.yellow('pnpm dev')} to see your new module`)
     console.log('')
   } catch (error) {
     spinner.fail('Failed to generate CRUD module')
@@ -270,6 +286,7 @@ export async function generateFiles(
   const Entity = capitalize(model)
   const i18n = hasI18n(cwd)
 
+  if (hasPrismaClient(cwd)) assertRequirePermission(cwd, name)
   if (i18n) writeModuleMessages(cwd, name, moduleMessagesBlock(name, fields), { force })
 
   return [
@@ -310,6 +327,82 @@ export async function generateFiles(
 
 function hasPrismaClient(cwd: string): boolean {
   return existsSync(join(cwd, 'src', 'lib', 'prisma.ts'))
+}
+
+const TEMPLATE_APP = fileURLToPath(new URL('../../../templates/app', import.meta.url))
+
+/**
+ * The generated Route Handlers import `requirePermission` from `@/lib/auth`.
+ * Apps created before @telamonjs/cli 1.2.0 have no RBAC and no such export:
+ * stop before writing anything rather than emit handlers that don't compile
+ * (or that only check for a session).
+ */
+function assertRequirePermission(cwd: string, name: string): void {
+  const auth = join(cwd, 'src', 'lib', 'auth.ts')
+  const source = existsSync(auth) ? readFileSync(auth, 'utf-8') : ''
+  if (/\bexport\b[^\n]*\brequirePermission\b/.test(source)) return
+  const { read, write } = modulePermissions(name)
+  throw new Error(
+    `src/lib/auth.ts does not export requirePermission(), which the generated Route Handlers use to check ` +
+      `${read} and ${write}. Apps created before @telamonjs/cli 1.2.0 have no RBAC yet. Nothing was written. ` +
+      `Add it first, as the current app template does:\n` +
+      `  - ${join(TEMPLATE_APP, 'src', 'lib', 'auth.ts')}: requirePermission()\n` +
+      `  - ${join(TEMPLATE_APP, 'src', 'lib', 'permissions.ts')}: canAny, from @telamonjs/permissions\n` +
+      `  - ${join(TEMPLATE_APP, 'src', 'rbac.ts')}: the permission catalog\n` +
+      `  - ${join(TEMPLATE_APP, 'src', 'auth.ts')}: permissions[] in the session`
+  )
+}
+
+/** Where `telamonjs create` puts the permission catalog: the app, or (from a monorepo's apps/web) packages/shared. */
+const RBAC_PATHS = [join('src', 'rbac.ts'), join('..', '..', 'packages', 'shared', 'src', 'rbac.ts')]
+
+/** The PERMISSIONS entries of a module, as the catalog writes them. */
+function permissionEntries(name: string): Array<{ code: string; line: string }> {
+  const { read, write } = modulePermissions(name)
+  const category = capitalize(name)
+  return [
+    { code: read, description: `View ${name}` },
+    { code: write, description: `Create, edit and delete ${name}` },
+  ].map(p => ({
+    code: p.code,
+    line: `  { code: '${p.code}', category: '${category}', description: '${p.description}' },`,
+  }))
+}
+
+/**
+ * What to do when `registerPermissions` found no catalog to patch: the
+ * entries to add by hand, and the seed that grants them to the admin role.
+ */
+export function missingCatalogMessage(name: string): string {
+  return (
+    'No PERMISSIONS catalog to update (src/rbac.ts, or packages/shared/src/rbac.ts in a monorepo). ' +
+    'Until these entries are in your catalog and the seed has run (pnpm db:seed), nobody, ' +
+    'admin included, can open the module:\n' +
+    permissionEntries(name).map(p => p.line).join('\n')
+  )
+}
+
+/**
+ * Adds the module's permission codes (`modulePermissions`) to PERMISSIONS in
+ * the app's rbac.ts: the catalog `pnpm db:seed` syncs and grants to the admin
+ * role, so a fresh module is usable by an admin. Idempotent. Returns the
+ * catalog file (also when it already had the codes), or null when there is
+ * none to patch.
+ */
+export function registerPermissions(name: string, cwd: string): string | null {
+  const path = RBAC_PATHS.map(p => join(cwd, p)).find(p => existsSync(p))
+  if (!path) return null
+  const rbac = readFileSync(path, 'utf-8')
+  const entries = permissionEntries(name)
+    .filter(p => !rbac.includes(`'${p.code}'`))
+    .map(p => p.line)
+  if (!entries.length) return path
+  const open = rbac.match(/export const PERMISSIONS[^=]*=\s*\[/)
+  const updated =
+    open?.index === undefined ? null : insertBeforeArrayClose(rbac, open.index + open[0].length - 1, entries.join('\n'))
+  if (!updated) return null
+  writeFileSync(path, updated, 'utf-8')
+  return path
 }
 
 /**

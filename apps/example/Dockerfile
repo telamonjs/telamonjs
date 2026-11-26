@@ -6,8 +6,10 @@ WORKDIR /app
 # Install pnpm
 RUN npm install -g pnpm
 
-# Copy package files
+# Copy package files, and the Prisma schema: the install runs the
+# `postinstall` script (`prisma generate`), which needs it
 COPY package.json ./
+COPY prisma ./prisma
 
 # Install dependencies
 RUN pnpm install --no-frozen-lockfile

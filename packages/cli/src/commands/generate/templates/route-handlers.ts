@@ -17,6 +17,15 @@ export interface RouteHandlerOptions {
   fields: PrismaField[]
 }
 
+/**
+ * The permission codes of a generated module: `read` gates GET, `write` gates
+ * POST, PATCH and DELETE. The menu entry and the CrudConfig check the same
+ * codes, and `generate crud` adds them to PERMISSIONS in `src/rbac.ts`.
+ */
+export function modulePermissions(name: string): { read: string; write: string } {
+  return { read: `${name}.read`, write: `${name}.write` }
+}
+
 /** Field names considered credential-like -- stripped from every JSON response. */
 export function sensitiveFieldNames(fields: PrismaField[]): string[] {
   return fields.filter(isSensitive).map(f => f.name)
@@ -48,8 +57,19 @@ export const PAGINATION_SCHEMA_EXPR =
 export const RECORD_NOT_FOUND_PREDICATE =
   "error !== null && typeof error === 'object' && 'code' in error && error.code === 'P2025'"
 
+/**
+ * The permission gate opening every generated handler: `requirePermission()`
+ * from the app's `src/lib/auth.ts`, the same check the template's own Route
+ * Handlers make. It answers 401 without a session and 403 without `permission`.
+ */
+function gate(permission: string): string {
+  return `  const currentUser = await requirePermission('${permission}')
+  if (currentUser instanceof NextResponse) return currentUser`
+}
+
 export function generateRouteHandler(options: RouteHandlerOptions): string {
-  const { modelName, fields } = options
+  const { name, modelName, fields } = options
+  const { read, write } = modulePermissions(name)
   const prismaModel = lowerFirst(modelName)
   const createFields = formFields(fields)
   const searchable = fields.filter(f => f.searchable)
@@ -78,7 +98,7 @@ ${searchable.map(f => `          { ${f.name}: { contains: search, mode: 'insensi
   return `import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 
 const paginationSchema = ${PAGINATION_SCHEMA_EXPR}
 
@@ -89,10 +109,7 @@ ${createFields.map(f => `  ${fieldPropName(f)}: ${zodFor(f)},`).join('\n')}
 const SORTABLE_FIELDS = new Set([${sortable.map(s => `'${s}'`).join(', ')}])
 
 ${serializeBlock(sensitive)}export async function GET(request: NextRequest) {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
-  }
+${gate(read)}
 
   const { searchParams } = new URL(request.url)
   const pagination = paginationSchema.safeParse({
@@ -129,10 +146,7 @@ ${whereBlock}
 }
 
 export async function POST(request: NextRequest) {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
-  }
+${gate(write)}
 
   const parsed = createSchema.safeParse(await request.json())
   if (!parsed.success) {
@@ -149,7 +163,8 @@ export async function POST(request: NextRequest) {
 }
 
 export function generateIdRouteHandler(options: RouteHandlerOptions): string {
-  const { modelName, fields } = options
+  const { name, modelName, fields } = options
+  const { read, write } = modulePermissions(name)
   const prismaModel = lowerFirst(modelName)
   const updateFields = formFields(fields)
   const sensitive = sensitiveFieldNames(fields)
@@ -159,7 +174,7 @@ export function generateIdRouteHandler(options: RouteHandlerOptions): string {
   return `import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 
 const updateSchema = z.object({
 ${updateFields.map(f => `  ${fieldPropName(f)}: ${zodFor(f, { forceOptional: true })},`).join('\n')}
@@ -169,10 +184,7 @@ ${serializeBlock(sensitive)}export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
-  }
+${gate(read)}
 
   const { id } = await params
   const found = await prisma.${prismaModel}.findUnique({ where: { id } })
@@ -187,10 +199,7 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
-  }
+${gate(write)}
 
   const { id } = await params
   const parsed = updateSchema.safeParse(await request.json())
@@ -216,10 +225,7 @@ export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const currentUser = await getCurrentUser()
-  if (!currentUser) {
-    return NextResponse.json({ message: 'Não autorizado' }, { status: 401 })
-  }
+${gate(write)}
 
   const { id } = await params
   try {

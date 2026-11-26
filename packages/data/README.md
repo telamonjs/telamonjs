@@ -90,6 +90,13 @@ export const customers = createPaginatedService({
 })
 ```
 
+`createCachedPaginatedService` takes the same config and caches through `cache.cacheEntity` of
+the context. Entries are keyed by the service config and, with `visibility`, by the user and the
+clause the rule returns for them, so that clause must be deterministic for a given user:
+`{ publishedAt: { lte: new Date() } }` changes on every call, so nothing is reused and each call
+stores one more entry. A service with `beforeQuery`, `afterQuery`, `customFilterOptions` or a
+filter `transform` is returned uncached, with an `onWarning` message.
+
 `@telamonjs/ui/server` re-exports these helpers for Next.js server code. A NestJS or plain Node
 API installs only this package.
 
@@ -210,15 +217,15 @@ model AuditLog {
 
 | Entry field | Comes from |
 | --- | --- |
-| `userId`, `impersonatedBy` | `request.user.id` and `request.user.originalUser.id`, the `@telamonjs/auth` user (`user` option to read another shape) |
+| `userId`, `impersonatedBy` | `request.user.id` and `request.user.originalUser.id`, the `@telamonjs/auth` user; without one, an API-key caller's `request.servicePrincipal` as `service:<id or name>` (`user` option to read another shape) |
 | `action` | `POST` → `CREATE`, `PUT`/`PATCH` → `UPDATE`, `DELETE` → `DELETE`; any other audited method as is |
-| `entityType`, `entityId` | The first path segment that is not `api` or a version (`/v1/orders/42` → `orders`), and the `:id` param or the response body's `id` (`resolveEntity` option to change both) |
+| `entityType`, `entityId` | The first static segment of the matched route that is not `api` or a version (`/v1/orders/:id` → `orders`, however the client spelled the URL), and the `:id` param as sent or the response body's `id`; a numeric pipe's `42` for `/v1/orders/042` is used only when the handler returns the record, so numeric-id mutations should return it (`resolveEntity` option to change both) |
 | `changes` | The request body through `redactPayload`; absent when the body is empty |
 | `ipAddress`, `userAgent` | `request.ip` (set Express's `trust proxy` behind a proxy) and the `User-Agent` header |
-| `method`, `path`, `statusCode` | The request, without the query string, and the status Nest answered with |
+| `method`, `path`, `statusCode` | The request, without the query string or an absolute-form `scheme://host`, and the status Nest answered with |
 
-Nothing is written when the handler throws, when there is no user (logins, public sign-ups) or
-outside HTTP. The response does not wait for `write` (`await: true` makes it wait), and a
+Nothing is written when the handler throws, when there is neither a user nor an API-key
+principal (logins, public sign-ups) or outside HTTP. The response does not wait for `write` (`await: true` makes it wait), and a
 `write` that throws or rejects goes to `onError` (default: Nest's `Logger`) and never fails the
 request.
 

@@ -2,6 +2,7 @@ import {
   BadGatewayException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   GoneException,
   Inject,
   Injectable,
@@ -12,7 +13,9 @@ import bcrypt from 'bcryptjs'
 import type { Invitation } from '@prisma/client'
 import { generateApiKey, hashApiKey } from '@telamonjs/auth'
 import { createPaginatedResponse, sanitizePaginationParams } from '@telamonjs/data'
+import { canGrant } from '{{scope}}/shared/rbac'
 import { PrismaService } from '../../common/prisma/prisma.service'
+import type { AuthUser } from '../../common/guards/jwt-auth.guard'
 import { MAIL_SENDER, type MailSender } from '../mail/mail.module'
 import { AcceptInvitationDto, CreateInvitationDto } from './dto/invitation.dto'
 
@@ -144,11 +147,15 @@ export class InvitationsService {
     return createPaginatedResponse(await this.serialize(rows), total, page, pageSize)
   }
 
-  async create(dto: CreateInvitationDto, invitedById: string) {
+  async create(dto: CreateInvitationDto, inviter: AuthUser) {
     const client = this.prisma.client
     const roleIds = [...new Set(dto.roleIds ?? [])]
     if ((await client.role.count({ where: { id: { in: roleIds } } })) !== roleIds.length) {
       throw new BadRequestException('Unknown role')
+    }
+    // An invitation never confers more than the inviter holds (the admin role included)
+    if (!(await canGrant(client, inviter, { roleIds }))) {
+      throw new ForbiddenException('You can only invite with roles whose permissions you hold')
     }
     if (await client.user.findFirst({ where: { email: { equals: dto.email, mode: 'insensitive' } } })) {
       throw new ConflictException('A user with this email already exists')
@@ -159,7 +166,7 @@ export class InvitationsService {
 
     const { token, tokenHash, expiresAt } = await this.newToken()
     const invitation = await client.invitation.create({
-      data: { email: dto.email, name: dto.name || null, roleIds, tokenHash, expiresAt, invitedById },
+      data: { email: dto.email, name: dto.name || null, roleIds, tokenHash, expiresAt, invitedById: inviter.id },
     })
     try {
       await this.send(invitation, token)

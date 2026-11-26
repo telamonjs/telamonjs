@@ -572,7 +572,11 @@ New apps ship RBAC from the database, built on
 Changing a role's permissions, renaming or deleting it, or changing a user's
 roles stamps `accessChangedAt` on the affected users, so their next request
 carries fresh claims without a new sign-in; deactivating a user or changing
-their password stamps `sessionsRevokedAt` and ends their sessions. In the monorepo, `src/rbac.ts`
+their password stamps `sessionsRevokedAt` and ends their sessions. Granting has a
+ceiling (`canGrant()` in `src/rbac.ts`): `users.write`, `roles.write` and
+`invitations.write` only confer permissions the acting user already holds, only an
+admin confers the built-in `admin` role, and a user with more access than yours
+can't be edited; anything else is a 403. In the monorepo, `src/rbac.ts`
 moves to `packages/shared` (`@<name>/shared/rbac`) and `apps/api` enforces the
 same codes with `createPermissionsGuard` and `@Permissions(...)`.
 
@@ -665,11 +669,16 @@ which models exist; `--no-prisma-schema` generates generic fields instead.
 | `src/app/admin/<name>/page.tsx` | `<ListPage config={…} />`, the module's only route |
 | `src/app/admin/<name>/_components/<Model>Detail.tsx` | The view dialog body |
 | `src/lib/api/<name>-client.ts` | Typed REST client used by the config |
-| `src/app/api/<name>/route.ts`, `[id]/route.ts` | Route Handlers backed by Prisma |
+| `src/app/api/<name>/route.ts`, `[id]/route.ts` | Route Handlers backed by Prisma, gated by `requirePermission`: `<name>.read` on `GET`, `<name>.write` on `POST`, `PATCH` and `DELETE` |
 
-It also adds the module to `menu-items.ts`, writes the module's messages to
+It also adds `<name>.read` and `<name>.write` to `PERMISSIONS` in `src/rbac.ts`
+(`packages/shared/src/rbac.ts` from a monorepo's `apps/web`), adds the module
+to the menu with `permission: '<name>.read'` and gives the `CrudConfig` the
+same codes in `permissions`, writes the module's messages to
 `messages/{pt-BR,en,es}.json` when the app has i18n, and formats the files with
-Prettier when it is available.
+Prettier when it is available. In an app whose `src/lib/auth.ts` has no
+`requirePermission()` (one created before the template shipped RBAC), it stops
+before writing anything and names the template files to add first.
 
 | Option | Effect |
 | --- | --- |
@@ -688,10 +697,11 @@ telamonjs generate crud products --model Product
 telamonjs g crud                                  # fully interactive
 ```
 
-The output is a starting point. Fill in the `loadField` stubs for relationships,
-review the validation schema, and check that the Route Handlers match your
-authorization rules: none of that can be inferred from the schema. Icons are
-resolved by name from `src/lib/icons.ts`.
+The output is a starting point. Fill in the `loadField` stubs for relationships
+and review the validation schema: neither can be inferred from the schema. Run
+`pnpm db:seed` so the admin role gets the new permissions, then grant them to
+the other roles that need the module. Icons are resolved by name from
+`src/lib/icons.ts`.
 
 <Callout type='warn' title='Monorepo apps'>
   The generated Route Handlers import `@/lib/prisma`, which only exists in the single-app
@@ -723,7 +733,7 @@ What each module writes besides the shared edits below:
 
 | Module | Single app | Monorepo |
 | --- | --- | --- |
-| `audit` | `src/lib/audit.ts` (`audit()`, built on `computeDiff` and `redactPayload`), `GET /api/audit` and `/api/audit/[id]`; the users and roles Route Handlers call `audit()` after each create, update, (de)activation, deletion, grant and revoke | `apps/api/src/modules/audit` (`GET /v1/audit`, `GET /v1/audit/:id`), and `createAuditInterceptor` registered as `APP_INTERCEPTOR`, so every successful, authenticated mutation is recorded |
+| `audit` | `src/lib/audit.ts` (`audit()`, built on `computeDiff` and `redactPayload`), `GET /api/audit` and `/api/audit/[id]`; the users and roles Route Handlers call `audit()` after each create, update, (de)activation, deletion, grant and revoke. The IP is the `X-Forwarded-For` entry your reverse proxy added: `TRUSTED_PROXY_HOPS` from the right (default `1`; `0` when Next is reached directly, which records no IP) | `apps/api/src/modules/audit` (`GET /v1/audit`, `GET /v1/audit/:id`), and `createAuditInterceptor` registered as `APP_INTERCEPTOR`, so every successful, authenticated mutation is recorded |
 | `parameters` | `src/lib/parameters.ts` (`getParameter(key, fallback)`), Route Handlers under `/api/parameters` | `apps/api/src/modules/parameters` (`ParametersService.get(key, fallback)`, exported by its module), wired into `AppModule` |
 | `invitations` | `src/lib/invitations.ts`, `src/lib/mail.ts` (the mail port: `sendMail({ to, subject, html, text })`), Route Handlers under `/api/invitations` | `apps/api/src/modules/invitations` wired into `AppModule`, and `apps/api/src/modules/mail` (the mail port: the `MAIL_SENDER` token, a `MailSender` interface and `ConsoleMailSender`) |
 
@@ -738,7 +748,7 @@ Invitations: `GET /invitations`, `POST /invitations`, `POST /invitations/:id/res
 and `POST /invitations/accept` need no session. The link carries a random 32-byte
 token (`generateApiKey` from `@telamonjs/auth`) and the row keeps only its sha256
 (`hashApiKey`). Inviting an email that already has a user or a pending invitation is
-a 409. Accepting creates the user (active, with the invited roles that still exist)
+a 409; inviting with a role beyond your own access (the `canGrant` ceiling above) is a 403. Accepting creates the user (active, with the invited roles that still exist)
 and marks the invitation accepted in one transaction; an unknown, used, revoked or
 expired token gets the same 410. The accept page then signs in with the new
 credentials. Mail goes through the port above, which only logs to the console:
@@ -1807,13 +1817,15 @@ Every key is documented in [CrudConfig](/docs/getting-started/crud-config). What
 ## Route Handlers
 
 The module owns a small REST API under `app/api/<module>/`. Every handler does
-three things in order: **authenticate, validate, execute**.
+three things in order: **authorize, validate, execute**. `requirePermission()`
+answers 401 without a session and 403 without the permission; a signed-in user
+is not enough.
 
 ```ts title="app/api/users/route.ts"
 import { NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { prisma } from '@/lib/prisma'
-import { getCurrentUser } from '@/lib/auth'
+import { requirePermission } from '@/lib/auth'
 
 const createSchema = z.object({
   name: z.string().min(1),
@@ -1826,9 +1838,8 @@ const createSchema = z.object({
 const SORTABLE_FIELDS = new Set(['name', 'email', 'role', 'active', 'createdAt'])
 
 export async function GET(request: NextRequest) {
-  if (!(await getCurrentUser())) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
+  const currentUser = await requirePermission('users.read')
+  if (currentUser instanceof NextResponse) return currentUser
 
   const { searchParams } = new URL(request.url)
   const page = Number(searchParams.get('page') ?? '1')
@@ -1856,9 +1867,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await getCurrentUser())) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401 })
-  }
+  const currentUser = await requirePermission('users.write')
+  if (currentUser instanceof NextResponse) return currentUser
 
   const parsed = createSchema.safeParse(await request.json())
   if (!parsed.success) {
@@ -19247,7 +19257,10 @@ headers and values are localized: pass the library translator and the active loc
 resolves once the download starts; await it to catch failures. Without the
 `jspdf` peers, `exportToPDF` rejects with an error naming both packages
 (`ExportMenu` shows it as a toast). Excel sheet names follow Excel's rules: at
-most 31 characters, and `\ / ? * [ ] :` become spaces.
+most 31 characters, and `\ / ? * [ ] :` become spaces. In CSV, a text cell that
+starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading `'`, so
+spreadsheets read it as text instead of running it as a formula; numbers (and numeric
+strings such as `-12.50`) are written as is.
 
 Wiring them into `ExportButtons` handlers:
 
@@ -21002,6 +21015,13 @@ export const customers = createPaginatedService({
 boolean filter options; without it they are in English. Configuration warnings go to
 `onWarning` (default `console.warn`).
 
+`createCachedPaginatedService` takes the same config and caches through `cache.cacheEntity` of
+the context. Entries are keyed by the service config and, with `visibility`, by the user and the
+clause the rule returns for them, so that clause must be deterministic for a given user:
+`{ publishedAt: { lte: new Date() } }` changes on every call, so nothing is reused and each call
+stores one more entry. A service with `beforeQuery`, `afterQuery`, `customFilterOptions` or a
+filter `transform` is returned uncached, with an `onWarning` message.
+
 ## NestJS
 
 `@telamonjs/data/nest` needs `@nestjs/common` and `rxjs`, optional peers that only this entry
@@ -21118,15 +21138,15 @@ model AuditLog {
 
 | Entry field | Comes from |
 | --- | --- |
-| `userId`, `impersonatedBy` | `request.user.id` and `request.user.originalUser.id`, the `@telamonjs/auth` user (`user` option to read another shape) |
+| `userId`, `impersonatedBy` | `request.user.id` and `request.user.originalUser.id`, the `@telamonjs/auth` user; without one, an API-key caller's `request.servicePrincipal` as `service:<id or name>` (`user` option to read another shape) |
 | `action` | `POST` → `CREATE`, `PUT`/`PATCH` → `UPDATE`, `DELETE` → `DELETE`; any other audited method as is |
-| `entityType`, `entityId` | The first path segment that is not `api` or a version (`/v1/orders/42` → `orders`), and the `:id` param or the response body's `id` (`resolveEntity` option to change both) |
+| `entityType`, `entityId` | The first static segment of the matched route that is not `api` or a version (`/v1/orders/:id` → `orders`, however the client spelled the URL), and the `:id` param as sent or the response body's `id`; a numeric pipe's `42` for `/v1/orders/042` is used only when the handler returns the record, so numeric-id mutations should return it (`resolveEntity` option to change both) |
 | `changes` | The request body through `redactPayload`; absent when the body is empty |
 | `ipAddress`, `userAgent` | `request.ip` (set Express's `trust proxy` behind a proxy) and the `User-Agent` header |
-| `method`, `path`, `statusCode` | The request, without the query string, and the status Nest answered with |
+| `method`, `path`, `statusCode` | The request, without the query string or an absolute-form `scheme://host`, and the status Nest answered with |
 
-Nothing is written when the handler throws, when there is no user (logins, public sign-ups) or
-outside HTTP. The response does not wait for `write` (`await: true` makes it wait), and a
+Nothing is written when the handler throws, when there is neither a user nor an API-key
+principal (logins, public sign-ups) or outside HTTP. The response does not wait for `write` (`await: true` makes it wait), and a
 `write` that throws or rejects goes to `onError` (default: Nest's `Logger`) and never fails the
 request.
 
@@ -21223,8 +21243,11 @@ const payload = await decodeSessionToken(token)
 ```
 
 `TokenConfig` (`secret`, `salt`, `maxAge`) is accepted by every function and
-by the Nest guard; secret defaults to the env vars, salt to the v5 default,
-maxAge to 24h. The guard also accepts `secret` as a function resolved per
+by the Nest guard; secret defaults to the env vars, salt to the v5 default.
+`maxAge` is the lifetime of an encoded token (default 24h). When decoding
+(`decodeSessionToken`, the guard), a `maxAge` you pass also rejects a token
+issued longer ago than that; without one, the token's own `exp` is the only
+limit. The guard also accepts `secret` as a function resolved per
 request (see [Secret resolved per request](#secret-resolved-per-request)).
 
 ### Known trap: which salt does your project use?
@@ -21242,8 +21265,15 @@ request (see [Secret resolved per request](#secret-resolved-per-request)).
 
 A related knob on the guard: `cookieNames` controls **where the guard looks
 for the cookie**, independent of the salt. Default:
-`[salt, '__Secure-' + salt]`. A project that decodes with one salt but serves
+`['__Secure-' + salt, salt]`. A project that decodes with one salt but serves
 a differently-named cookie passes both explicitly (see below).
+
+Only a secure origin can set a `__Secure-` cookie, while any plain-HTTP
+response or non-secure sibling subdomain can plant the plain one. So while the
+`__Secure-` cookie is present (even expired), the guard never falls back to
+the plain one. An API served only over HTTPS should pass
+`cookieNames: ['__Secure-authjs.session-token']`, so a planted plain cookie is
+not read even when the user has no session.
 
 ### The payload contract
 
@@ -21392,7 +21422,7 @@ The guard looks for the session token in three places, in priority order:
    forwards its own session JWE as a bearer token.
 2. **`?token=` query param** — for SSE: `EventSource` cannot send custom
    headers, so streams pass the token in the URL.
-3. **NextAuth cookies** — `cookieNames` (default `[salt, '__Secure-' + salt]`),
+3. **NextAuth cookies** — `cookieNames` (default `['__Secure-' + salt, salt]`),
    for same-domain requests with `credentials: 'include'`.
 
 On success the guard attaches the decoded `AuthUser` to `request.user`; any
@@ -21566,7 +21596,12 @@ const loadMarks = cache((userId: string) =>
 callbacks: {
   jwt: async args => {
     const token = await base.jwt(args)
-    if (args.user) return token // fresh login: claims and times just stamped
+    if (args.user) {
+      // fresh login: authorize() read the claims before this clock, so count
+      // them as older than any mark (a change committing meanwhile stays stale)
+      token.accessAt = 0
+      return token
+    }
     const marks = await loadMarks(token.id as string)
     if (!marks) return null
     const state = sessionState(token, {
@@ -21575,9 +21610,11 @@ callbacks: {
     })
     if (state === 'revoked') return null // signs the user out
     if (state === 'stale') {
-      // role, roles, permissions — same source as authorize()
+      // role, roles, permissions — same source as authorize(); `accessAt` is
+      // the mark read above, never the clock, so a change that commits while
+      // loadAccess runs leaves the token stale
       Object.assign(token, await loadAccess(token.id as string), {
-        accessAt: Date.now(),
+        accessAt: marks.accessChangedAt?.getTime() ?? 0,
       })
     }
     return token
@@ -21813,7 +21850,7 @@ The package is linked instead of installed, so the guard throws an
 ## Related Links
 
 - [Permissions](/docs/packages/permissions) — the RBAC that fills `permissions[]`
-- [Admin Module Structure](/docs/patterns/admin-module-structure) — where `getCurrentUser()` guards Route Handlers
+- [Admin Module Structure](/docs/patterns/admin-module-structure) — where `requirePermission()` guards Route Handlers
 - [Troubleshooting](/docs/troubleshooting) — two copies of a peer dependency
 
 ---
@@ -22656,6 +22693,23 @@ added ──▶ waiting ──▶ active ──▶ completed   onCompleted · ke
 its queue at once on the Node.js event loop; `concurrencyPerQueue` overrides the
 value per job name. Capacity adds up across processes: three worker processes with
 `concurrency: 5` run up to 15 jobs of that queue in parallel.
+
+**Timeout.** An attempt that runs past its `timeout` fails with `JobTimeoutError`
+and frees its concurrency slot; the normal retry and DLQ path then applies. The
+deadline covers `validate`, `transform`, `onActive` and `process`. The value comes
+from the job's `JobConfigStore` config (via `createWorkersFromConfig`, or
+`timeoutPerQueue` on `createWorkers`), else the `timeout` the job was enqueued
+with, else the class's `options.timeout`. `process(data, ctx)` receives
+`ctx.signal`, which aborts at the deadline.
+
+<Callout type='warn' title='A timeout does not stop a handler that ignores ctx.signal'>
+  JavaScript cannot kill a running `process()`. After the timeout, a handler that
+  ignores `ctx.signal` keeps running in the background while the retry starts, so
+  the same job can run twice at once, above the worker's concurrency. A handler
+  with side effects (charges, emails, writes) must stop when `ctx.signal` aborts
+  (pass it to `fetch` and other I/O, check `signal.aborted` between steps) or be
+  safe to run twice.
+</Callout>
 
 ### Design decisions
 
@@ -24121,6 +24175,13 @@ list of clauses (OR between entries, an inner array is AND). They are written as
 the metadata that package's guard reads, so that guard (global, or in `guards`)
 is what enforces them.
 
+Guards run once per request, and the SSE stream is one long request. The route
+ends each stream after `sseMaxAgeMs` (a `forRoot()` option, 5 minutes by
+default) and the dashboard reconnects through your guards, so an expired token,
+a revoked session or a removed `readPermission` stops the feed within that time.
+The stream's last frame is `event: reconnect`, so the dashboard reconnects at
+once and keeps showing `connected`.
+
 ## Real-time updates (SSE)
 
 With `enableSSE` (the default), the dashboard connects to the adapter's
@@ -25146,7 +25207,7 @@ export class DailyReportJob extends Job<void, void> {
 
 const redis = { host: 'localhost', port: 6379 }
 const jobs = new Map<string, JobConstructor>([['daily-report', DailyReportJob]])
-const store = new JobConfigStore({ redis })
+const store = new JobConfigStore({ redis, prefix: 'myapp' }) // same prefix as the queues
 
 // Seeds the store from Job.configDefaults and registers the enabled jobs
 await setupFromConfig(queueManager, store, jobs)
@@ -25155,6 +25216,13 @@ await setupFromConfig(queueManager, store, jobs)
 const reconciler = new SchedulerReconciler(new QueueRegistry({ redis, prefix: 'myapp' }), store, jobs)
 await reconciler.start()
 ```
+
+The store keeps its configs under `${prefix}:config:`. Give it the same `prefix`
+as the queues (and give `JobEventPublisher`/`createSSEBroadcaster` the same one
+for events): apps sharing one Redis with the default `telamonjs` share one
+config index, so each app's bootstrap disables the other's jobs. An existing
+app moving off the default can pass `keyPrefix: 'telamonjs:config:'` to keep its
+stored configs.
 
 The reconciler writes one BullMQ **job scheduler** per job (`upsertJobScheduler`,
 id = job name), so a cron, timezone or priority edit updates it in place. It

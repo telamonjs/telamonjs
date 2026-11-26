@@ -128,7 +128,7 @@ describe('SignInForm', () => {
     })
 
     it('ignores a cross-origin ?callbackUrl (open redirect) and uses the callbackUrl prop', async () => {
-      setSearch('?callbackUrl=https%3A%2F%2Fevil.example%2Fphish')
+      setSearch('?callbackUrl=https%3A%2F%2Fother.example%2Fphish')
       render(<SignInForm callbackUrl='/admin' />)
       await fillAndSubmit()
       await waitFor(() => expect(push).toHaveBeenCalledWith('/admin'))
@@ -136,10 +136,23 @@ describe('SignInForm', () => {
     })
 
     it('treats protocol-relative ?callbackUrl as cross-origin', async () => {
-      setSearch('?callbackUrl=%2F%2Fevil.example')
+      setSearch('?callbackUrl=%2F%2Fother.example')
       render(<SignInForm />)
       await fillAndSubmit()
       await waitFor(() => expect(push).toHaveBeenCalledWith('/'))
+    })
+
+    it.each([
+      '/.//other.example/page',
+      '/%2e//other.example/page',
+      '/admin/..//other.example/page',
+      'ORIGIN//other.example/page',
+    ])('rejects a same-origin ?callbackUrl whose path normalizes to "//" (%s)', async (raw) => {
+      setSearch(`?callbackUrl=${encodeURIComponent(raw.replace('ORIGIN', window.location.origin))}`)
+      render(<SignInForm callbackUrl='/admin' />)
+      await fillAndSubmit()
+      await waitFor(() => expect(push).toHaveBeenCalledWith('/admin'))
+      expect(signIn.mock.calls[0][1]).toMatchObject({ callbackUrl: '/admin' })
     })
 
     it('toggles password visibility', async () => {

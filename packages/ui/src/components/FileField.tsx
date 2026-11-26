@@ -28,6 +28,15 @@ interface FileFieldProps {
   id?: string
 }
 
+/** Only http(s), blob: and relative URLs are opened: a stored `javascript:` value never runs. */
+function isOpenableUrl(url: string): boolean {
+  try {
+    return ['http:', 'https:', 'blob:'].includes(new URL(url, window.location.href).protocol)
+  } catch {
+    return false
+  }
+}
+
 export const FileField = ({ field, id }: FileFieldProps) => {
   const t = useTelamonjsT()
   const [uploading, setUploading] = useState(false)
@@ -138,7 +147,8 @@ export const FileField = ({ field, id }: FileFieldProps) => {
     if (!uploadedUrl) return
     const resolved = field.resolveUrl?.(uploadedUrl) ?? uploadedUrl
     if (typeof resolved === 'string') {
-      window.open(resolved, '_blank')
+      if (isOpenableUrl(resolved)) window.open(resolved, '_blank')
+      else setError(t('form.downloadFileError'))
       return
     }
     // Open the tab inside the click (popup blockers drop a window.open made
@@ -146,6 +156,11 @@ export const FileField = ({ field, id }: FileFieldProps) => {
     const tab = window.open('', '_blank')
     resolved.then(
       url => {
+        if (!isOpenableUrl(url)) {
+          tab?.close()
+          setError(t('form.downloadFileError'))
+          return
+        }
         if (tab) tab.location.href = url
         else window.open(url, '_blank')
       },
