@@ -203,6 +203,54 @@ describe('useQueueSSE', () => {
     })
   })
 
+  describe('Interactions', () => {
+    it('reconnects at once, without showing "disconnected", when the server ends the stream with a reconnect frame', async () => {
+      const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce({
+          ok: true,
+          status: 200,
+          statusText: 'OK',
+          body: sseStreamFrom([
+            'event: connected',
+            '',
+            'event: reconnect',
+            `data: ${JSON.stringify({ type: 'reconnect' })}`,
+            '',
+          ]),
+        })
+        // The reconnect: stays open until unmount aborts it
+        .mockImplementation((_url: string, options: RequestInit) => {
+          return new Promise((_resolve, reject) => {
+            options.signal?.addEventListener('abort', () => {
+              const err = new Error('aborted')
+              err.name = 'AbortError'
+              reject(err)
+            })
+          })
+        })
+      vi.stubGlobal('fetch', fetchMock)
+
+      const statuses: string[] = []
+      const adapter = makeConfigAdapter()
+      const { unmount } = renderHook(
+        () => {
+          const sse = useQueueSSE(true)
+          statuses.push(sse.status)
+          return sse
+        },
+        { wrapper: wrapper(queryClient, adapter) }
+      )
+
+      // waitFor gives up after 1s: well inside the 5s error backoff
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
+      expect(statuses).toContain('connected')
+      expect(statuses).not.toContain('disconnected')
+      unmount()
+    })
+  })
+
   describe('Edge Cases', () => {
     it('aborts the in-flight fetch on unmount', async () => {
       const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })

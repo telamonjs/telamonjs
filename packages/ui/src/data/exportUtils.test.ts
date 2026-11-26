@@ -143,6 +143,26 @@ describe('exportUtils', () => {
         '\uFEFFSame,Same\r\n"say ""hi"", ok",\r\n" pad","l1\nl2"'
       )
     })
+
+    it('neutralizes text cells a spreadsheet would read as a formula; numbers stay as they are', async () => {
+      const { blobs } = captureDownloads()
+      const values = ['=1+1', '+1+1', '-1+1', '@SUM(1,1)', '\t=1+1', '\r=1+1', -5, '-12.50', '+55', 'ok']
+      const columns: ColumnDef<{ v: unknown }>[] = [{ header: 'V', accessorKey: 'v' }]
+      exportToCSV(values.map(v => ({ v })), columns, 'x', base)
+      expect((await readBlob(blobs[0] as Blob)).split('\r\n')).toEqual([
+        '\uFEFFV',
+        "'=1+1",
+        "'+1+1",
+        "'-1+1",
+        `"'@SUM(1,1)"`,
+        "'\t=1+1",
+        `"'\r=1+1"`,
+        '-5',
+        '-12.50',
+        '+55',
+        'ok',
+      ])
+    })
   })
 
   describe('exportTableData', () => {

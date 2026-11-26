@@ -154,6 +154,10 @@ async function connectSSE(ctx: SSEConnectionContext): Promise<void> {
   // `enabled` render-time comparison in useQueueSSE); a retry sets it from
   // scheduleSSEReconnect's timer callback instead.
 
+  // The server ends every stream after a max age (so its auth guards run
+  // again) and announces it with a `reconnect` frame first.
+  let plannedEnd = false
+
   try {
     const { url, token } = await ctx.configApi.getSSEConfig()
 
@@ -196,6 +200,8 @@ async function connectSSE(ctx: SSEConnectionContext): Promise<void> {
         } else if (line === '') {
           if (currentEvent === 'connected') {
             ctx.setStatus('connected')
+          } else if (currentEvent === 'reconnect') {
+            plannedEnd = true
           } else if (currentEvent === 'stats' && currentData) {
             try {
               // Skip write while a pause/resume mutation is in flight —
@@ -238,6 +244,12 @@ async function connectSSE(ctx: SSEConnectionContext): Promise<void> {
 
   // Stream closed normally — reconnect if still enabled
   if (ctx.enabledRef.current && !ctx.abortRef.current?.signal.aborted) {
+    // Planned end: reconnect now and stay 'connected'; the new stream's
+    // stats snapshot covers the gap. A failed reconnect lands in the catch above.
+    if (plannedEnd) {
+      ctx.connectRef.current()
+      return
+    }
     ctx.setStatus('disconnected')
     scheduleSSEReconnect(ctx)
   }

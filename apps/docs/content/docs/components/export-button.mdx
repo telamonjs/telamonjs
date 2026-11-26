@@ -177,7 +177,10 @@ headers and values are localized: pass the library translator and the active loc
 resolves once the download starts; await it to catch failures. Without the
 `jspdf` peers, `exportToPDF` rejects with an error naming both packages
 (`ExportMenu` shows it as a toast). Excel sheet names follow Excel's rules: at
-most 31 characters, and `\ / ? * [ ] :` become spaces.
+most 31 characters, and `\ / ? * [ ] :` become spaces. In CSV, a text cell that
+starts with `=`, `+`, `-`, `@`, a tab or a carriage return gets a leading `'`, so
+spreadsheets read it as text instead of running it as a formula; numbers (and numeric
+strings such as `-12.50`) are written as is.
 
 Wiring them into `ExportButtons` handlers:
 

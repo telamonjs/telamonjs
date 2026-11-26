@@ -309,6 +309,37 @@ describe('FileUpload', () => {
 
       expect(mockOnChange).not.toHaveBeenCalled()
     })
+
+    describe('replacing the existing file (maxFiles=1, uploadEndpoint)', () => {
+      const existing = 'https://b.s3.amazonaws.com/docs/old.txt'
+      const mockFetch = () =>
+        vi.spyOn(globalThis, 'fetch').mockResolvedValue({
+          ok: true,
+          json: async () => ({ url: 'https://b.s3.amazonaws.com/docs/new.txt', key: 'docs/new.txt' }),
+        } as Response)
+
+      it('deletes the old file when the replacement is valid', async () => {
+        const fetchSpy = mockFetch()
+        const user = userEvent.setup({ delay: null })
+        render(<FileUpload value={existing} maxFiles={1} uploadEndpoint='/api/upload' />)
+        await user.upload(screen.getByLabelText('File upload input'), new File(['ok'], 'new.txt', { type: 'text/plain' }))
+        await waitFor(() =>
+          expect(fetchSpy).toHaveBeenCalledWith('/api/upload?key=docs%2Fold.txt', { method: 'DELETE' })
+        )
+      })
+
+      it('keeps the old file when the replacement fails validation', async () => {
+        const fetchSpy = mockFetch()
+        const user = userEvent.setup({ delay: null })
+        render(<FileUpload value={existing} maxFiles={1} maxSize={10} uploadEndpoint='/api/upload' />)
+        await user.upload(
+          screen.getByLabelText('File upload input'),
+          new File(['a'.repeat(100)], 'large.txt', { type: 'text/plain' })
+        )
+        expect(await screen.findByText(/Arquivo muito grande/)).toBeInTheDocument()
+        expect(fetchSpy).not.toHaveBeenCalled()
+      })
+    })
   })
 })
 
