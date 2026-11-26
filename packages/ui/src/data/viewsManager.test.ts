@@ -225,4 +225,11 @@ describe('encodeViewConfig', () => {
     expect(encoded).toMatch(/^[A-Za-z0-9_-]+$/)
     expect(decode(encoded)).toEqual(config)
   })
+
+  it('encodes text outside Latin-1 (accents, emoji) instead of returning an empty string', () => {
+    const accented = { ...config, filters: { search: 'São João 🚚' } }
+    const encoded = encodeViewConfig(accented)
+    expect(encoded).not.toBe('')
+    expect(decode(encoded)).toEqual(accented)
+  })
 })

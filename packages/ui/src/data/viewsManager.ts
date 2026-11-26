@@ -326,8 +326,10 @@ export function importViewFromJSON(tableId: string, json: string): SavedView {
  */
 export function encodeViewConfig(config: SavedView['config']): string {
   try {
-    const json = JSON.stringify(config)
-    const base64 = btoa(json)
+    // btoa takes Latin-1 only: encode as UTF-8 bytes first ('São' would throw).
+    // ASCII-only configs encode exactly as before.
+    const bytes = new TextEncoder().encode(JSON.stringify(config))
+    const base64 = btoa(Array.from(bytes, b => String.fromCharCode(b)).join(''))
     // Make URL-safe
     return base64.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
   } catch (error) {
