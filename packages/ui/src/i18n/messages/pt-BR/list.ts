@@ -68,6 +68,8 @@ export const list = {
   noDefaultView: 'Nenhuma visualização padrão definida',
   linkCopied: 'Link copiado para a área de transferência',
   shareLinkError: 'Erro ao gerar link de compartilhamento',
+  sharedViewName: 'Visualização compartilhada',
+  sharedViewInvalid: 'Link de visualização inválido',
   duplicateSuffix: '(cópia)',
   filters: 'Filtros',
   advancedFilters: 'Filtros Avançados',

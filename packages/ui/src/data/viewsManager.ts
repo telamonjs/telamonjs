@@ -321,6 +321,36 @@ export function importViewFromJSON(tableId: string, json: string): SavedView {
   }
 }
 
+/** Query param carrying a shared view (not `view`, which ListPage uses for the view dialog). */
+export const SHARED_VIEW_PARAM = 'sharedView'
+
+/**
+ * Decodes what `encodeViewConfig` produced; `null` when the value is not a
+ * valid view config (a truncated or tampered link).
+ */
+export function decodeViewConfig(encoded: string): SavedView['config'] | null {
+  try {
+    const base64 = encoded.replace(/-/g, '+').replace(/_/g, '/')
+    const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0))
+    const value: unknown = JSON.parse(new TextDecoder().decode(bytes))
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return null
+    const config = value as Partial<SavedView['config']>
+    const arraysOk = ['columnOrder', 'sorting'].every(
+      key => config[key as 'columnOrder' | 'sorting'] === undefined || Array.isArray(config[key as 'columnOrder' | 'sorting'])
+    )
+    if (!arraysOk) return null
+    return {
+      columnVisibility: config.columnVisibility ?? {},
+      columnOrder: config.columnOrder ?? [],
+      columnSizing: config.columnSizing ?? {},
+      sorting: config.sorting ?? [],
+      filters: config.filters ?? {},
+    }
+  } catch {
+    return null
+  }
+}
+
 /**
  * Encode view config as URL-safe base64 (for sharing via URL)
  */

@@ -3,6 +3,7 @@ import {
   createView,
   deleteView,
   duplicateView,
+  decodeViewConfig,
   encodeViewConfig,
   getDefaultView,
   importViewFromJSON,
@@ -231,5 +232,18 @@ describe('encodeViewConfig', () => {
     const encoded = encodeViewConfig(accented)
     expect(encoded).not.toBe('')
     expect(decode(encoded)).toEqual(accented)
+  })
+})
+
+describe('decodeViewConfig', () => {
+  it('round-trips what encodeViewConfig produces, accents included', () => {
+    const accented = { ...config, filters: { search: 'São João' } }
+    expect(decodeViewConfig(encodeViewConfig(accented))).toEqual(accented)
+  })
+
+  it('returns null for garbage, non-objects and configs missing their arrays', () => {
+    expect(decodeViewConfig('%%%not-base64')).toBeNull()
+    expect(decodeViewConfig(encodeViewConfig(42 as never))).toBeNull()
+    expect(decodeViewConfig(encodeViewConfig({ sorting: 'x' } as never))).toBeNull()
   })
 })

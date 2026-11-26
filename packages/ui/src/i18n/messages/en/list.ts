@@ -71,6 +71,8 @@ export const list = {
   noDefaultView: 'No default view set',
   linkCopied: 'Link copied to clipboard',
   shareLinkError: 'Error generating sharing link',
+  sharedViewName: 'Shared view',
+  sharedViewInvalid: 'Invalid view link',
   duplicateSuffix: '(copy)',
   filters: 'Filters',
   advancedFilters: 'Advanced Filters',

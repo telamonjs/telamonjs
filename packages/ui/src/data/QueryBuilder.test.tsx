@@ -289,6 +289,20 @@ describe('QueryBuilder', () => {
       expect(input).toHaveAttribute('type', 'number')
     })
 
+    it('shows a number value of 0 instead of an empty input', () => {
+      render(
+        <QueryBuilder
+          fields={mockFields}
+          onChange={mockOnChange}
+          value={{
+            logic: 'AND',
+            conditions: [{ id: '1', field: 'age', operator: 'equals', value: 0, fieldType: 'number' }],
+          }}
+        />
+      )
+      expect(screen.getByDisplayValue('0')).toHaveAttribute('type', 'number')
+    })
+
     it('renders date input for date fields', () => {
       render(
         <QueryBuilder

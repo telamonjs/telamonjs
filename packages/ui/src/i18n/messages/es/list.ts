@@ -71,6 +71,8 @@ export const list = {
   noDefaultView: 'Ninguna vista predeterminada definida',
   linkCopied: 'Enlace copiado al portapapeles',
   shareLinkError: 'Error al generar el enlace para compartir',
+  sharedViewName: 'Vista compartida',
+  sharedViewInvalid: 'Enlace de vista no válido',
   duplicateSuffix: '(copia)',
   filters: 'Filtros',
   advancedFilters: 'Filtros Avanzados',

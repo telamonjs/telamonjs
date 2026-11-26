@@ -244,7 +244,7 @@ export function QueryBuilder({
                         value={
                           condition.value instanceof Date
                             ? condition.value.toISOString().split('T')[0]
-                            : String(condition.value || '')
+                            : String(condition.value ?? '')
                         }
                         onChange={e =>
                           handleUpdateCondition(condition.id, {
@@ -258,7 +258,7 @@ export function QueryBuilder({
                     ) : field?.type === 'number' ? (
                       <Input
                         type='number'
-                        value={String(condition.value || '')}
+                        value={String(condition.value ?? '')}
                         onChange={e =>
                           handleUpdateCondition(condition.id, {
                             value: e.target.value ? Number(e.target.value) : '',
@@ -269,7 +269,7 @@ export function QueryBuilder({
                     ) : (
                       <Input
                         type='text'
-                        value={String(condition.value || '')}
+                        value={String(condition.value ?? '')}
                         onChange={e =>
                           handleUpdateCondition(condition.id, {
                             value: e.target.value,

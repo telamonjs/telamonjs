@@ -7,7 +7,7 @@
 
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { logger } from '../utils/logger'
 import {
   Save,
@@ -56,6 +56,8 @@ import {
   createView,
   importViewFromJSON,
   encodeViewConfig,
+  decodeViewConfig,
+  SHARED_VIEW_PARAM,
 } from './viewsManager'
 import { VisibilityState } from '@tanstack/react-table'
 import { SortField } from '../types/pagination'
@@ -157,6 +159,23 @@ export function ViewsMenu({
     }
   }
 
+  // A shared link (?sharedView=...) applies once on mount, then leaves the URL
+  useEffect(() => {
+    const url = new URL(window.location.href)
+    const encoded = url.searchParams.get(SHARED_VIEW_PARAM)
+    if (!encoded) return
+    url.searchParams.delete(SHARED_VIEW_PARAM)
+    window.history.replaceState(window.history.state, '', url.toString())
+    const config = decodeViewConfig(encoded)
+    if (!config) {
+      toast.error(t('list.sharedViewInvalid'))
+      return
+    }
+    const now = new Date()
+    handleLoadView({ id: 'shared', name: t('list.sharedViewName'), isDefault: false, config, createdAt: now, updatedAt: now })
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on mount
+  }, [])
+
   const handleDeleteView = (view: SavedView) => {
     try {
       deleteView(tableId, view.id)
@@ -257,7 +276,7 @@ export function ViewsMenu({
 
     try {
       const encoded = encodeViewConfig(viewToShare.config)
-      const url = `${window.location.origin}${window.location.pathname}?view=${encoded}`
+      const url = `${window.location.origin}${window.location.pathname}?${SHARED_VIEW_PARAM}=${encoded}`
 
       navigator.clipboard.writeText(url)
       toast.success(t('list.linkCopied'))
