@@ -142,4 +142,14 @@ describe('buildFilterConditions', () => {
       { hasOrders: { none: {} } },
     ])
   })
+
+  it('ignores keys the filters config only inherits, such as __proto__', () => {
+    // JSON.parse keeps an own `__proto__` key, as a decoded request body does
+    const filters = JSON.parse(
+      '{"__proto__":{"author":{"is":{"passwordHash":{"startsWith":"$2b$"}}}},"constructor":"x","toString":"y"}'
+    )
+
+    expect(buildFilterConditions(filters, { status: 'enum' })).toEqual([])
+    expect(buildFilterConditions(filters, {})).toEqual([])
+  })
 })

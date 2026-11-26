@@ -95,7 +95,10 @@ export function buildFilterConditions(
       continue
     }
 
-    const config = filterConfig[key]
+    // Own keys only: `filterConfig['__proto__']` is Object.prototype (truthy),
+    // and `condition['__proto__'] = value` would hand Prisma the client's
+    // object as inherited where fields.
+    const config = Object.hasOwn(filterConfig, key) ? filterConfig[key] : undefined
     if (!config) {
       continue // Skip unknown filters
     }

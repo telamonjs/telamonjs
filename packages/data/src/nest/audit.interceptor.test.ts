@@ -1,4 +1,6 @@
 import 'reflect-metadata'
+import { request as rawRequest } from 'node:http'
+import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   BadRequestException,
@@ -10,6 +12,7 @@ import {
   Injectable,
   Module,
   Param,
+  ParseIntPipe,
   Patch,
   Post,
   Put,
@@ -24,12 +27,18 @@ import { Test } from '@nestjs/testing'
 import request from 'supertest'
 import { SkipAudit, createAuditInterceptor, type AuditEntry, type AuditInterceptorOptions } from './audit.interceptor.js'
 
-/** Puts the `x-user` header on `request.user`, the way an auth guard would. */
+/**
+ * Puts the `x-user` header on `request.user`, the way an auth guard would, and
+ * `x-service` on `request.servicePrincipal`, the way `@telamonjs/auth`'s API-key guards do.
+ */
 @Injectable()
 class FakeAuthGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
-    const req = context.switchToHttp().getRequest<{ headers: Record<string, string>; user?: unknown }>()
+    const req = context
+      .switchToHttp()
+      .getRequest<{ headers: Record<string, string>; user?: unknown; servicePrincipal?: unknown }>()
     if (req.headers['x-user']) req.user = JSON.parse(req.headers['x-user'])
+    if (req.headers['x-service']) req.servicePrincipal = JSON.parse(req.headers['x-service'])
     return true
   }
 }
@@ -68,6 +77,21 @@ class OrdersController {
   @Post('quiet')
   quiet(): Record<string, unknown> {
     return { ok: true }
+  }
+}
+
+/** Numeric ids: ParseIntPipe hands the handler 42 for `042`, while `request.params.id` stays `042`. */
+@Controller('v1/invoices')
+class InvoicesController {
+  @Patch(':id')
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: Record<string, unknown>): Record<string, unknown> {
+    return { id, ...body }
+  }
+
+  /** A string id that echoes the body over it. */
+  @Put(':id')
+  replace(@Param('id') id: string, @Body() body: Record<string, unknown>): Record<string, unknown> {
+    return { id, ...body }
   }
 }
 
@@ -194,6 +218,21 @@ describe('createAuditInterceptor', () => {
         .delete('/v1/orders/o-1')
         .set('x-sub', 'svc-7')
       expect(entries[0].userId).toBe('svc-7')
+    })
+
+    it.each([
+      [{ name: 'jobs' }, 'service:jobs'],
+      [{ id: 7, name: 'jobs' }, 'service:7'],
+      ['k-1', 'service:k-1'],
+      [{ clientId: 'c1' }, 'service:unknown'],
+    ])('audits an API-key caller (request.servicePrincipal %j, no request.user) as %s', async (principal, userId) => {
+      const { entries, options } = recorder()
+      const res = await request((await boot(options)).getHttpServer())
+        .delete('/v1/orders/o-1')
+        .set('x-service', JSON.stringify(principal))
+      expect(res.status).toBe(200)
+      expect(entries).toEqual([expect.objectContaining({ userId, action: 'DELETE', entityId: 'o-1' })])
+      expect(entries[0]).not.toHaveProperty('impersonatedBy')
     })
 
     it('skips anonymous requests', async () => {
@@ -360,6 +399,54 @@ describe('createAuditInterceptor', () => {
       const { entries, options } = recorder()
       await request((await boot(options)).getHttpServer()).post('/v1/orders').set('x-user', USER).send({})
       expect(entries[0]).not.toHaveProperty('changes')
+    })
+
+    it.each(['/v1/INVOICES/042', '/v1/Invoices/42', '/v1/invoices/042', '/v1/invoices/42/'])(
+      'one record keeps one key whatever URL spelling the router accepted: %s → invoices/42',
+      async (url) => {
+        const { entries, options } = recorder()
+        const res = await request((await boot(options, [InvoicesController])).getHttpServer())
+          .patch(url)
+          .set('x-user', USER)
+          .send({ status: 'VOID' })
+        expect(res.status).toBe(200)
+        expect(entries).toEqual([expect.objectContaining({ entityType: 'invoices', entityId: '42' })])
+      }
+    )
+
+    it('an absolute-form request-target is keyed and stored by its pathname', async () => {
+      const { entries, options } = recorder()
+      const nest = await boot(options, [InvoicesController])
+      await nest.listen(0, '127.0.0.1')
+      const { port } = nest.getHttpServer().address() as AddressInfo
+      const status = await new Promise<number | undefined>((resolve, reject) => {
+        rawRequest(
+          { host: '127.0.0.1', port, method: 'PATCH', path: 'http://decoy.invalid/v1/invoices/42', headers: { 'x-user': USER } },
+          (res) => res.resume().on('end', () => resolve(res.statusCode))
+        )
+          .on('error', reject)
+          .end()
+      })
+      expect(status).toBe(200)
+      expect(entries).toEqual([expect.objectContaining({ entityType: 'invoices', entityId: '42', path: '/v1/invoices/42' })])
+    })
+
+    it.each([99, '042', '4.2e1'])('a handler echoing a client id (%j) does not re-key the entry', async (id) => {
+      const { entries, options } = recorder()
+      await request((await boot(options, [InvoicesController])).getHttpServer())
+        .patch('/v1/invoices/42')
+        .set('x-user', USER)
+        .send({ id })
+      expect(entries[0]).toMatchObject({ entityType: 'invoices', entityId: '42' })
+    })
+
+    it('a string id is kept as sent: 042 and 42 can be different records', async () => {
+      const { entries, options } = recorder()
+      await request((await boot(options, [InvoicesController])).getHttpServer())
+        .put('/v1/invoices/042')
+        .set('x-user', USER)
+        .send({ id: '42' })
+      expect(entries[0]).toMatchObject({ entityType: 'invoices', entityId: '042' })
     })
 
     it('a route without a type segment is skipped by the default resolver', async () => {
