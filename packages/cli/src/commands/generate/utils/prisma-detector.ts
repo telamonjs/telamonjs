@@ -2,8 +2,8 @@
  * Prisma schema detection and parsing utilities
  */
 
-import { readFileSync, existsSync } from 'fs'
-import { join } from 'path'
+import { readFileSync, existsSync, readdirSync, statSync } from 'fs'
+import { dirname, join, resolve } from 'path'
 
 export interface PrismaField {
   name: string
@@ -28,25 +28,107 @@ export interface PrismaModel {
   fields: PrismaField[]
 }
 
+/** Single-file schema locations, tried in order (in the app, then at the workspace root). */
+const SCHEMA_FILES = [
+  'prisma/schema.prisma',
+  'database/schema.prisma',
+  'src/prisma/schema.prisma',
+  // `telamonjs create --monorepo`: the schema lives in the shared package
+  'packages/shared/prisma/schema.prisma',
+]
+
+/** Multi-file schema folders (`prismaSchemaFolder`): every `*.prisma` inside, nested folders included. */
+const SCHEMA_FOLDERS = ['prisma/schema', 'packages/shared/prisma/schema']
+
 /**
- * Detect Prisma schema file location
+ * The app itself, then -- when it sits inside a pnpm workspace (a monorepo's
+ * `apps/web`) -- the workspace root, where `packages/shared/prisma` lives.
+ */
+function searchRoots(cwd: string): string[] {
+  const app = resolve(cwd)
+  for (let dir = app; ; dir = dirname(dir)) {
+    if (existsSync(join(dir, 'pnpm-workspace.yaml'))) return dir === app ? [app] : [app, dir]
+    if (dirname(dir) === dir) return [app]
+  }
+}
+
+function schemaFiles(folder: string): string[] {
+  return readdirSync(folder, { recursive: true, encoding: 'utf-8' })
+    .filter(file => file.endsWith('.prisma'))
+    .sort()
+    .map(file => join(folder, file))
+}
+
+function isSchemaFolder(path: string): boolean {
+  return existsSync(path) && statSync(path).isDirectory() && schemaFiles(path).length > 0
+}
+
+/** `package.json#prisma.schema` (a file or a folder): the path Prisma itself would use. */
+function configuredSchema(root: string): string | null {
+  const pkgPath = join(root, 'package.json')
+  if (!existsSync(pkgPath)) return null
+  let schema: unknown
+  try {
+    schema = (JSON.parse(readFileSync(pkgPath, 'utf-8')) as { prisma?: { schema?: unknown } }).prisma?.schema
+  } catch {
+    // ponytail: an unparsable package.json is not ours to report -- fall through to the fixed paths
+    return null
+  }
+  if (typeof schema !== 'string') return null
+  const path = resolve(root, schema)
+  return existsSync(path) && (statSync(path).isFile() || isSchemaFolder(path)) ? path : null
+}
+
+/**
+ * Detect the Prisma schema: `package.json#prisma.schema`, then the fixed
+ * single-file locations, then a multi-file schema folder -- in the app and,
+ * inside a pnpm workspace, at the workspace root. Returns a `.prisma` file or
+ * a folder of them.
  */
 export function detectPrismaSchemaPath(
   cwd: string = process.cwd()
 ): string | null {
-  const possiblePaths = [
-    join(cwd, 'prisma', 'schema.prisma'),
-    join(cwd, 'database', 'schema.prisma'),
-    join(cwd, 'src', 'prisma', 'schema.prisma'),
-  ]
-
-  for (const path of possiblePaths) {
-    if (existsSync(path)) {
-      return path
+  for (const root of searchRoots(cwd)) {
+    const configured = configuredSchema(root)
+    if (configured) return configured
+    for (const file of SCHEMA_FILES) {
+      if (existsSync(join(root, file))) return join(root, file)
+    }
+    for (const folder of SCHEMA_FOLDERS) {
+      if (isSchemaFolder(join(root, folder))) return join(root, folder)
     }
   }
 
   return null
+}
+
+/** The whole schema source (every file of a multi-file schema, concatenated), or null when there is none. */
+function readPrismaSchema(cwd: string): { path: string; content: string } | null {
+  const path = detectPrismaSchemaPath(cwd)
+  if (!path) return null
+  const files = statSync(path).isDirectory() ? schemaFiles(path) : [path]
+  return { path, content: files.map(file => readFileSync(file, 'utf-8')).join('\n') }
+}
+
+/**
+ * Like `parsePrismaModel`, but fails with a message the user can act on:
+ * where the schema was looked for, or which models it does have.
+ */
+export function requirePrismaModel(modelName: string, cwd: string = process.cwd()): PrismaModel {
+  const hint = 'Pass --no-prisma-schema to generate generic fields instead.'
+  const schemaPath = detectPrismaSchemaPath(cwd)
+  if (!schemaPath) {
+    const places = ['package.json#prisma.schema', ...SCHEMA_FILES, ...SCHEMA_FOLDERS.map(f => `${f}/*.prisma`)]
+    throw new Error(
+      `No Prisma schema found in ${searchRoots(cwd).join(' or ')} (looked for ${places.join(', ')}). ${hint}`
+    )
+  }
+  const model = parsePrismaModel(modelName, cwd)
+  if (!model) {
+    const models = listPrismaModels(cwd).join(', ') || '(none)'
+    throw new Error(`Model '${modelName}' not found in ${schemaPath}. Models: ${models}. ${hint}`)
+  }
+  return model
 }
 
 /**
@@ -56,14 +138,14 @@ export function parsePrismaModel(
   modelName: string,
   cwd: string = process.cwd()
 ): PrismaModel | null {
-  const schemaPath = detectPrismaSchemaPath(cwd)
+  const schema = readPrismaSchema(cwd)
 
-  if (!schemaPath) {
+  if (!schema) {
     return null
   }
 
   try {
-    const schemaContent = readFileSync(schemaPath, 'utf-8')
+    const schemaContent = schema.content
     const modelRegex = new RegExp(`model\\s+${modelName}\\s*\\{([^}]+)\\}`, 's')
     const match = schemaContent.match(modelRegex)
 
@@ -241,14 +323,14 @@ function parseFieldLine(line: string, modelNames: Set<string>): PrismaField | nu
  * List all models in Prisma schema
  */
 export function listPrismaModels(cwd: string = process.cwd()): string[] {
-  const schemaPath = detectPrismaSchemaPath(cwd)
+  const schema = readPrismaSchema(cwd)
 
-  if (!schemaPath) {
+  if (!schema) {
     return []
   }
 
   try {
-    const schemaContent = readFileSync(schemaPath, 'utf-8')
+    const schemaContent = schema.content
     const modelRegex = /model\s+(\w+)\s*\{/g
     const models: string[] = []
 

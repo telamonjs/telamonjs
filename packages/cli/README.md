@@ -50,7 +50,9 @@ commands below also run locally, for example `pnpm telamonjs lint`.
 telamonjs generate crud products --model Product
 ```
 
-Reads `schema.prisma`, maps the fields to the field system and writes
+Reads the Prisma schema (`package.json#prisma.schema`, `prisma/schema.prisma`, a
+multi-file `prisma/schema/` folder, or a monorepo's `packages/shared/prisma`;
+it stops with an error when the schema or the model is missing), maps the fields to the field system and writes
 `config.tsx`, the list `page.tsx`, a detail component for the view dialog, a
 REST client and its route handlers, plus the module's i18n messages. Create,
 edit and view open in dialogs, with no extra routes. It also adds the module to

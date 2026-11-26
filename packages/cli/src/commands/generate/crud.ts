@@ -10,7 +10,7 @@ import { join, dirname } from 'path'
 import { execSync } from 'child_process'
 
 import {
-  parsePrismaModel,
+  requirePrismaModel,
   listPrismaModels,
   PrismaField,
 } from './utils/prisma-detector.js'
@@ -57,20 +57,15 @@ export async function generateCrud(
     const answers = await promptForOptions(options, cwd)
     spinner.start('Generating CRUD module...')
 
-    // 2. Detect Prisma model (if available)
-    let modelSchema: { name: string; fields: PrismaField[] } | null = null
+    // 2. Read the Prisma model. Detection was asked for, so a missing schema or
+    // model fails (with where it looked / which models exist) instead of
+    // quietly generating placeholder fields that don't match the real table.
+    let modelSchema: { name: string; fields: PrismaField[] }
     if (answers.prismaSchema && answers.model) {
-      modelSchema = parsePrismaModel(answers.model, cwd)
-      if (!modelSchema) {
-        spinner.warn(
-          `Could not find Prisma model '${answers.model}'. Using basic fields.`
-        )
-        modelSchema = createBasicModelSchema(answers.model)
-      } else {
-        spinner.succeed(
-          `Detected Prisma model '${answers.model}' with ${modelSchema.fields.length} fields`
-        )
-      }
+      modelSchema = requirePrismaModel(answers.model, cwd)
+      spinner.succeed(
+        `Detected Prisma model '${answers.model}' with ${modelSchema.fields.length} fields`
+      )
     } else {
       modelSchema = createBasicModelSchema(answers.model)
     }
