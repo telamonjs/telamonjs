@@ -121,6 +121,18 @@ describe('createApiKeyGuard', () => {
       expect((error as Error).message).not.toContain(KEY)
     })
 
+    it.each([false, 0, '', Number.NaN])(
+      'verifier returning %p → 401 (a predicate verifier must not let a wrong key in)',
+      async value => {
+        const Guard = createApiKeyGuard({ verify: () => value })
+        const request: FakeRequest = { headers: { 'x-api-key': 'wrong' } }
+        await expect(run(new Guard(), request)).rejects.toThrow(
+          UnauthorizedException
+        )
+        expect(request.servicePrincipal).toBeUndefined()
+      }
+    )
+
     it('async verifier (DB lookup) gets the key and the request; its principal is attached', async () => {
       const verify = vi.fn(async (key: string) =>
         key === KEY ? { clientId: 'c1' } : null

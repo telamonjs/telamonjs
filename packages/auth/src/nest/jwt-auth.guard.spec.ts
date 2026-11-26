@@ -119,6 +119,52 @@ describe('createJwtAuthGuard', () => {
     }
   })
 
+  it('both cookies present → the __Secure- one (what NextAuth serves over HTTPS) wins', async () => {
+    const secureName = '__Secure-authjs.session-token'
+    const secure = await encodeSessionToken(payload, {
+      secret: SECRET,
+      salt: secureName,
+    })
+    // a cookie any non-secure origin could plant, minted with the default salt
+    const planted = await encodeSessionToken(
+      { ...payload, id: 'planted' },
+      { secret: SECRET }
+    )
+    const request: FakeRequest = {
+      headers: {},
+      cookies: { [secureName]: secure, 'authjs.session-token': planted },
+    }
+    expect(await guard({ secret: SECRET }).canActivate(ctx(request))).toBe(true)
+    expect(request.user?.id).toBe('u1')
+  })
+
+  it('an expired/invalid __Secure- cookie never falls back to a plain one', async () => {
+    const secureName = '__Secure-authjs.session-token'
+    const expired = await encodeSessionToken(payload, {
+      secret: SECRET,
+      salt: secureName,
+      maxAge: -60,
+    })
+    const planted = await encodeSessionToken(
+      { ...payload, id: 'planted' },
+      { secret: SECRET }
+    )
+    for (const secureCookies of [
+      { [secureName]: expired },
+      { [secureName]: 'garbage' },
+      { [`${secureName}.0`]: 'gar', [`${secureName}.1`]: 'bage' },
+    ]) {
+      const request: FakeRequest = {
+        headers: {},
+        cookies: { ...secureCookies, 'authjs.session-token': planted },
+      }
+      await expect(
+        guard({ secret: SECRET }).canActivate(ctx(request))
+      ).rejects.toThrow(UnauthorizedException)
+      expect(request.user).toBeUndefined()
+    }
+  })
+
   it('custom cookieNames (legacy v4 cookie with v5 salt — real consumer app case)', async () => {
     const token = await encodeSessionToken(payload, { secret: SECRET })
     const request: FakeRequest = {
@@ -137,6 +183,35 @@ describe('createJwtAuthGuard', () => {
     await expect(
       guard({ secret: SECRET }).canActivate(ctx(request))
     ).rejects.toThrow(UnauthorizedException)
+  })
+
+  it('an explicit maxAge rejects an older token (Bearer and cookie); the default only checks exp', async () => {
+    const token = await encodeSessionToken(payload, {
+      secret: SECRET,
+      maxAge: 30 * 24 * 60 * 60,
+    })
+    vi.useFakeTimers({ toFake: ['Date'] })
+    try {
+      vi.setSystemTime(Date.now() + 2 * 60 * 60 * 1000) // 2h later
+      const capped = guard({ secret: SECRET, maxAge: 60 * 60 })
+      await expect(
+        capped.canActivate(
+          ctx({ headers: { authorization: `Bearer ${token}` } })
+        )
+      ).rejects.toThrow(UnauthorizedException)
+      await expect(
+        capped.canActivate(
+          ctx({ headers: {}, cookies: { 'authjs.session-token': token } })
+        )
+      ).rejects.toThrow(UnauthorizedException)
+      expect(
+        await guard({ secret: SECRET }).canActivate(
+          ctx({ headers: { authorization: `Bearer ${token}` } })
+        )
+      ).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('custom salt decodes a token issued with the legacy salt', async () => {
@@ -923,6 +998,20 @@ describe('createJwtAuthGuard — apiKey option (@AllowServiceToken)', () => {
     await expect(
       g.canActivate(ctx({ headers: { 'x-api-key': 'wrong' } }))
     ).rejects.toThrow(UnauthorizedException)
+  })
+
+  it('marked route + verifier returning false and no session → 401, no servicePrincipal', async () => {
+    const request: FakeRequest & { servicePrincipal?: unknown } = {
+      headers: { 'x-api-key': 'wrong' },
+    }
+    const g = keyedGuard(
+      { secret: SECRET, apiKey: { verify: (key: string) => key === KEY } },
+      marked
+    )
+    await expect(g.canActivate(ctx(request))).rejects.toThrow(
+      UnauthorizedException
+    )
+    expect(request.servicePrincipal).toBeUndefined()
   })
 
   it('unmarked route ignores a valid key (opt-in per route)', async () => {

@@ -63,9 +63,13 @@ export interface JwtAuthGuardOptions extends Omit<TokenConfig, 'secret'> {
    */
   createException?: (status: 401 | 403, message: string) => Error
   /**
-   * Cookie names to look for the session token in.
-   * Default: [salt, `__Secure-${salt}`]. Projects that decode with the v5
-   * salt but still serve the legacy cookie pass ['next-auth.session-token', ...].
+   * Cookie names to look for the session token in, in priority order.
+   * Default: [`__Secure-${salt}`, salt]. The `__Secure-` cookie, which only a
+   * secure origin can set, wins, and while it is present (even expired) the
+   * plain one is never read. An HTTPS-only deployment passes
+   * [`__Secure-${salt}`] so a planted plain cookie is never read at all.
+   * Projects that decode with the v5 salt but still serve the legacy cookie
+   * pass ['next-auth.session-token', ...].
    */
   cookieNames?: string[]
   /**
@@ -215,7 +219,7 @@ export function createJwtAuthGuard<TUser = AuthUser>(
   options?: JwtAuthGuardOptions
 ): JwtAuthGuardClass<TUser> {
   const salt = options?.salt ?? DEFAULT_SALT
-  const cookieNames = options?.cookieNames ?? [salt, `__Secure-${salt}`]
+  const cookieNames = options?.cookieNames ?? [`__Secure-${salt}`, salt]
   // Bearer/query arrive without a cookie name — we try every possible salt
   const headerSalts = [...new Set([salt, ...cookieNames])]
   const unauthorized = (message: string): Error =>
@@ -274,6 +278,7 @@ export function createJwtAuthGuard<TUser = AuthUser>(
           const payload = await decodeSessionToken(candidate.token, {
             secret,
             salt: candidateSalt,
+            maxAge: options?.maxAge,
           })
           if (payload) {
             if (payload.impersonatedUserId && options?.isImpersonationActive) {
@@ -370,6 +375,13 @@ export function createJwtAuthGuard<TUser = AuthUser>(
       // cookie under another name — hence we try both the name AND the
       // configured salt.
       for (const name of cookieNames) {
+        // Only a secure origin can set a __Secure- cookie; while it is present
+        // (even expired/invalid), its plain twin, which any origin can plant,
+        // is never a fallback
+        const secureTwin = `__Secure-${name}`
+        if (cookieNames.includes(secureTwin) && this.readCookie(request, secureTwin)) {
+          continue
+        }
         const token = this.readCookie(request, name)
         if (token) {
           candidates.push({ token, salts: [...new Set([name, salt])] })
