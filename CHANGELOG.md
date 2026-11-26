@@ -1,5 +1,30 @@
 # Changelog
 
+## auth 1.4.1, data 1.4.1, queue 1.5.0, ui 1.15.2, cli 1.4.2 (2026-11-26)
+
+Stricter defaults and bug fixes across packages. Each package's CHANGELOG has the details.
+
+- `@telamonjs/auth`: API-key guards reject any falsy verifier result. An explicit `maxAge` is enforced.
+  The guard reads the `__Secure-` session cookie first. Impersonation cookies apply only to the session
+  that started them.
+- `@telamonjs/data`: filter keys must be own properties of `filters`. The cached paginated service keys
+  its cache by service config and visibility; with hooks it is returned uncached. The audit interceptor
+  attributes API-key writes and takes the entity type from the matched route.
+- `@telamonjs/queue` (minor): job `timeout` is enforced (`JobTimeoutError`, `ctx.signal`). SSE streams
+  end after `sseMaxAgeMs` with a reconnect frame. Dispatch enqueues the schema's parsed output. New
+  `prefix` option. The dashboard can clear config fields.
+- `@telamonjs/ui`: stricter `callbackUrl` and file-link handling. The sanitizers return `''` without a
+  DOM. CSV text cells that start with a formula character get a leading `'`. `FileUpload` keeps the
+  current file when a replacement is rejected. The queue dashboard reconnects seamlessly.
+- `@telamonjs/cli`, generated apps:
+  - The seed creates the first admin only on an empty database.
+  - The production compose reads `NEXTAUTH_SECRET`, `DB_PASSWORD` and `SEED_ADMIN_PASSWORD` from the
+    environment.
+  - `images.remotePatterns` starts empty.
+  - The Docker image builds and ships the migrations.
+  - Grants are capped at the granter's permissions.
+  - `generate crud` emits permission-checked Route Handlers.
+
 ## ui 1.15.1 (2026-11-25)
 
 - `@telamonjs/ui`: the saved views "Share" link works. It now uses `?sharedView=` and is applied when the

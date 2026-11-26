@@ -48,7 +48,7 @@ const __dirname = fileURLToPath(new URL('.', import.meta.url))
 // @telamonjs/ui version pinned into generated apps' package.json
 // (fills the {{uiVersion}} placeholder in templates/app/package.json).
 // Bump this with telamonjs-ui minors too: the templates follow the latest API.
-export const DEFAULT_UI_VERSION = '^1.15.0'
+export const DEFAULT_UI_VERSION = '^1.15.2'
 
 // This CLI's own version, pinned as devDependency of generated apps so
 // `pnpm lint:telamonjs` (`telamonjs lint`) works without a global install.
