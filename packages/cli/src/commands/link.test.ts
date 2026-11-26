@@ -23,8 +23,13 @@ const commit = (cwd: string) => {
 beforeAll(() => {
   vi.spyOn(console, 'log').mockImplementation(() => {})
   vi.stubEnv('TELAMONJS_UI', undefined)
-  write(join(checkout, 'packages/ui/package.json'), { name: '@telamonjs/ui', version: '1.0.9' })
+  write(join(checkout, 'packages/ui/package.json'), {
+    name: '@telamonjs/ui',
+    version: '1.0.9',
+    dependencies: { '@telamonjs/data': 'workspace:^', '@telamonjs/logger': 'workspace:^', clsx: '^2.1.1' },
+  })
   write(join(checkout, 'packages/logger/package.json'), { name: '@telamonjs/logger', version: '1.0.9' })
+  write(join(checkout, 'packages/data/package.json'), { name: '@telamonjs/data', version: '1.0.9' })
 })
 afterAll(() => {
   vi.unstubAllEnvs()
@@ -44,7 +49,12 @@ describe('telamonjs link / unlink', () => {
       name: 'single',
       dependencies: { '@telamonjs/ui': 'file:../telamonjs/packages/ui' },
       dependenciesMeta: { '@telamonjs/ui': { injected: true } },
-      pnpm: { overrides: { '@telamonjs/logger': 'link:../telamonjs/packages/logger' } },
+      pnpm: {
+        overrides: {
+          '@telamonjs/data': 'link:../telamonjs/packages/data',
+          '@telamonjs/logger': 'link:../telamonjs/packages/logger',
+        },
+      },
     })
 
     unlink({ cwd: app })
@@ -68,6 +78,7 @@ describe('telamonjs link / unlink', () => {
     expect(read(web).dependenciesMeta).toEqual({ '@telamonjs/ui': { injected: true } })
     expect(read(root).pnpm.overrides).toEqual({
       'motion-dom': '~12.23.23',
+      '@telamonjs/data': 'link:../telamonjs/packages/data',
       '@telamonjs/logger': 'link:../telamonjs/packages/logger',
     })
 
@@ -84,6 +95,11 @@ describe('telamonjs link / unlink', () => {
     write(join(app, 'package.json'), { name: 'root' })
     expect(() => link({ cwd: app })).toThrow(/not a dependency/)
     expect(() => link({ cwd: app, package: 'packages/admin/package.json', ui: join(dir, 'nowhere') })).toThrow(/not found/)
+    expect(read(file).dependencies['@telamonjs/ui']).toBe('^1.0.1')
+    // a checkout whose ui declares a workspace package that is not next to it
+    const partial = join(dir, 'partial/packages/ui')
+    write(join(partial, 'package.json'), { name: '@telamonjs/ui', dependencies: { '@telamonjs/data': 'workspace:^' } })
+    expect(() => link({ cwd: app, package: 'packages/admin/package.json', ui: partial })).toThrow(/@telamonjs\/data not found/)
     expect(read(file).dependencies['@telamonjs/ui']).toBe('^1.0.1')
     link({ cwd: app, package: 'packages/admin/package.json', ui: join(checkout, 'packages/ui') })
     expect(read(file).dependencies['@telamonjs/ui']).toBe('file:../../../telamonjs/packages/ui')
