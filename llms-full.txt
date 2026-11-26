@@ -650,9 +650,14 @@ pnpm worker                 # apps/jobs
 telamonjs generate crud [name] [options]   # alias: telamonjs g crud
 ```
 
-Run it from the app root. It reads `prisma/schema.prisma`, maps each model field
+Run it from the app root. It reads the Prisma schema, maps each model field
 to a form field type and a column, and writes a module in the
-[standard structure](/docs/patterns/admin-module-structure):
+[standard structure](/docs/patterns/admin-module-structure). The schema is the
+one `package.json#prisma.schema` names, else `prisma/schema.prisma` (also
+`database/`, `src/prisma/` and a multi-file `prisma/schema/` folder); from a
+monorepo's `apps/web` it finds `packages/shared/prisma` at the workspace root.
+When the schema or the model is missing it stops and says where it looked, or
+which models exist; `--no-prisma-schema` generates generic fields instead.
 
 | File | Contents |
 | --- | --- |
