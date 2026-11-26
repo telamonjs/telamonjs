@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import type { Redis as IORedis } from 'ioredis'
+import { Redis as IORedis } from 'ioredis'
 import { createSSEBroadcaster, type SSEBroadcaster } from './SSEBroadcaster'
 import {
   createTestRedisConfig,
@@ -414,5 +414,38 @@ describe('createSSEBroadcaster — connected frame + initial stats snapshot', ()
       'SSEBroadcaster failed to send initial stats snapshot',
       expect.objectContaining({ error: 'redis down' })
     )
+  })
+
+  it('a failing UNSUBSCRIBE on teardown is logged, not swallowed', async () => {
+    const sub = {
+      on: vi.fn(),
+      subscribe: vi.fn().mockResolvedValue(1),
+      unsubscribe: vi.fn().mockRejectedValue(new Error('Connection is closed.')),
+      quit: vi.fn().mockResolvedValue('OK'),
+      disconnect: vi.fn(),
+    }
+    // lazyConnect: never touches the network; duplicate() hands out the fake subscriber
+    const shared = new IORedis({ lazyConnect: true })
+    vi.spyOn(shared, 'duplicate').mockReturnValue(sub as unknown as IORedis)
+    const logger = { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() }
+    broadcaster = createSSEBroadcaster({
+      redis: shared,
+      getStats: vi.fn().mockResolvedValue({}),
+      heartbeatMs: 60_000,
+      logger,
+    })
+
+    const client = collectWrites()
+    const remove = broadcaster.addClient(client)
+    await waitFor(() => client.chunks.length > 0, { timeout: 3000, interval: 20 })
+    remove()
+
+    await waitFor(() => logger.warn.mock.calls.length > 0, { timeout: 3000, interval: 20 })
+    expect(logger.warn).toHaveBeenCalledWith(
+      'SSEBroadcaster failed to unsubscribe on teardown',
+      expect.objectContaining({ error: 'Connection is closed.' })
+    )
+    expect(sub.quit).toHaveBeenCalled()
+    shared.disconnect()
   })
 })

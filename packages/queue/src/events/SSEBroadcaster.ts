@@ -170,7 +170,12 @@ export function createSSEBroadcaster(
     if (subscriber) {
       const sub = subscriber
       subscriber = null
-      sub.unsubscribe(channel).catch(() => {})
+      sub.unsubscribe(channel).catch((err: unknown) => {
+        logger.warn('SSEBroadcaster failed to unsubscribe on teardown', {
+          error: err instanceof Error ? err.message : String(err),
+        })
+      })
+      // A failed QUIT falls back to a forced disconnect: handled, not swallowed
       sub.quit().catch(() => sub.disconnect())
     }
   }
