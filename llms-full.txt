@@ -11028,6 +11028,7 @@ above), or anything else to continue to `onSuccess` / navigation.
 | `onSuccess` | `(url: string) => void \| Promise<void>` | `router.push` + `router.refresh` |
 | `className` | `string`, on the `<form>` | — |
 | `submitClassName` | `string`, on the submit button (merged with `w-full`) | — |
+| `errorClassName` | `string \| (code) => string \| undefined`, merged over the destructive alert style; the function form restyles one error code | — |
 
 `SignInFormValues` is `{ identifier: string; password: string }`. `SignInFormResult` is
 `{ error?: string | null; code?: string | null } | void`, which next-auth's `SignInResponse` fits.
@@ -11049,6 +11050,7 @@ above), or anything else to continue to `onSuccess` / navigation.
 | `emailPlaceholder` | `I18nText` | — |
 | `autoFocus` | `boolean` | `false` |
 | `submitClassName` | `string`, on the submit button | — |
+| `errorClassName` | `string`, merged over the alert style | — |
 | `signInHref` | `string`, renders "Back to sign in" in both states | no link |
 | `className` | `string` | — |
 
