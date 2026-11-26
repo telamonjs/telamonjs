@@ -343,17 +343,18 @@ Switch an app between the published `@telamonjs/ui` and a local TelamonJS
 checkout, following the [link recipe](/docs/troubleshooting#consuming-the-packages-via-link):
 
 - `link` sets `@telamonjs/ui` to an injected `file:` dependency on the checkout's
-  `packages/ui` (`dependenciesMeta["@telamonjs/ui"].injected: true`) and adds
-  `pnpm.overrides["@telamonjs/logger"]` as a `link:` to its `packages/logger`. The
-  override goes in the workspace root's `package.json`: the nearest directory
+  `packages/ui` (`dependenciesMeta["@telamonjs/ui"].injected: true`) and adds a
+  `pnpm.overrides` entry, a `link:` to its folder in `packages/`, for each package
+  that `ui` declares as `workspace:^` (`@telamonjs/logger` and `@telamonjs/data`). The
+  overrides go in the workspace root's `package.json`: the nearest directory
   with a `pnpm-workspace.yaml`, or the app itself.
 - `unlink` restores the range committed at `HEAD`, or `^` plus the latest
   published version when `HEAD` has none, never the checkout's own version, which
-  may not be on npm yet. It removes the override and the `dependenciesMeta` entry.
+  may not be on npm yet. It removes the overrides and the `dependenciesMeta` entry.
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `--ui <path>` | `$TELAMONJS_UI`, else `../telamonjs/packages/ui` from the workspace root | The checkout's `packages/ui`; `packages/logger` must sit next to it |
+| `--ui <path>` | `$TELAMONJS_UI`, else `../telamonjs/packages/ui` from the workspace root | The checkout's `packages/ui`; `packages/logger` and `packages/data` must sit next to it |
 | `--package <path>` | `apps/web/package.json` when it exists, else `package.json` | The `package.json` that depends on `@telamonjs/ui` |
 
 Neither command runs `pnpm install`: run it afterwards. A missing checkout, or a

@@ -73,7 +73,7 @@ program.addCommand(addCommand)
 // Link mode: @telamonjs/ui from a local TelamonJS checkout
 program
   .command('link')
-  .description('Point @telamonjs/ui at a local TelamonJS checkout (injected file: + logger override)')
+  .description('Point @telamonjs/ui at a local TelamonJS checkout (injected file: + overrides for its workspace packages)')
   .option('--ui <path>', 'The checkout\'s packages/ui (default: $TELAMONJS_UI, else ../telamonjs/packages/ui from the workspace root)')
   .option('--package <path>', 'The package.json to edit (default: apps/web/package.json, else package.json)')
   .action(runLink)

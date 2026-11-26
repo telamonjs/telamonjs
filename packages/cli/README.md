@@ -130,9 +130,10 @@ pnpm install                                      # neither command installs
 ```
 
 `link` points `@telamonjs/ui` at a checkout's `packages/ui` as an injected `file:`
-dependency and adds the required `pnpm.overrides["@telamonjs/logger"]` (a `link:`
-to the checkout's `packages/logger`) to the workspace root's `package.json`.
-`unlink` removes both and restores the range committed at `HEAD`, else `^` plus the
+dependency and adds the required `pnpm.overrides` for each package that `ui` declares
+as `workspace:^` (`@telamonjs/logger` and `@telamonjs/data`, each a `link:` to its
+folder in the checkout's `packages/`) to the workspace root's `package.json`.
+`unlink` removes them and restores the range committed at `HEAD`, else `^` plus the
 latest published version, never the checkout's own version. The edited
 `package.json` is `apps/web/package.json` when it exists, else `./package.json`;
 `--ui` defaults to `$TELAMONJS_UI`, else `../telamonjs/packages/ui` next to the

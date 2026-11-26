@@ -5,11 +5,12 @@ import chalk from 'chalk'
 
 // Link mode: point an app's @telamonjs/ui at a local TelamonJS checkout, the
 // recipe documented in troubleshooting.mdx ("Consuming the packages via link:"):
-// an injected `file:` dependency, plus the logger override the checkout's
-// `workspace:^` needs. `unlink` goes back to the published range.
+// an injected `file:` dependency, plus an override for each package the
+// checkout's ui declares as `workspace:^` (logger, data), which only resolves
+// through one. `unlink` goes back to the published range.
 
 const UI = '@telamonjs/ui'
-const LOGGER = '@telamonjs/logger'
+const SCOPE = '@telamonjs/'
 const DEFAULT_UI = '../telamonjs/packages/ui'
 
 interface PackageJson {
@@ -85,13 +86,18 @@ const nextStep = () => console.log(chalk.cyan('Next: pnpm install'))
 export function link({ ui, package: pkgOption, cwd = process.cwd() }: LinkOptions = {}): void {
   const { file, rootFile } = locate(cwd, pkgOption)
   const uiDir = ui ? resolve(cwd, ui) : resolve(dirname(rootFile), process.env.TELAMONJS_UI ?? DEFAULT_UI)
-  const loggerDir = join(uiDir, '..', 'logger')
-  for (const [dir, name] of [[uiDir, UI], [loggerDir, LOGGER]] as const) {
+  const check = (dir: string, name: string) => {
     const manifest = join(dir, 'package.json')
     if (!existsSync(manifest) || readJson(manifest).name !== name) {
       throw new Error(`${name} not found at ${dir} (pass --ui <checkout>/packages/ui)`)
     }
   }
+  check(uiDir, UI)
+  // each workspace:^ dependency of the checkout's ui is its sibling in packages/
+  const siblings = Object.entries(readJson(join(uiDir, 'package.json')).dependencies ?? {})
+    .filter(([name, range]) => name.startsWith(SCOPE) && range.startsWith('workspace:'))
+    .map(([name]) => [name, join(uiDir, '..', name.slice(SCOPE.length))] as const)
+  for (const [name, dir] of siblings) check(dir, name)
 
   let from = ''
   let to = ''
@@ -102,7 +108,8 @@ export function link({ ui, package: pkgOption, cwd = process.cwd() }: LinkOption
     pkg.dependenciesMeta = { ...pkg.dependenciesMeta, [UI]: { injected: true } }
   })
   edit(rootFile, pkg => {
-    pkg.pnpm = { ...pkg.pnpm, overrides: { ...pkg.pnpm?.overrides, [LOGGER]: `link:${relPath(dirname(rootFile), loggerDir)}` } }
+    const links = Object.fromEntries(siblings.map(([name, dir]) => [name, `link:${relPath(dirname(rootFile), dir)}`]))
+    pkg.pnpm = { ...pkg.pnpm, overrides: { ...pkg.pnpm?.overrides, ...links } }
   })
   console.log(`${UI}: ${from} -> ${to}`)
   nextStep()
@@ -124,8 +131,9 @@ export function unlink({ package: pkgOption, cwd = process.cwd() }: Omit<LinkOpt
   })
   edit(rootFile, pkg => {
     const overrides = pkg.pnpm?.overrides
-    if (!pkg.pnpm || !overrides || !isLocal(overrides[LOGGER])) return
-    delete overrides[LOGGER]
+    const local = Object.keys(overrides ?? {}).filter(name => name.startsWith(SCOPE) && isLocal(overrides?.[name]))
+    if (!pkg.pnpm || !overrides || !local.length) return
+    for (const name of local) delete overrides[name]
     if (!Object.keys(overrides).length) delete pkg.pnpm.overrides
     if (!Object.keys(pkg.pnpm).length) delete pkg.pnpm
   })

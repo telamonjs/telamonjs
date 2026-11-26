@@ -850,17 +850,18 @@ Switch an app between the published `@telamonjs/ui` and a local TelamonJS
 checkout, following the [link recipe](/docs/troubleshooting#consuming-the-packages-via-link):
 
 - `link` sets `@telamonjs/ui` to an injected `file:` dependency on the checkout's
-  `packages/ui` (`dependenciesMeta["@telamonjs/ui"].injected: true`) and adds
-  `pnpm.overrides["@telamonjs/logger"]` as a `link:` to its `packages/logger`. The
-  override goes in the workspace root's `package.json`: the nearest directory
+  `packages/ui` (`dependenciesMeta["@telamonjs/ui"].injected: true`) and adds a
+  `pnpm.overrides` entry, a `link:` to its folder in `packages/`, for each package
+  that `ui` declares as `workspace:^` (`@telamonjs/logger` and `@telamonjs/data`). The
+  overrides go in the workspace root's `package.json`: the nearest directory
   with a `pnpm-workspace.yaml`, or the app itself.
 - `unlink` restores the range committed at `HEAD`, or `^` plus the latest
   published version when `HEAD` has none, never the checkout's own version, which
-  may not be on npm yet. It removes the override and the `dependenciesMeta` entry.
+  may not be on npm yet. It removes the overrides and the `dependenciesMeta` entry.
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `--ui <path>` | `$TELAMONJS_UI`, else `../telamonjs/packages/ui` from the workspace root | The checkout's `packages/ui`; `packages/logger` must sit next to it |
+| `--ui <path>` | `$TELAMONJS_UI`, else `../telamonjs/packages/ui` from the workspace root | The checkout's `packages/ui`; `packages/logger` and `packages/data` must sit next to it |
 | `--package <path>` | `apps/web/package.json` when it exists, else `package.json` | The `package.json` that depends on `@telamonjs/ui` |
 
 Neither command runs `pnpm install`: run it afterwards. A missing checkout, or a
@@ -23490,7 +23491,12 @@ Keep these rules in mind:
   {
     "dependencies": { "@telamonjs/ui": "file:../telamonjs/packages/ui" },
     "dependenciesMeta": { "@telamonjs/ui": { "injected": true } },
-    "pnpm": { "overrides": { "@telamonjs/logger": "link:../telamonjs/packages/logger" } }
+    "pnpm": {
+      "overrides": {
+        "@telamonjs/data": "link:../telamonjs/packages/data",
+        "@telamonjs/logger": "link:../telamonjs/packages/logger"
+      }
+    }
   }
   ```
 
@@ -23498,8 +23504,9 @@ Keep these rules in mind:
   [CLI › link / unlink](/docs/packages/cli#link--unlink)).
 
   Re-run `pnpm install` after rebuilding the package so the injected copy picks up the new `dist/`.
-  The `@telamonjs/logger` override is required, not optional: in the checkout, `@telamonjs/ui`
-  declares the logger as `workspace:^`, which only resolves through the override. Run
+  The overrides are required, not optional: in the checkout, `@telamonjs/ui` declares
+  `@telamonjs/logger` and `@telamonjs/data` as `workspace:^`, which only resolves through an
+  override (without one, `pnpm install` fails with `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND`). Run
   `telamonjs unlink` before committing or building against the registry; monorepos generated
   by the CLI do it in a pre-commit hook.
 - **One copy of each peer.** Expect the two-copy problems above. Keep the
