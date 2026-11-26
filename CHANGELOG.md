@@ -1,5 +1,11 @@
 # Changelog
 
+## ui 1.15.3 (2026-11-26)
+
+- `@telamonjs/ui`: `FileUpload` cancels its pending simulated uploads (no `uploadEndpoint`) when it
+  unmounts. Before, the timer still fired after the component was gone, which in jsdom surfaced after
+  test teardown as `window is not defined`.
+
 ## cli 1.4.3 (2026-11-26)
 
 - `@telamonjs/cli`: `telamonjs link` adds an override for every package the checkout's ui declares as
