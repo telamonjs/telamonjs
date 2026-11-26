@@ -203,5 +203,5 @@ Every name each entry point exports, runtime and types: [Public API index](https
 
 ## Full docs
 
-**Full docs →** [the permissions page of the docs site](https://github.com/telamonjs/telamonjs/tree/main/apps/docs/content/docs/packages)
+**Full docs →** [the permissions page of the docs site](https://telamonjs.com/docs/packages/permissions)
 (MDX sources, readable on GitHub).

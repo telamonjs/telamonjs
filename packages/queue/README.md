@@ -240,6 +240,6 @@ Every name each entry point exports, runtime and types: [Public API index](https
 
 ## Full docs
 
-**Full docs →** [the queue section of the docs site](https://github.com/telamonjs/telamonjs/tree/main/apps/docs/content/docs/queue)
+**Full docs →** [the queue section of the docs site](https://telamonjs.com/docs/queue)
 (scheduling, priorities, dead-letter queues, metrics, error handling, the
 dashboard; MDX sources, readable on GitHub).

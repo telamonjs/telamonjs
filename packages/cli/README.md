@@ -148,5 +148,5 @@ relink after it.
 Requires Node ≥ 22. The package manager is detected from the launcher
 (`pnpm dlx`, `yarn dlx`) or the lockfile, with npm as the fallback.
 
-**Full docs →** [the docs site sources](https://github.com/telamonjs/telamonjs/tree/main/apps/docs/content/docs)
+**Full docs →** [the CLI page of the docs site](https://telamonjs.com/docs/packages/cli)
 (MDX, readable on GitHub).

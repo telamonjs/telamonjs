@@ -12,7 +12,7 @@
 
   <p>
     <a href="#get-started">Get started</a> ·
-    <a href="./apps/docs/content/docs">Docs</a> ·
+    <a href="https://telamonjs.com/docs">Docs</a> ·
     <a href="./apps/example">Example app</a> ·
     <a href="./CHANGELOG.md">Changelog</a> ·
     <a href="./CONTRIBUTING.md">Contributing</a>
@@ -120,11 +120,10 @@ Each package works standalone.
 
 ## Documentation
 
-The documentation site is not deployed yet. Until it is:
-
-- each package README above covers install, a canonical example and the entry points;
-- the site sources (MDX) are readable on GitHub:
-  [`apps/docs/content/docs`](https://github.com/telamonjs/telamonjs/tree/main/apps/docs/content/docs).
+**[telamonjs.com](https://telamonjs.com/docs)** has the guides, the component
+pages with live previews, the patterns and the reference of every package.
+Each package README above covers install, a canonical example and the entry
+points.
 
 ## Requirements
 
