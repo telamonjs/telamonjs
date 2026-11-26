@@ -10,5 +10,13 @@
 export type { SortField, PaginationParams, PaginatedResponse } from './contract.js'
 export { createPaginatedResponse, sanitizePaginationParams } from './contract.js'
 export { resolveSort, resolveSortPath } from './sort.js'
+export type {
+  AuthUser,
+  FilterFieldConfig,
+  FilterFieldType,
+  FilterLabels,
+  FilterOption,
+  FilterValue,
+} from './types.js'
 export type { FieldChange, ComputeDiffOptions } from './audit.js'
 export { computeDiff, redactPayload, DEFAULT_REDACT_KEYS } from './audit.js'

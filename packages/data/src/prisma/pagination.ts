@@ -90,14 +90,16 @@ export function createPaginationContext(context: PaginationContext) {
    *       }
    *     }
    *   },
-   *   visibility: (user) =>
-   *     user.role.code === 'admin' ? {} : {
+   *   visibility: (user) => {
+   *     const role = typeof user.role === 'string' ? user.role : user.role?.code
+   *     return role === 'admin' ? {} : {
    *       visoes: {
    *         some: {
    *           usuario: { id: user.id }
    *         }
    *       }
    *     }
+   *   }
    * })
    *
    * export const listClientesPaginated = service.list

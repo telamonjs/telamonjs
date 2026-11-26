@@ -93,6 +93,11 @@ export const customers = createPaginatedService({
 `@telamonjs/ui/server` re-exports these helpers for Next.js server code. A NestJS or plain Node
 API installs only this package.
 
+The ORM-agnostic types (`AuthUser`, `FilterFieldConfig`, `FilterFieldType`, `FilterValue`,
+`FilterOption`, `FilterLabels`) are exported from `@telamonjs/data` itself, and re-exported from
+`/prisma`. `AuthUser.role` takes a bare code or an object carrying one, so the `RoleInfo` of
+`@telamonjs/auth` fits as is.
+
 ## NestJS (`@telamonjs/data/nest`)
 
 Needs `@nestjs/common` 10 or 11 and `rxjs` 7, optional peers that only this entry imports

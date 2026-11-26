@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import { createPaginationContext } from './pagination.js'
-import type { PaginatedServiceConfig } from './types.js'
+import type { AuthUser, PaginatedServiceConfig } from './types.js'
 import type { PaginationParams } from '../contract.js'
 
 function setup(config: Partial<PaginatedServiceConfig> = {}) {
@@ -261,5 +261,33 @@ describe('createCachedPaginatedService cache keys', () => {
       `item_paginated_${JSON.stringify(params)}`,
       'item_filter_options_en',
     ])
+  })
+})
+
+describe('visibility and the session user', () => {
+  // The JSDoc example of createPaginatedService: role is a code or a RoleInfo
+  const visibility = (user: AuthUser) => {
+    const role = typeof user.role === 'string' ? user.role : user.role?.code
+    return role === 'admin' ? {} : { ownerId: user.id }
+  }
+
+  async function whereFor(user: AuthUser) {
+    const findMany = vi.fn().mockResolvedValue([])
+    const { createPaginatedService } = createPaginationContext({
+      prisma: { item: { findMany, count: vi.fn().mockResolvedValue(0) } },
+      auth: async () => ({ user }),
+    })
+    await createPaginatedService({ model: 'item', visibility }).list({ page: 1, pageSize: 10 })
+    return findMany.mock.calls[0][0].where
+  }
+
+  it('reads the role as a bare code or as the RoleInfo of @telamonjs/auth', async () => {
+    const roleInfo = { id: 'r1', name: 'Admin', code: 'admin' }
+    expect(await whereFor({ id: 'u1', role: 'admin' })).toEqual({})
+    expect(await whereFor({ id: 'u1', role: roleInfo })).toEqual({})
+    expect(await whereFor({ id: 'u1', role: { ...roleInfo, code: 'viewer' } })).toEqual({
+      ownerId: 'u1',
+    })
+    expect(await whereFor({ id: 'u1' })).toEqual({ ownerId: 'u1' })
   })
 })

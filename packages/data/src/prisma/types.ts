@@ -1,23 +1,28 @@
 /**
  * Types of the Prisma pagination service (`createPaginationContext`).
+ * The ORM-agnostic ones (`AuthUser`, the filter types) live in
+ * `@telamonjs/data` and are re-exported here.
  *
  * @module data/prisma
  */
 
-import type { PaginationParams } from '../contract.js'
+import type { PaginatedResponse, PaginationParams } from '../contract.js'
+import type {
+  AuthUser,
+  FilterFieldConfig,
+  FilterFieldType,
+  FilterLabels,
+  FilterOption,
+} from '../types.js'
 
-/**
- * Configuration for filter fields
- */
-export type FilterFieldType = 'string' | 'boolean' | 'number' | 'date' | 'enum'
-
-export interface FilterFieldConfig {
-  type: FilterFieldType
-  field?: string // Override field name if different from key
-  operator?: 'equals' | 'contains' | 'gte' | 'lte' | 'in' | 'not' // Default: equals for most, contains for string
-  mode?: 'insensitive' | 'default' // For string searches
-  transform?: (value: FilterValue) => FilterValue // Transform value before applying
-}
+export type {
+  AuthUser,
+  FilterFieldConfig,
+  FilterFieldType,
+  FilterLabels,
+  FilterOption,
+  FilterValue,
+} from '../types.js'
 
 /**
  * Prisma where clause type (recursive record)
@@ -31,26 +36,6 @@ export type PrismaIncludeClause = Record<
   string,
   boolean | Record<string, unknown>
 >
-
-/**
- * Filter option for dropdown/select filters
- */
-export interface FilterOption {
-  value: string
-  label: string
-  count: number
-}
-
-/**
- * User object from authentication
- */
-export interface AuthUser {
-  id: string
-  email?: string
-  name?: string
-  role?: string
-  [key: string]: unknown
-}
 
 /**
  * Main configuration for paginated service
@@ -123,13 +108,7 @@ export interface PaginatedServiceConfig<TModel extends string = string> {
  */
 export interface PaginatedService<T = Record<string, unknown>> {
   // Main pagination method
-  list: (params?: PaginationParams) => Promise<{
-    data: T[]
-    total: number
-    page: number
-    pageSize: number
-    totalPages: number
-  }>
+  list: (params?: PaginationParams) => Promise<PaginatedResponse<T>>
 
   // Get filter options for dynamic filters
   /** `locale` is handed to `PaginationContext.filterLabels` */
@@ -140,18 +119,6 @@ export interface PaginatedService<T = Record<string, unknown>> {
   // Get raw config (for debugging/extension)
   getConfig: () => PaginatedServiceConfig<string>
 }
-
-/**
- * Utility type for filter value extraction
- */
-export type FilterValue =
-  | string
-  | number
-  | boolean
-  | Date
-  | string[]
-  | number[]
-  | undefined
 
 /**
  * Search condition builder result
@@ -203,14 +170,4 @@ export interface PaginationContext {
       fetcher: () => Promise<T>
     ) => Promise<T>
   }
-}
-
-/** Labels of boolean filter options (see `PaginationContext.filterLabels`). */
-export interface FilterLabels {
-  /** A `transform`ed boolean filter's options */
-  yes: string
-  no: string
-  /** Values `true`/`false` found in the column */
-  active: string
-  inactive: string
 }

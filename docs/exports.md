@@ -924,8 +924,14 @@ Runtime:
 
 Types:
 
+- `AuthUser` (type)
 - `ComputeDiffOptions` (type)
 - `FieldChange` (type)
+- `FilterFieldConfig` (type)
+- `FilterFieldType` (type)
+- `FilterLabels` (type)
+- `FilterOption` (type)
+- `FilterValue` (type)
 - `PaginatedResponse` (type)
 - `PaginationParams` (type)
 - `SortField` (type)
