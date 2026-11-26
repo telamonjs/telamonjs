@@ -310,6 +310,20 @@ describe('FileUpload', () => {
       expect(mockOnChange).not.toHaveBeenCalled()
     })
 
+    it('cancels the simulated upload when unmounted mid-upload', () => {
+      vi.useFakeTimers()
+      try {
+        const { unmount } = render(<FileUpload value={[]} onChange={mockOnChange} />)
+        fireEvent.change(screen.getByLabelText('File upload input'), {
+          target: { files: [new File(['content'], 'test.txt', { type: 'text/plain' })] },
+        })
+        unmount()
+        expect(vi.getTimerCount()).toBe(0)
+      } finally {
+        vi.useRealTimers()
+      }
+    })
+
     describe('replacing the existing file (maxFiles=1, uploadEndpoint)', () => {
       const existing = 'https://b.s3.amazonaws.com/docs/old.txt'
       const mockFetch = () =>
