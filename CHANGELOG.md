@@ -1,5 +1,11 @@
 # Changelog
 
+## cli 1.4.3 (2026-11-26)
+
+- `@telamonjs/cli`: `telamonjs link` adds an override for every package the checkout's ui declares as
+  `workspace:^`, now `@telamonjs/data` as well as `@telamonjs/logger`. Before, `pnpm install` in a
+  linked app failed with `ERR_PNPM_WORKSPACE_PKG_NOT_FOUND` against ui 1.10.0 or later.
+
 ## auth 1.4.1, data 1.4.1, queue 1.5.0, ui 1.15.2, cli 1.4.2 (2026-11-26)
 
 Stricter defaults and bug fixes across packages. Each package's CHANGELOG has the details.
