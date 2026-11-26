@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/.source
+**/dist
+**/coverage
+.git
+.claude
+.npmrc
+**/.env*
