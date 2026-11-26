@@ -73,6 +73,14 @@ describe('buildPrismaWhere', () => {
       )
     })
 
+    it('negates contains with NOT, since Prisma rejects mode inside a not filter', () => {
+      // `{ name: { not: { contains, mode } } }` fails Prisma validation:
+      // NestedStringFilter has no `mode`
+      expect(
+        buildPrismaWhere({ logic: 'AND', conditions: [cond('notContains', 'an')] })
+      ).toEqual({ NOT: { name: { contains: 'an', mode: 'insensitive' } } })
+    })
+
     it('wraps a scalar value of in/notIn in an array', () => {
       expect(buildPrismaWhere({ logic: 'AND', conditions: [cond('in', 'a')] })).toEqual({
         name: { in: ['a'] },

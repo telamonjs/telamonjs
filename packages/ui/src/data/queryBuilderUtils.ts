@@ -191,7 +191,8 @@ function buildConditionClause(
       return { [field]: { contains: value, mode: 'insensitive' } }
 
     case 'notContains':
-      return { [field]: { not: { contains: value, mode: 'insensitive' } } }
+      // Prisma rejects `mode` inside `not` (NestedStringFilter has none)
+      return { NOT: { [field]: { contains: value, mode: 'insensitive' } } }
 
     case 'startsWith':
       return { [field]: { startsWith: value, mode: 'insensitive' } }
