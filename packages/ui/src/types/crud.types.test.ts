@@ -16,6 +16,8 @@ import type { FormField } from './forms/admin-form'
 import type { ListQueryParams, PaginatedResponse, SortField } from './pagination'
 import { asQueryFn } from './pagination'
 import { useCrudMutations } from '../hooks/useCrudMutations'
+import type { MenuItem, SingleMenuItem } from './menu'
+import { filterMenuByPermission } from '../utils/menu-helpers'
 
 // What an API returns: nullable columns, relations, a status enum
 interface Product {
@@ -247,5 +249,16 @@ describe('CrudConfig types', () => {
       mutations: { getForView: productsApi.getById },
     }
     expect(config.module.name).toBe('products')
+  })
+})
+
+describe('permission types', () => {
+  it('an app narrows a menu item `permission` to its own union, readonly arrays included', () => {
+    type Permission = 'users.read' | 'users.write'
+    const USERS = ['users.read', 'users.write'] as const
+    type AppItem = SingleMenuItem & { permission?: Permission | readonly Permission[] }
+    const item: AppItem = { id: 'users', type: 'single', title: 'Users', href: '/users', permission: USERS }
+    const menu: MenuItem[] = [item]
+    expect(filterMenuByPermission(menu, perm => perm === 'users.write')).toHaveLength(1)
   })
 })

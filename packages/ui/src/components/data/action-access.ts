@@ -13,7 +13,7 @@ import type { CrudConfig, CrudPermissions } from '../../types/crud'
  * checker). None = everything allowed.
  */
 export function actionGranted(
-  permission: ActionConfig['permission'],
+  permission: string | readonly string[] | undefined,
   userPermissions: readonly string[] | ReadonlySet<string> | undefined,
   can?: (permission: string) => boolean,
   fallback?: (permission: string) => boolean
