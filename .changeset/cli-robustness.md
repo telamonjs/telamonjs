@@ -20,3 +20,6 @@ and a failure now prints Prettier's reason instead of a generic "not found".
 
 The build fails when `dump.sh` or `restore.sh` cannot be copied into `dist`, instead of
 publishing a CLI whose `db dump` / `db restore` break at runtime.
+
+When the automatic setup of `create` (Docker, migrate, seed) fails, it prints the error and
+a hint, and shows the manual steps instead of claiming the app is ready.

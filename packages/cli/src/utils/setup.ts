@@ -183,7 +183,8 @@ export async function runSeed(
 }
 
 /**
- * Complete setup orchestration for app template
+ * Complete setup orchestration for app template. Throws on the first failing
+ * step; the caller (`telamonjs create`) reports it with the manual steps.
  */
 export async function setupAppTemplate(
   projectPath: string,
@@ -191,54 +192,39 @@ export async function setupAppTemplate(
   packageManager: 'npm' | 'pnpm' | 'yarn' = 'pnpm',
   appPort: number = 3001
 ): Promise<void> {
-  try {
-    logger.newLine()
-    logger.info('🚀 Setting up your app...')
-    logger.newLine()
+  logger.newLine()
+  logger.info('🚀 Setting up your app...')
+  logger.newLine()
 
-    // 1. Setup .env file
-    await setupEnvFile(projectPath)
+  // 1. Setup .env file
+  await setupEnvFile(projectPath)
 
-    // 2. Start Docker database
-    await startDockerDatabase(projectPath)
+  // 2. Start Docker database
+  await startDockerDatabase(projectPath)
 
-    // 3. Wait for database to be ready
-    await waitForDatabase(projectPath, provider, 60)
+  // 3. Wait for database to be ready
+  await waitForDatabase(projectPath, provider, 60)
 
-    // 4. Run migrations
-    await runMigrations(projectPath, packageManager)
+  // 4. Run migrations
+  await runMigrations(projectPath, packageManager)
 
-    // 5. Run seed
-    await runSeed(projectPath, packageManager)
+  // 5. Run seed
+  await runSeed(projectPath, packageManager)
 
-    logger.newLine()
-    logger.success('✨ App setup completed successfully!')
-    logger.newLine()
+  logger.newLine()
+  logger.success('✨ App setup completed successfully!')
+  logger.newLine()
 
-    // 6. Open browser with instructions
-    logger.info('📝 Next steps:')
-    logger.step(`cd ${path.basename(projectPath)}`)
-    logger.step(`${packageManager} dev`)
-    logger.newLine()
-    logger.info(`🌐 The app will be available at: http://localhost:${appPort}`)
-    logger.newLine()
+  // 6. Open browser with instructions
+  logger.info('📝 Next steps:')
+  logger.step(`cd ${path.basename(projectPath)}`)
+  logger.step(`${packageManager} dev`)
+  logger.newLine()
+  logger.info(`🌐 The app will be available at: http://localhost:${appPort}`)
+  logger.newLine()
 
-    // Open browser after a short delay to show messages first
-    setTimeout(async () => {
-      await openBrowser(`http://localhost:${appPort}`)
-    }, 2000)
-  } catch (error) {
-    logger.newLine()
-    logger.error('❌ Automatic setup failed')
-    logger.warning(`Error: ${error}`)
-    logger.newLine()
-    logger.info('Please complete the setup manually:')
-    logger.step('docker compose up -d db')
-    logger.step('cp .env.example .env')
-    logger.step(`${packageManager} db:migrate`)
-    logger.step(`${packageManager} db:seed`)
-    logger.newLine()
-
-    throw error
-  }
+  // Open browser after a short delay to show messages first
+  setTimeout(async () => {
+    await openBrowser(`http://localhost:${appPort}`)
+  }, 2000)
 }

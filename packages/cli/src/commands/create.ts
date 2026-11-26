@@ -252,6 +252,7 @@ export async function createApp(
     }
 
     // Automatic setup (EXCEPT in local dev environment)
+    let setupFailed = false
     if (!isLocalDev && !options.skipInstall) {
       try {
         await setupAppTemplate(
@@ -260,10 +261,16 @@ export async function createApp(
           packageManager,
           appPort
         )
-      } catch {
-        // On failure, keep going and show the manual instructions
+      } catch (error) {
+        // On failure, keep going: the project exists, only the database
+        // setup is left -- say why it failed and show the manual steps
+        setupFailed = true
+        logger.newLine()
         logger.warning(
-          'Automatic setup failed, please follow manual steps below'
+          `Automatic setup failed: ${error instanceof Error ? error.message : String(error)}`
+        )
+        logger.step(
+          'Check that Docker is running and the database port is free, then follow the manual steps below.'
         )
       }
     }
@@ -289,7 +296,7 @@ export async function createApp(
       }
     }
 
-    if (isLocalDev || options.skipInstall) {
+    if (isLocalDev || options.skipInstall || setupFailed) {
       // Show manual instructions
       logger.newLine()
       logger.info('💻 Local Development (Recommended):')
