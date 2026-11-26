@@ -144,65 +144,112 @@ export function parsePrismaModel(
     return null
   }
 
-  try {
-    const schemaContent = schema.content
-    const modelRegex = new RegExp(`model\\s+${modelName}\\s*\\{([^}]+)\\}`, 's')
-    const match = schemaContent.match(modelRegex)
+  const blocks = parseBlocks(schema.content)
+  // Compared by equality: the name is never turned into a pattern
+  const model = blocks.find(b => b.keyword === 'model' && b.name === modelName)
 
-    if (!match) {
-      return null
-    }
-
-    const modelBody = match[1]
-    const fields = parseModelFields(modelBody, parseEnums(schemaContent), parseModelNames(schemaContent))
-
-    return {
-      name: modelName,
-      fields,
-    }
-  } catch (error) {
-    console.error('Error parsing Prisma schema:', error)
+  if (!model) {
     return null
   }
+
+  const enums = new Map(
+    blocks
+      .filter(b => b.keyword === 'enum')
+      .map(b => [
+        b.name,
+        codeLines(b.body)
+          .filter(l => !l.startsWith('@@')) // skip block attributes (@@map, ...)
+          .map(l => l.split(/\s+/)[0]), // value identifier only -- @map("...") renames the DB value, not the TS one
+      ])
+  )
+  // Every model name, so a field whose type is another model is a relation even
+  // without `@relation` (the non-owning side of a 1:1, e.g. `profile Profile?`)
+  const modelNames = new Set(blocks.filter(b => b.keyword === 'model').map(b => b.name))
+
+  return {
+    name: modelName,
+    fields: parseModelFields(model.body, enums, modelNames),
+  }
+}
+
+interface SchemaBlock {
+  keyword: string
+  name: string
+  body: string
 }
 
 /**
- * Parse `enum X { A B C }` blocks from a full schema.prisma source.
+ * Index just past a `"string"` or a `//` comment starting at `i` (the only
+ * comment form Prisma has; `///` is one too), or `i` itself when neither starts there.
  */
-function parseEnums(schemaContent: string): Map<string, string[]> {
-  const enums = new Map<string, string[]>()
-  const enumRegex = /enum\s+(\w+)\s*\{([^}]+)\}/g
-
-  let match: RegExpExecArray | null
-  while ((match = enumRegex.exec(schemaContent)) !== null) {
-    const [, name, body] = match
-    const values = body
-      .split('\n')
-      .map(l => l.replace(/\/\/.*$/, '').trim()) // strip inline comments
-      .filter(l => l && !l.startsWith('@@')) // skip block attributes (@@map, ...)
-      .map(l => l.split(/\s+/)[0]) // value identifier only -- @map("...") renames the DB value, not the TS one
-    enums.set(name, values)
+function skipNonCode(src: string, i: number): number {
+  if (src.startsWith('//', i)) {
+    const end = src.indexOf('\n', i)
+    return end === -1 ? src.length : end
   }
-
-  return enums
+  if (src[i] === '"') {
+    let j = i + 1
+    while (j < src.length && src[j] !== '"' && src[j] !== '\n') j += src[j] === '\\' ? 2 : 1
+    return j + 1
+  }
+  return i
 }
 
-/**
- * Collect every `model X { ... }` name in the schema, so field lines whose
- * type is another model can be recognized as relations even without an
- * explicit `@relation` attribute (the non-owning side of a 1:1, e.g.
- * `profile Profile?`, has none).
- */
-function parseModelNames(schemaContent: string): Set<string> {
-  const names = new Set<string>()
-  const modelRegex = /model\s+(\w+)\s*\{/g
-
-  let match: RegExpExecArray | null
-  while ((match = modelRegex.exec(schemaContent)) !== null) {
-    names.add(match[1])
+/** Index of the bracket closing the `{` or `(` at `open`, ignoring any inside strings and comments. */
+function matchingClose(src: string, open: number): number {
+  const [opening, closing] = src[open] === '(' ? ['(', ')'] : ['{', '}']
+  let depth = 0
+  for (let i = open; i < src.length; ) {
+    const next = skipNonCode(src, i)
+    if (next !== i) {
+      i = next
+      continue
+    }
+    if (src[i] === opening) depth++
+    else if (src[i] === closing && --depth === 0) return i
+    i++
   }
+  return src.length // unterminated: the rest of the source
+}
 
-  return names
+/** Top-level `model|enum|... Name { ... }` blocks, brace-aware (see `matchingClose`). */
+function parseBlocks(schema: string): SchemaBlock[] {
+  const blocks: SchemaBlock[] = []
+  const header = /\b(model|enum|view|type|datasource|generator)\s+(\w+)\s*\{/y
+  for (let i = 0; i < schema.length; ) {
+    const next = skipNonCode(schema, i)
+    if (next !== i) {
+      i = next
+      continue
+    }
+    header.lastIndex = i
+    const match = header.exec(schema)
+    if (!match) {
+      i++
+      continue
+    }
+    const open = i + match[0].length - 1
+    const close = matchingClose(schema, open)
+    blocks.push({ keyword: match[1], name: match[2], body: schema.slice(open + 1, close) })
+    i = close + 1
+  }
+  return blocks
+}
+
+/** A block body's lines, trailing comments stripped (not inside strings), blank ones dropped. */
+function codeLines(body: string): string[] {
+  return body
+    .split('\n')
+    .map(line => {
+      for (let i = 0; i < line.length; ) {
+        if (line.startsWith('//', i)) return line.slice(0, i)
+        const next = skipNonCode(line, i)
+        i = next === i ? i + 1 : next
+      }
+      return line
+    })
+    .map(line => line.trim())
+    .filter(Boolean)
 }
 
 /**
@@ -213,13 +260,9 @@ function parseModelFields(
   enums: Map<string, string[]>,
   modelNames: Set<string>
 ): PrismaField[] {
-  const lines = modelBody
-    .split('\n')
-    .map(l => l.trim())
-    .filter(l => l && !l.startsWith('//'))
   const fields: PrismaField[] = []
 
-  for (const line of lines) {
+  for (const line of codeLines(modelBody)) {
     // Skip attributes like @@unique, @@index
     if (line.startsWith('@@')) continue
 
@@ -283,9 +326,11 @@ function parseFieldLine(line: string, modelNames: Set<string>): PrismaField | nu
 
   // Extract default value
   let defaultValue: string | undefined
-  const defaultMatch = rest.match(/@default\(([^)]+)\)/)
-  if (defaultMatch) {
-    defaultValue = defaultMatch[1]
+  const defaultAt = rest.indexOf('@default(')
+  if (defaultAt !== -1) {
+    // Balanced, so `@default(cuid())` and `@default("a)b")` come out whole
+    const open = defaultAt + '@default'.length
+    defaultValue = rest.slice(open + 1, matchingClose(rest, open))
   }
 
   // Determine if should show in table (exclude relations, timestamps by default)
@@ -329,19 +374,7 @@ export function listPrismaModels(cwd: string = process.cwd()): string[] {
     return []
   }
 
-  try {
-    const schemaContent = schema.content
-    const modelRegex = /model\s+(\w+)\s*\{/g
-    const models: string[] = []
-
-    let match
-    while ((match = modelRegex.exec(schemaContent)) !== null) {
-      models.push(match[1])
-    }
-
-    return models
-  } catch (error) {
-    console.error('Error listing Prisma models:', error)
-    return []
-  }
+  return parseBlocks(schema.content)
+    .filter(b => b.keyword === 'model')
+    .map(b => b.name)
 }

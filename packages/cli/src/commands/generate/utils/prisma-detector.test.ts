@@ -110,3 +110,119 @@ describe('requirePrismaModel', () => {
     )
   })
 })
+
+describe('parsePrismaModel', () => {
+  const parse = (schema: string, model: string) => {
+    write('prisma/schema.prisma', schema)
+    return parsePrismaModel(model, root)
+  }
+
+  it('reads scalar fields, flags and defaults', () => {
+    const user = parse(
+      [
+        'model User {',
+        '  id        String   @id @default(cuid())',
+        '  email     String   @unique',
+        '  nickname  String?',
+        '  age       Int      @default(0)',
+        '  createdAt DateTime @default(now())',
+        '}',
+      ].join('\n'),
+      'User'
+    )
+    expect(user?.fields.map(f => [f.name, f.type, f.isRequired, f.isUnique, f.isId])).toEqual([
+      ['id', 'String', true, false, true],
+      ['email', 'String', true, true, false],
+      ['nickname', 'String', false, false, false],
+      ['age', 'Int', true, false, false],
+      ['createdAt', 'DateTime', true, false, false],
+    ])
+    expect(user?.fields.find(f => f.name === 'id')?.default).toBe('cuid()')
+    expect(user?.fields.find(f => f.name === 'createdAt')).toMatchObject({ section: 'meta', showInTable: false })
+    expect(user?.fields.find(f => f.name === 'email')).toMatchObject({ section: 'contact', searchable: true })
+  })
+
+  it('does not stop at a } inside a string default', () => {
+    const settings = parse(
+      [
+        'model Setting {',
+        '  id    String @id',
+        '  value Json   @default("{}")',
+        '  label String @default("a } b")',
+        '  after String',
+        '  @@map("settings")',
+        '}',
+      ].join('\n'),
+      'Setting'
+    )
+    expect(settings?.fields.map(f => f.name)).toEqual(['id', 'value', 'label', 'after'])
+    expect(settings?.fields.find(f => f.name === 'value')?.default).toBe('"{}"')
+    expect(settings?.fields.find(f => f.name === 'label')?.default).toBe('"a } b"')
+  })
+
+  it('ignores braces, attributes and models inside comments', () => {
+    const schema = [
+      '// model Ghost { id String @id }',
+      'model Post {',
+      '  id    String @id // primary key }',
+      '  /// Shown in lists {',
+      '  title String // not @unique',
+      '}',
+    ].join('\n')
+    const post = parse(schema, 'Post')
+    expect(post?.fields.map(f => f.name)).toEqual(['id', 'title'])
+    expect(post?.fields.find(f => f.name === 'title')?.isUnique).toBe(false)
+    expect(listPrismaModels(root)).toEqual(['Post'])
+  })
+
+  it('treats the model name literally, not as a pattern', () => {
+    expect(parse('model User {\n  id String @id\n}\n', 'U.er')).toBeNull()
+    expect(parse('model User {\n  id String @id\n}\n', 'Use')).toBeNull()
+  })
+
+  it('reads enum values, skipping comments and @@map', () => {
+    const user = parse(
+      [
+        'enum Role {',
+        '  ADMIN // full access }',
+        '  USER  @map("user")',
+        '  @@map("roles")',
+        '}',
+        'model User {',
+        '  id   String @id',
+        '  role Role   @default(USER)',
+        '}',
+      ].join('\n'),
+      'User'
+    )
+    expect(user?.fields.find(f => f.name === 'role')?.enumValues).toEqual(['ADMIN', 'USER'])
+  })
+
+  it('keeps the owning side of a relation and drops its FK column and back-relations', () => {
+    const schema = [
+      'model Cliente {',
+      '  id      String   @id',
+      '  pedidos Pedido[]',
+      '  perfil  Perfil?',
+      '}',
+      'model Perfil {',
+      '  id        String  @id',
+      '  cliente   Cliente @relation(fields: [donoId], references: [id])',
+      '  donoId    String  @unique',
+      '}',
+      'model Pedido {',
+      '  id        String  @id',
+      '  cliente   Cliente @relation(fields: [clienteId], references: [id])',
+      '  clienteId String',
+      '}',
+    ].join('\n')
+    expect(parse(schema, 'Cliente')?.fields.map(f => f.name)).toEqual(['id'])
+    const perfil = parse(schema, 'Perfil')
+    expect(perfil?.fields.map(f => f.name)).toEqual(['id', 'cliente'])
+    expect(perfil?.fields[1]).toMatchObject({ isRelation: true, relationType: 'Cliente', relationFk: 'donoId' })
+  })
+
+  it('returns null for an unknown model', () => {
+    expect(parse('model User {\n  id String @id\n}\n', 'Post')).toBeNull()
+  })
+})
