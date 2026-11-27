@@ -332,14 +332,17 @@ describe('FileUpload', () => {
           json: async () => ({ url: 'https://b.s3.amazonaws.com/docs/new.txt', key: 'docs/new.txt' }),
         } as Response)
 
-      it('deletes the old file when the replacement is valid', async () => {
+      it('uploads the replacement and leaves the old file to the server', async () => {
+        // The record still points at the old file until it is saved, and the
+        // edit may be cancelled: only the server knows when to delete it
         const fetchSpy = mockFetch()
+        const onUploadComplete = vi.fn()
         const user = userEvent.setup({ delay: null })
-        render(<FileUpload value={existing} maxFiles={1} uploadEndpoint='/api/upload' />)
+        render(<FileUpload value={existing} maxFiles={1} uploadEndpoint='/api/upload' onUploadComplete={onUploadComplete} />)
         await user.upload(screen.getByLabelText('File upload input'), new File(['ok'], 'new.txt', { type: 'text/plain' }))
-        await waitFor(() =>
-          expect(fetchSpy).toHaveBeenCalledWith('/api/upload?key=docs%2Fold.txt', { method: 'DELETE' })
-        )
+        await waitFor(() => expect(onUploadComplete).toHaveBeenCalledWith({ url: 'https://b.s3.amazonaws.com/docs/new.txt', key: 'docs/new.txt' }))
+        expect(fetchSpy).toHaveBeenCalledTimes(1)
+        expect(fetchSpy).toHaveBeenCalledWith('/api/upload', expect.objectContaining({ method: 'POST' }))
       })
 
       it('keeps the old file when the replacement fails validation', async () => {

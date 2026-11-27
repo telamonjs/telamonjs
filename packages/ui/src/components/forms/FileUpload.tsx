@@ -53,7 +53,12 @@ export interface FileUploadProps {
   className?: string
   /** Error message */
   error?: string
-  /** API endpoint for immediate upload (e.g., '/api/upload/route') */
+  /**
+   * API endpoint for immediate upload (e.g., '/api/upload/route'). Replacing the
+   * file (maxFiles 1) uploads the new one and leaves the old object: the record
+   * points at it until it saves, and the edit may be cancelled. Delete it on the
+   * server when the record saves with the new URL.
+   */
   uploadEndpoint?: string
   /** Additional params to send with upload (e.g., { clienteId: '123' }) */
   uploadParams?: Record<string, unknown>
@@ -133,21 +138,6 @@ function filesFromValue(
     return []
   }
   return undefined
-}
-
-/**
- * Extracts the S3 key from a full URL
- * @param url - Full URL (e.g., "https://bucket.s3.region.amazonaws.com/rotas/arquivos/123/file.kml")
- * @returns S3 key (e.g., "rotas/arquivos/123/file.kml") or null if invalid
- */
-function extractS3KeyFromUrl(url: string): string | null {
-  try {
-    // Match everything after .amazonaws.com/
-    const match = url.match(/\.amazonaws\.com\/(.+)/)
-    return match ? decodeURIComponent(match[1]) : null
-  } catch {
-    return null
-  }
 }
 
 function getFileIcon(file: FileItem): React.ReactNode {
@@ -390,25 +380,6 @@ export function FileUpload({
       }
 
       setValidationError(undefined)
-
-      // If replacing an existing file (maxFiles=1), delete the old file from S3 first,
-      // unless the replacement is rejected: then the record still points at the old file.
-      if (isReplacing && uploadEndpoint && !validateFile(fileArray[0])) {
-        const existingFile = files[0] as ExistingFile
-        const oldKey = extractS3KeyFromUrl(existingFile.url)
-
-        if (oldKey) {
-          // Async delete (does not block the upload)
-          fetch(`${uploadEndpoint}?key=${encodeURIComponent(oldKey)}`, {
-            method: 'DELETE',
-          }).catch(error => {
-            logger.warn('[FileUpload] Failed to delete old file (continuing)', {
-              error: error instanceof Error ? error : String(error),
-            })
-            // Continue with the upload even if the delete fails
-          })
-        }
-      }
 
       const processedFiles: FileWithPreview[] = fileArray.map(file => {
         const validationErr = validateFile(file)
