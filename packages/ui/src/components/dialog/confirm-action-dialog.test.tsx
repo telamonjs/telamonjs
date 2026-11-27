@@ -58,8 +58,21 @@ const deferred = () => {
   return { promise, resolve, reject }
 }
 
+// The stacking layer a Tailwind z class puts an element on (z-50, z-[100]...)
+const zLayer = (el: Element) => Number(/(?:^|\s)z-\[?(\d+)\]?(?=\s|$)/.exec(el.className)?.[1] ?? NaN)
+
 describe('ConfirmActionDialog', () => {
   describe('Rendering', () => {
+    it("opens a select input's list above the dialog, not behind it", async () => {
+      const { user } = setup({
+        inputs: [{ name: 'kind', label: 'Kind', type: 'select', options: ['A', 'B'] }],
+      })
+      await user.click(screen.getByRole('combobox', { name: 'Kind' }))
+      const list = await screen.findByRole('listbox')
+      // the open select hides the dialog from the accessibility tree
+      expect(zLayer(list)).toBeGreaterThan(zLayer(screen.getByRole('alertdialog', { hidden: true })))
+    })
+
     it('renders title, description and the button texts', () => {
       setup({
         title: 'Archive item?',
