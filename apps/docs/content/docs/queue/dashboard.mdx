@@ -262,7 +262,8 @@ ends each stream after `sseMaxAgeMs` (a `forRoot()` option, 5 minutes by
 default) and the dashboard reconnects through your guards, so an expired token,
 a revoked session or a removed `readPermission` stops the feed within that time.
 The stream's last frame is `event: reconnect`, so the dashboard reconnects at
-once and keeps showing `connected`.
+once and keeps showing `connected`. A client that stops reading is dropped
+sooner: once 1 MiB of frames is waiting for it, the route closes the stream.
 
 ## Real-time updates (SSE)
 

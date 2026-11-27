@@ -242,7 +242,8 @@ default) so the client reconnects through your guards: an expired token, a
 revoked session or a removed `readPermission` stops the feed within that time.
 The last frame of such a stream is `event: reconnect`. The ui dashboard
 reconnects at once on it, without showing a disconnect; a custom client should
-do the same.
+do the same. A client that stops reading is dropped sooner: once 1 MiB of frames
+is waiting for it, the route closes the stream.
 
 Job events (`jobStarted`, `jobCompleted`, `jobFailed`) are published over Redis
 pub/sub by `JobEventPublisher`; consume them through the SSE stream in your web app.

@@ -38,7 +38,7 @@ import {
   type JobConfigUpdateInput,
 } from '../http/index.js'
 import { mapQueueHttpError } from './errors.js'
-import { DEFAULT_SSE_MAX_AGE_MS, QUEUE_HTTP_DEPS, QUEUE_HTTP_GET_ACTOR } from './constants.js'
+import { DEFAULT_SSE_MAX_AGE_MS, QUEUE_HTTP_DEPS, QUEUE_HTTP_GET_ACTOR, SSE_MAX_UNSENT_BYTES } from './constants.js'
 import type { GetActorFn } from './types.js'
 
 /**
@@ -100,7 +100,16 @@ export abstract class QueueControllerBase {
     res.flushHeaders()
 
     const unsubscribe = this.deps.eventBroadcaster.addClient({
-      write: chunk => res.write(chunk),
+      write: chunk => {
+        if (res.destroyed) return
+        // A client that stopped reading queues every frame in the heap: past
+        // the cap, drop it ('close' unsubscribes; the ui dashboard reconnects)
+        if (res.writableLength > SSE_MAX_UNSENT_BYTES) {
+          res.destroy()
+          return
+        }
+        res.write(chunk)
+      },
     })
     // The guards authorized this stream once, when it opened. Ending it makes
     // the client reconnect through them, so revocation reaches the stream.
@@ -109,8 +118,6 @@ export abstract class QueueControllerBase {
     // Unsubscribe first: a write after end() emits 'error' on the response.
     // A client that stopped reading would never get end()'s final chunk, and
     // its queued frames would stay in the heap: destroy that one instead.
-    // ponytail: frames still queue for up to sseMaxAgeMs; a per-client buffer
-    // cap is the upgrade if job payloads get large.
     const maxAge = setTimeout(() => {
       unsubscribe()
       if (res.writableNeedDrain) res.destroy()
