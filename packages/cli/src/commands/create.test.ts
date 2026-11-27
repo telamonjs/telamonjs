@@ -98,6 +98,8 @@ describe('createApp — generated app structure', () => {
     expect(prodCompose).toContain('DATABASE_URL: postgresql://postgres:${DB_PASSWORD}@db:5432/')
     expect(prodCompose).not.toMatch(/development-secret|PASSWORD: password|:password@/)
     expect(prodCompose).toContain("- '127.0.0.1:5432:5432'")
+    // The image's server listens on 3001 (Dockerfile PORT): the host port maps to it
+    expect(prodCompose).toContain("- '3001:3001'")
 
     // The Docker deps stage runs the root postinstall (`prisma generate`):
     // without the schema already copied, the image does not build.
@@ -160,6 +162,34 @@ describe('createApp — generated app structure', () => {
     expect(read('src/auth.ts')).toContain('loadAccess(prisma, user.id)')
     expect(read('src/auth.ts')).toContain('sessionState(token')
     expect(pkg.dependencies['@telamonjs/permissions']).toMatch(/^\^\d+\.\d+\.\d+/)
+  })
+})
+
+describe('createApp — MySQL on a custom port', () => {
+  it('ships no PostgreSQL migrations and maps the custom host port to the image port', async () => {
+    const workDir = mkdtempSync(join(tmpdir(), 'telamonjs-create-mysql-'))
+    const originalCwd = process.cwd()
+    process.chdir(workDir)
+    try {
+      await createApp('my-mysql-app', {
+        provider: 'mysql',
+        port: 3200,
+        skipInstall: true,
+        skipGit: true,
+        monorepo: false,
+      })
+      const projectPath = join(workDir, 'my-mysql-app')
+      // The shipped init migration is PostgreSQL SQL with a postgresql lock:
+      // `prisma migrate` refuses it on MySQL (P3019). db:migrate creates one.
+      expect(existsSync(join(projectPath, 'prisma/migrations'))).toBe(false)
+      expect(readFileSync(join(projectPath, 'prisma/schema.prisma'), 'utf-8')).toContain('provider = "mysql"')
+      const prodCompose = readFileSync(join(projectPath, 'docker-compose.prod.yml'), 'utf-8')
+      expect(prodCompose).toContain("- '3200:3001'")
+      expect(prodCompose).toContain('NEXTAUTH_URL: http://localhost:3200')
+    } finally {
+      process.chdir(originalCwd)
+      rmSync(workDir, { recursive: true, force: true })
+    }
   })
 })
 

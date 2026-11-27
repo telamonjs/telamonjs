@@ -235,6 +235,12 @@ export async function createApp(
     // Copy template files
     const templatePath = path.join(__dirname, '../../templates/app')
     await copyTemplate(templatePath, projectPath, templateData)
+    // The shipped init migration is PostgreSQL SQL (migration_lock: postgresql),
+    // which `prisma migrate` refuses on MySQL (P3019): a MySQL app starts
+    // without migrations and its first `db:migrate` creates them.
+    if (!isPostgres) {
+      await fs.remove(path.join(projectPath, 'prisma/migrations'))
+    }
 
     if (isLocalDev) {
       logger.info(
