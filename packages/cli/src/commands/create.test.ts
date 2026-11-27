@@ -138,6 +138,10 @@ describe('createApp — generated app structure', () => {
     // src/, not the root: with src/app, Next.js ignores a root middleware.ts.
     expect(existsSync(join(projectPath, 'middleware.ts'))).toBe(false)
     expect(read('src/middleware.ts')).toContain('if (!req.auth?.user)')
+    // The session cookie rides same-site form posts: /api writes from another
+    // origin are refused before any Route Handler runs
+    expect(read('src/middleware.ts')).toContain("matcher: ['/admin/:path*', '/api/:path*']")
+    expect(read('src/middleware.ts')).toContain('new URL(origin).host !== host')
     // /_next/image is public: a wildcard host turns it into a fetch proxy
     // to any server the app can reach.
     expect(read('next.config.js')).not.toMatch(/hostname:\s*['"]\*\*['"]/)
