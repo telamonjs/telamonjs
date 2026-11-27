@@ -1,5 +1,12 @@
 # Changelog
 
+## ui 1.15.6 (2026-11-27)
+
+- `@telamonjs/ui`: select, popover, dropdown menu, tooltip and hover card content opens on `z-[110]`, above the
+  alert dialog (`z-[100]`). A select inside `ConfirmActionDialog`'s `inputs`, or any popover inside an
+  `AlertDialog`, used to open behind the dialog.
+- Release: the publish job runs in the `release` environment (deployments from `main` only).
+
 ## ui 1.15.5, queue 1.5.1, cli 1.4.4 (2026-11-27)
 
 - `@telamonjs/ui`: `FileUpload` no longer sends `DELETE <uploadEndpoint>?key=…` for the old file when a file is
