@@ -80,18 +80,21 @@ export interface ProvidersConfig {
     refetchOnWindowFocus?: boolean
   }
   /**
-   * Server Action to revalidate the Next.js cache
-   * Used automatically by ListPage in the refresh button
+   * Server Action to revalidate the Next.js cache, called by ListPage's refresh
+   * with the current pathname. Any visitor can call a Server Action that a client
+   * component references: pass one the app owns, which checks the session first.
    *
    * @example
    * ```tsx
-   * import { AppProviders, revalidatePathAction } from '@telamonjs/ui'
+   * // app/actions/revalidate.ts
+   * 'use server'
+   * export async function revalidateAdminPath(path: string, type: 'page' | 'layout' = 'layout') {
+   *   if (!(await auth())?.user || !/^\/admin(\/|$)/.test(path)) return
+   *   revalidatePath(path, type)
+   * }
    *
-   * <AppProviders config={{ revalidateAction: revalidatePathAction }}>
-   *   {children}
-   * </AppProviders>
+   * <AppProviders config={{ revalidateAction: revalidateAdminPath }}>{children}</AppProviders>
    * ```
-   *
    */
   revalidateAction?: (path: string, type?: 'page' | 'layout') => Promise<void>
   /**
