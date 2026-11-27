@@ -574,8 +574,10 @@ docker compose -f docker-compose.prod.yml up --build  # database + app (producti
   `session?.user` exists — check the user, never just `session`: on an auth
   error `auth()` returns a truthy error body)
 - Client hook: `src/hooks/use-session.ts`
-- Middleware: `src/middleware.ts` (Node runtime) protects `/admin/*`; `/api/*` is not matched —
-  each Route Handler checks its own permission (`requirePermission`, below)
+- Middleware: `src/middleware.ts` (Node runtime) protects `/admin/*` and refuses
+  writes to `/api/*` whose `Origin` is another site or port (403); it does no
+  session lookup there — each Route Handler checks its own permission
+  (`requirePermission`, below)
 - Seed user: `admin@example.com` / `12345`, with the built-in `admin` role —
   created on an empty database only (a re-run never touches existing accounts);
   in production the password comes from `SEED_ADMIN_PASSWORD`
