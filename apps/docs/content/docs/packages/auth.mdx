@@ -415,14 +415,18 @@ callbacks: {
       token.accessAt = 0
       return token
     }
-    const marks = await loadMarks(token.id as string)
+    // while impersonating, `id` is the target's: the actor's marks decide, so
+    // deactivating or revoking the actor ends the session right away
+    const marks = await loadMarks((token.originalUserId ?? token.id) as string)
     if (!marks) return null
     const state = sessionState(token, {
       revokedAt: marks.sessionsRevokedAt,
       accessChangedAt: marks.accessChangedAt,
     })
     if (state === 'revoked') return null // signs the user out
-    if (state === 'stale') {
+    // impersonating: the claims come from the impersonation token; the actor's
+    // are restored (with their accessAt) on stop and refreshed then
+    if (state === 'stale' && !token.isImpersonating) {
       // role, roles, permissions — same source as authorize(); `accessAt` is
       // the mark read above, never the clock, so a change that commits while
       // loadAccess runs leaves the token stale
@@ -440,9 +444,9 @@ callbacks: {
 </Steps>
 
 <Callout title='Impersonation'>
-  While impersonating, `id` is the target's. Decide which user's marks apply —
-  typically the actor's (`originalUserId`) for revocation — and skip the stale
-  refresh: the impersonation token carries the target's claims.
+  With `getImpersonationCookies`, `id` is the target's while impersonating. The
+  recipe reads the actor's marks (`originalUserId`) and skips the stale refresh
+  then. The Nest guard checks the target's own marks on each API call.
 </Callout>
 
 ### Cached yes/no checks (`validateUser`)
