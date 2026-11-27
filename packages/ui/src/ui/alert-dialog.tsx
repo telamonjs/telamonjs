@@ -27,6 +27,9 @@ const AlertDialogOverlay = React.forwardRef<
 ))
 AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName
 
+// Layers: dialogs and sheets z-50, the alert dialog z-[100] (it opens over a
+// dialog), toasts z-[100]; floating content (select, popover, dropdown menu,
+// tooltip, hover card) z-[110], so it never opens behind any of them.
 const AlertDialogContent = React.forwardRef<
   React.ElementRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
