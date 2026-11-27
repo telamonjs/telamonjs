@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.4.4
+
+### Patch Changes
+
+- 6493dca: Generated apps: the middleware refuses writes to `/api/*` whose `Origin` is another origin (403). The SameSite=Lax session cookie still rides a form or no-cors POST from a sibling subdomain or another localhost port. Requests without an `Origin` pass, and `/api/auth/*` keeps Auth.js's own check.
+- e95698f: Generated apps: the production compose maps the chosen port to the image's port 3001, so `--port` other than 3001 works in Docker. A MySQL app starts without the bundled PostgreSQL migration, which Prisma refused (P3019); the setup names the first migration (`--name init`), so creating it no longer waits for input.
+
 ## 1.4.3
 
 ### Patch Changes

@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.5.1
+
+### Patch Changes
+
+- 31371d4: The SSE route drops a client that stops reading once 1 MiB of frames is waiting for it, instead of queueing every frame in memory until `sseMaxAgeMs`.
+
 ## 1.5.0
 
 ### Minor Changes

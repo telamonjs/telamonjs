@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.15.5
+
+### Patch Changes
+
+- e3e7734: `FileUpload` no longer sends `DELETE <uploadEndpoint>?key=…` for the old file when a file is replaced (`maxFiles: 1`). That request went out before the form was saved, so cancelling the edit, or a failed upload, left the record pointing at a deleted file. The old object now stays: delete it on the server when the record saves with the new URL.
+- bc894cc: The docs for `revalidatePathAction` and `AppProviders`' `revalidateAction` now say that a Server Action a client component references is callable by any visitor. They show an app-owned action that checks the session first, instead of wiring `revalidatePathAction` directly.
+
 ## 1.15.4
 
 ### Patch Changes

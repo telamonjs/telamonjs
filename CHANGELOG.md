@@ -1,5 +1,20 @@
 # Changelog
 
+## ui 1.15.5, queue 1.5.1, cli 1.4.4 (2026-11-27)
+
+- `@telamonjs/ui`: `FileUpload` no longer sends `DELETE <uploadEndpoint>?key=…` for the old file when a file is
+  replaced (`maxFiles: 1`). The request went out before the form was saved, so a cancelled edit or a failed
+  upload left the record pointing at a deleted file. Delete the old object on the server when the record saves
+  with the new URL. The docs for `revalidatePathAction` and `AppProviders`' `revalidateAction` show an
+  app-owned Server Action that checks the session first.
+- `@telamonjs/queue`: the SSE route drops a client that stops reading once 1 MiB of frames is waiting for it,
+  instead of queueing every frame in memory until `sseMaxAgeMs`.
+- `@telamonjs/cli` (generated apps): the production compose maps the chosen port to the image's port 3001, so
+  `--port` other than 3001 works in Docker. A MySQL app starts without the bundled PostgreSQL migration, and the
+  setup names the first one (`--name init`). The middleware refuses writes to `/api/*` whose `Origin` is another
+  origin (403).
+- Release: the workflow publishes only the commit `main` points to.
+
 ## ui 1.15.4 (2026-11-26)
 
 - `@telamonjs/ui`: a menu item's `permission` accepts readonly arrays (`string | readonly string[]`). An app
