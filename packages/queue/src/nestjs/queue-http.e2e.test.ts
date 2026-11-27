@@ -374,15 +374,31 @@ describe('QueueHttpModule e2e (SSE stream lifecycle)', () => {
     reconnect.res.resume()
   }, 5000)
 
+  it('drops a client that stopped reading once its unsent frames pass the cap, without waiting for sseMaxAgeMs', async () => {
+    guard.mode = 'allow'
+    const { req, res } = await openStream()
+    res.pause()
+    const [client] = live
+    const frame = `data: ${'x'.repeat(256 * 1024)}\n\n`
+    for (let i = 0; i < 64; i++) client?.write(frame)
+    // Synchronously: the 200 ms sseMaxAgeMs timer has not fired yet
+    expect(guard.lastResponse?.destroyed).toBe(true)
+    expect(guard.lastResponse?.writableLength ?? 0).toBeLessThan(4 * 1024 * 1024)
+    await vi.waitFor(() => expect(live.size).toBe(0), { timeout: 100 })
+    req.destroy()
+  }, 5000)
+
   it('at sseMaxAgeMs, destroys a stream whose client stopped reading instead of holding its buffer', async () => {
     guard.mode = 'allow'
     const { req, res } = await openStream()
     res.pause()
     const [client] = live
-    const frame = `data: ${'x'.repeat(1024 * 1024)}\n\n`
-    // Enough to fill both kernel socket buffers on loopback, so frames queue in the heap
-    for (let i = 0; i < 32; i++) client?.write(frame)
+    const frame = `data: ${'x'.repeat(64 * 1024)}\n\n`
+    // Fill both kernel socket buffers on loopback until frames queue in the
+    // heap, but stay under the unsent-bytes cap: only sseMaxAgeMs ends this one
+    for (let i = 0; i < 1000 && !guard.lastResponse?.writableNeedDrain; i++) client?.write(frame)
     expect(guard.lastResponse?.writableNeedDrain).toBe(true)
+    expect(guard.lastResponse?.destroyed).toBe(false)
 
     // end() would queue behind the stuck frames and never finish
     await vi.waitFor(() => expect(guard.lastResponse?.destroyed).toBe(true), { timeout: 2000 })
