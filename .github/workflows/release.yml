@@ -27,6 +27,9 @@ jobs:
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_sha == github.sha
     runs-on: ubuntu-latest
+    # Deployment branch policy: main only (a workflow_run job runs on the
+    # default branch). npm's trusted publisher for each package requires it.
+    environment: release
     timeout-minutes: 35 # build + publish + up to 15 min waiting for tarballs
     permissions:
       contents: write # push the release tags
