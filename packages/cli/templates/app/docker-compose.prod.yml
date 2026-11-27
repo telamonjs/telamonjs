@@ -28,8 +28,9 @@ services:
       dockerfile: Dockerfile
     container_name: {{projectName}}
     restart: unless-stopped
+    # The image's server listens on 3001 (Dockerfile PORT)
     ports:
-      - '{{appPort}}:{{appPort}}'
+      - '{{appPort}}:3001'
     environment:
       DATABASE_URL: {{dockerDatabaseUrl}}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?Set NEXTAUTH_SECRET (openssl rand -base64 32)}

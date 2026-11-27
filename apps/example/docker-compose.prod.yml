@@ -30,6 +30,7 @@ services:
       dockerfile: Dockerfile
     container_name: example
     restart: unless-stopped
+    # The image's server listens on 3001 (Dockerfile PORT)
     ports:
       - '3001:3001'
     environment:

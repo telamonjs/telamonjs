@@ -142,8 +142,12 @@ export async function runMigrations(
 
   try {
     const command = packageManager === 'npm' ? 'npm' : packageManager
+    // Runs without a terminal, so `prisma migrate dev` can't ask for a name
+    // when it has to create the first migration (a MySQL app): give it one
     const args =
-      packageManager === 'npm' ? ['run', 'db:migrate'] : ['db:migrate']
+      packageManager === 'npm'
+        ? ['run', 'db:migrate', '--', '--name', 'init']
+        : ['db:migrate', '--name', 'init']
 
     await execa(command, args, {
       cwd: projectPath,
