@@ -284,8 +284,11 @@ what the user can't do (the `PermissionsProvider` in `LayoutProviders.tsx`).
 ### Middleware
 
 `src/middleware.ts` redirects signed-out visitors away from `/admin/*`, and
-`src/app/admin/layout.tsx` checks the session again. `/api/*` is not covered by
-the middleware: each Route Handler calls `getCurrentUser()` itself.
+`src/app/admin/layout.tsx` checks the session again. On `/api/*` the middleware
+only refuses writes (POST, PATCH, PUT, DELETE) whose `Origin` header names
+another origin: the session cookie would ride a form post from a sibling
+subdomain or another localhost port. Requests without an `Origin` (curl, server
+to server) pass, and each Route Handler calls `getCurrentUser()` itself.
 
 ## 🎨 Customization
 

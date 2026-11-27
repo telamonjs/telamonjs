@@ -3032,7 +3032,8 @@ React Query is the cache. Mutations refresh the list through `invalidates`; the 
 refresh button and successful row or bulk actions refetch the query. Two optional hooks:
 
 - **`AppProviders` `config.revalidateAction`** runs first, with the current pathname, to clear the
-  app's Server Component cache. Use `revalidatePathAction` from `@telamonjs/ui/server`.
+  app's Server Component cache. Pass a Server Action that checks the session first
+  ([provider setup](/docs/patterns/provider-setup)).
 - **`onRefreshAction`** (`ListPage` prop) runs after the refetch, for example to invalidate other
   modules that show the same data:
 
@@ -4627,6 +4628,26 @@ Neither half is enough on its own:
 - **Only `config.queryClient`:** the app's client also serves the library's queries and mutations,
   which already handle their own errors. Without the `meta` check below, users see each error twice.
 
+`revalidateAction` is a Server Action, and a Server Action is a public endpoint: once a client
+component references it, any visitor can call it with any arguments. Use one the app owns, which
+checks the session before touching the cache:
+
+```ts title="app/actions/revalidate.ts"
+'use server'
+
+import { revalidatePath } from 'next/cache'
+import { auth } from '@/auth'
+
+export async function revalidateAdminPath(path: string, type: 'page' | 'layout' = 'layout') {
+  const session = await auth()
+  if (!session?.user || !/^\/admin(\/|$)/.test(path)) return
+  revalidatePath(path, type)
+}
+```
+
+`revalidatePathAction` from `@telamonjs/ui/server` is the same call without those checks: wired
+straight into a provider, it lets anyone invalidate the app's cache.
+
 ```tsx title="components/providers/providers.tsx"
 'use client'
 
@@ -4638,7 +4659,7 @@ import {
   QueryClientProvider,
 } from '@tanstack/react-query'
 import { AppProviders } from '@telamonjs/ui'
-import { revalidatePathAction } from '@telamonjs/ui/server'
+import { revalidateAdminPath } from '@/app/actions/revalidate'
 import { handleApiError } from '@/lib/api/error-handler'
 
 export function Providers({ children }: { children: React.ReactNode }) {
@@ -4667,7 +4688,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // provider matters when the library is linked (see /docs/troubleshooting).
   return (
     <QueryClientProvider client={queryClient}>
-      <AppProviders config={{ queryClient, revalidateAction: revalidatePathAction }}>
+      <AppProviders config={{ queryClient, revalidateAction: revalidateAdminPath }}>
         {children}
       </AppProviders>
     </QueryClientProvider>
@@ -21603,14 +21624,18 @@ callbacks: {
       token.accessAt = 0
       return token
     }
-    const marks = await loadMarks(token.id as string)
+    // while impersonating, `id` is the target's: the actor's marks decide, so
+    // deactivating or revoking the actor ends the session right away
+    const marks = await loadMarks((token.originalUserId ?? token.id) as string)
     if (!marks) return null
     const state = sessionState(token, {
       revokedAt: marks.sessionsRevokedAt,
       accessChangedAt: marks.accessChangedAt,
     })
     if (state === 'revoked') return null // signs the user out
-    if (state === 'stale') {
+    // impersonating: the claims come from the impersonation token; the actor's
+    // are restored (with their accessAt) on stop and refreshed then
+    if (state === 'stale' && !token.isImpersonating) {
       // role, roles, permissions — same source as authorize(); `accessAt` is
       // the mark read above, never the clock, so a change that commits while
       // loadAccess runs leaves the token stale
@@ -21628,9 +21653,9 @@ callbacks: {
 </Steps>
 
 <Callout title='Impersonation'>
-  While impersonating, `id` is the target's. Decide which user's marks apply —
-  typically the actor's (`originalUserId`) for revocation — and skip the stale
-  refresh: the impersonation token carries the target's claims.
+  With `getImpersonationCookies`, `id` is the target's while impersonating. The
+  recipe reads the actor's marks (`originalUserId`) and skips the stale refresh
+  then. The Nest guard checks the target's own marks on each API call.
 </Callout>
 
 ### Cached yes/no checks (`validateUser`)

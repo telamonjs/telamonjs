@@ -604,7 +604,8 @@ React Query is the cache. Mutations refresh the list through `invalidates`; the 
 refresh button and successful row or bulk actions refetch the query. Two optional hooks:
 
 - **`AppProviders` `config.revalidateAction`** runs first, with the current pathname, to clear the
-  app's Server Component cache. Use `revalidatePathAction` from `@telamonjs/ui/server`.
+  app's Server Component cache. Pass a Server Action that checks the session first
+  ([provider setup](/docs/patterns/provider-setup)).
 - **`onRefreshAction`** (`ListPage` prop) runs after the refetch, for example to invalidate other
   modules that show the same data:
 
