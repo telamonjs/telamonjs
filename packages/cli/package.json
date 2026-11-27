@@ -45,7 +45,7 @@
   "devDependencies": {
     "@telamonjs/permissions": "workspace:*",
     "@telamonjs/ui": "workspace:*",
-    "@tanstack/react-query": "^5.108.2",
+    "@tanstack/react-query": "^5.108.4",
     "@tanstack/react-table": "^8.21.3",
     "@types/fs-extra": "^11.0.4",
     "@types/inquirer": "^8.2.10",
@@ -55,7 +55,7 @@
     "@types/validate-npm-package-name": "^4.0.2",
     "lucide-react": "^0.545.0",
     "next": "catalog:",
-    "next-intl": "^4.15.3",
+    "next-intl": "^4.16.1",
     "sonner": "^2.0.7",
     "vitest": "catalog:",
     "zod": "catalog:"
