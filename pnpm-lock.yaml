@@ -544,10 +544,10 @@ importers:
     dependencies:
       '@bull-board/api':
         specifier: ^6.2.0
-        version: 6.21.3(@bull-board/ui@6.21.3)
+        version: 6.21.3(@bull-board/ui@9.14.0(bullmq@5.81.4)(typescript@5.9.3))
       '@bull-board/express':
-        specifier: ^6.2.0
-        version: 6.21.3
+        specifier: ^9.14.0
+        version: 9.14.0(bullmq@5.81.4)(typescript@5.9.3)
       '@telamonjs/logger':
         specifier: workspace:^
         version: link:../logger
@@ -638,7 +638,7 @@ importers:
         version: 3.2.2(react@19.3.1)
       '@hookform/resolvers':
         specifier: ^5.2.2
-        version: 5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.21.0)(react-hook-form@7.92.0(@types/react@19.3.0)(react@19.3.1))(zod@3.25.76)
+        version: 5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.21.0)(react-hook-form@7.92.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.5.0(typescript@5.9.3))(zod@3.25.76)
       '@radix-ui/react-accordion':
         specifier: ^1.3.1
         version: 1.3.1(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1108,11 +1108,23 @@ packages:
     peerDependencies:
       '@bull-board/ui': 6.21.3
 
-  '@bull-board/express@6.21.3':
-    resolution: {integrity: sha512-9tE5osCSjjDYCJtTt/bOeXGbykPlhiIKtlGG3/YPCuvQ3qkYrjdBiXSzEUXGqqgX6Kf4HVri/UuY8gy99g/A7w==}
+  '@bull-board/api@9.14.0':
+    resolution: {integrity: sha512-4RQgT8Uj8wU1G2vw3qBJq1u0c/GwmGBP5+zZEfk7T1juzjeSal5qQ1U4AV59xftm4TW867IfUIIBqEyY7dhfKQ==}
+    peerDependencies:
+      '@bull-board/ui': 9.14.0
+      bull: ^4.16.5
+      bullmq: ^5.56.0 || ^6.0.0
+    peerDependenciesMeta:
+      bull:
+        optional: true
+      bullmq:
+        optional: true
 
-  '@bull-board/ui@6.21.3':
-    resolution: {integrity: sha512-s/PLBJab8cnoQAGVqjQb0v4oGe0KgB4aQ5G5g93doxzXB/D+wkXNL9P9+zLWLldBJXE57jL4CR99ttDCIiyNHw==}
+  '@bull-board/express@9.14.0':
+    resolution: {integrity: sha512-RG5ugsIiuPB0ht53czpLA+lbKMQG3OX1DseL0Kz8CTBt8tgFQFoxjcRcMKSxMSgRu9BisZUsU6yclhMbUX+hBA==}
+
+  '@bull-board/ui@9.14.0':
+    resolution: {integrity: sha512-9ipMKMSeYWlqQBnrrxXGkWjNZk/Rj3ALTrrPuHHOldPw975Br2D8TFCGF/rU0Jgw2qgB+jc1vOkRFjXLhZti1A==}
 
   '@changesets/apply-release-plan@7.1.1':
     resolution: {integrity: sha512-9qPCm/rLx/xoOFXIHGB229+4GOL76S4MC+7tyOuTsR6+1jYlfFDQORdvwR5hDA6y4FL2BPt3qpbcQIS+dW85LA==}
@@ -5455,8 +5467,8 @@ packages:
   effect@3.21.0:
     resolution: {integrity: sha512-PPN80qRokCd1f015IANNhrwOnLO7GrrMQfk4/lnZRE/8j7UPWrNNjPV0uBrZutI/nHzernbW+J0hdqQysHiSnQ==}
 
-  ejs@5.0.2:
-    resolution: {integrity: sha512-IpbUaI/CAW86l3f+T8zN0iggSc0LmMZLcIW5eRVStLVNCoTXkE0YlncbbH50fp8Cl6zHIky0sW2uUbhBqGw0Jw==}
+  ejs@6.0.1:
+    resolution: {integrity: sha512-UaaM14yby8U3k02ihS1Bmj5Kz2d7CCQM1scxpgs4Mhkq8F1wR2gl3+Ts4h5Ne4Mnt7M9m4Dw7jsuMr3+xO4vZA==}
     engines: {node: '>=0.12.18'}
     hasBin: true
 
@@ -8747,6 +8759,14 @@ packages:
     deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
     hasBin: true
 
+  valibot@1.5.0:
+    resolution: {integrity: sha512-nil6AkP2TChWL43Z5uJ6GTxX01CUA+g8LWUM+N/rB9NBbkUMaUsi9PUNzlUPgoKASgmx9f7eGOYpJ04/fSa6FQ==}
+    peerDependencies:
+      typescript: '>=5'
+    peerDependenciesMeta:
+      typescript:
+        optional: true
+
   validate-npm-package-name@5.0.1:
     resolution: {integrity: sha512-OljLrQ9SQdOUqTaQxqL5dEfZWrXExyyWsozYlAWFawPVNuD83igl7uJD2RTkNMbniIYgt8l81eCJGIdQF7avLQ==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
@@ -9166,23 +9186,40 @@ snapshots:
 
   '@borewit/text-codec@0.2.2': {}
 
-  '@bull-board/api@6.21.3(@bull-board/ui@6.21.3)':
+  '@bull-board/api@6.21.3(@bull-board/ui@9.14.0(bullmq@5.81.4)(typescript@5.9.3))':
     dependencies:
-      '@bull-board/ui': 6.21.3
+      '@bull-board/ui': 9.14.0(bullmq@5.81.4)(typescript@5.9.3)
       redis-info: 3.1.0
 
-  '@bull-board/express@6.21.3':
+  '@bull-board/api@9.14.0(@bull-board/ui@9.14.0(bullmq@5.81.4)(typescript@5.9.3))(bullmq@5.81.4)(typescript@5.9.3)':
     dependencies:
-      '@bull-board/api': 6.21.3(@bull-board/ui@6.21.3)
-      '@bull-board/ui': 6.21.3
-      ejs: 5.0.2
+      '@bull-board/ui': 9.14.0(bullmq@5.81.4)(typescript@5.9.3)
+      redis-info: 3.1.0
+      valibot: 1.5.0(typescript@5.9.3)
+    optionalDependencies:
+      bullmq: 5.81.4
+    transitivePeerDependencies:
+      - typescript
+
+  '@bull-board/express@9.14.0(bullmq@5.81.4)(typescript@5.9.3)':
+    dependencies:
+      '@bull-board/api': 9.14.0(@bull-board/ui@9.14.0(bullmq@5.81.4)(typescript@5.9.3))(bullmq@5.81.4)(typescript@5.9.3)
+      '@bull-board/ui': 9.14.0(bullmq@5.81.4)(typescript@5.9.3)
+      ejs: 6.0.1
       express: 5.3.0
     transitivePeerDependencies:
+      - bull
+      - bullmq
       - supports-color
+      - typescript
 
-  '@bull-board/ui@6.21.3':
+  '@bull-board/ui@9.14.0(bullmq@5.81.4)(typescript@5.9.3)':
     dependencies:
-      '@bull-board/api': 6.21.3(@bull-board/ui@6.21.3)
+      '@bull-board/api': 9.14.0(@bull-board/ui@9.14.0(bullmq@5.81.4)(typescript@5.9.3))(bullmq@5.81.4)(typescript@5.9.3)
+    transitivePeerDependencies:
+      - bull
+      - bullmq
+      - typescript
 
   '@changesets/apply-release-plan@7.1.1':
     dependencies:
@@ -9768,7 +9805,7 @@ snapshots:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.92.0(@types/react@19.3.0)(react@19.3.1)
 
-  '@hookform/resolvers@5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.21.0)(react-hook-form@7.92.0(@types/react@19.3.0)(react@19.3.1))(zod@3.25.76)':
+  '@hookform/resolvers@5.9.1(@standard-schema/spec@1.1.0)(ajv@8.20.0)(effect@3.21.0)(react-hook-form@7.92.0(@types/react@19.3.0)(react@19.3.1))(valibot@1.5.0(typescript@5.9.3))(zod@3.25.76)':
     dependencies:
       '@standard-schema/utils': 0.3.0
       react-hook-form: 7.92.0(@types/react@19.3.0)(react@19.3.1)
@@ -9776,6 +9813,7 @@ snapshots:
       '@standard-schema/spec': 1.1.0
       ajv: 8.20.0
       effect: 3.21.0
+      valibot: 1.5.0(typescript@5.9.3)
       zod: 3.25.76
 
   '@humanfs/core@0.19.2':
@@ -13327,7 +13365,7 @@ snapshots:
       fast-check: 3.23.2
     optional: true
 
-  ejs@5.0.2: {}
+  ejs@6.0.1: {}
 
   electron-to-chromium@1.5.493: {}
 
@@ -13667,7 +13705,7 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0)):
+  eslint-module-utils@2.14.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0)):
     dependencies:
       debug: 3.2.7
     optionalDependencies:
@@ -13689,7 +13727,7 @@ snapshots:
       doctrine: 2.1.0
       eslint: 9.39.5(jiti@2.7.0)
       eslint-import-resolver-node: 0.3.10
-      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1(eslint-plugin-import@2.32.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0)))(eslint@9.39.5(jiti@2.7.0))
+      eslint-module-utils: 2.14.0(@typescript-eslint/parser@8.69.0(eslint@9.39.5(jiti@2.7.0))(typescript@5.9.3))(eslint-import-resolver-node@0.3.10)(eslint-import-resolver-typescript@3.10.1)(eslint@9.39.5(jiti@2.7.0))
       hasown: 2.0.4
       is-core-module: 2.16.2
       is-glob: 4.0.3
@@ -17675,6 +17713,10 @@ snapshots:
     optional: true
 
   uuid@9.0.1: {}
+
+  valibot@1.5.0(typescript@5.9.3):
+    optionalDependencies:
+      typescript: 5.9.3
 
   validate-npm-package-name@5.0.1: {}
 
